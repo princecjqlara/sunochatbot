@@ -1,0 +1,81 @@
+import { describe, expect, it, vi } from 'vitest';
+import { recordChatbotInterruptionIfNeeded } from '@/lib/outbound-message-events';
+
+function queryResult(data: unknown) {
+    const query: any = {
+        select: vi.fn(() => query),
+        eq: vi.fn(() => query),
+        maybeSingle: vi.fn().mockResolvedValue({ data, error: null })
+    };
+    return query;
+}
+
+describe('chatbot interruption attribution', () => {
+    it('records the staff sender when a manual message interrupts active detail collection', async () => {
+        const configQuery = queryResult({
+            details_to_collect: ['Name', 'Budget', 'Schedule', 'Service'],
+            details_completion_percent: 100
+        });
+        const stateQuery = queryResult({
+            status: 'active',
+            collected_details: { Name: 'Customer', Budget: 'P10,000' }
+        });
+        const upsert = vi.fn().mockResolvedValue({ error: null });
+        const supabase = {
+            from: vi.fn((table: string) => {
+                if (table === 'chatbot_configs') return configQuery;
+                if (table === 'chatbot_contact_states') return stateQuery;
+                if (table === 'chatbot_interruption_events') return { upsert };
+                throw new Error(`Unexpected table: ${table}`);
+            })
+        };
+
+        await recordChatbotInterruptionIfNeeded(supabase, {
+            pageId: 'page_1',
+            contactId: 'contact_1',
+            messageId: 'mid.1',
+            sourceType: 'manual',
+            actorUserId: 'user_1',
+            actorName: 'Maria Santos',
+            sentAt: '2026-09-28T08:00:00.000Z'
+        });
+
+        expect(upsert).toHaveBeenCalledWith(expect.objectContaining({
+            page_id: 'page_1',
+            contact_id: 'contact_1',
+            message_id: 'mid.1',
+            actor_user_id: 'user_1',
+            actor_name: 'Maria Santos',
+            collected_detail_count: 2,
+            required_detail_count: 4,
+            interrupted_at: '2026-09-28T08:00:00.000Z'
+        }), { onConflict: 'message_id' });
+    });
+
+    it('does not record an interruption after the detail target is reached', async () => {
+        const configQuery = queryResult({
+            details_to_collect: ['Name', 'Budget', 'Schedule', 'Service'],
+            details_completion_percent: 50
+        });
+        const stateQuery = queryResult({
+            status: 'active',
+            collected_details: { Name: 'Customer', Budget: 'P10,000' }
+        });
+        const upsert = vi.fn().mockResolvedValue({ error: null });
+        const supabase = {
+            from: vi.fn((table: string) => {
+                if (table === 'chatbot_configs') return configQuery;
+                if (table === 'chatbot_contact_states') return stateQuery;
+                if (table === 'chatbot_interruption_events') return { upsert };
+                throw new Error(`Unexpected table: ${table}`);
+            })
+        };
+
+        await recordChatbotInterruptionIfNeeded(supabase, {
+            pageId: 'page_1', contactId: 'contact_1', messageId: 'mid.2',
+            sourceType: 'manual', actorName: 'Maria Santos'
+        });
+
+        expect(upsert).not.toHaveBeenCalled();
+    });
+});

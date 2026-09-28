@@ -257,6 +257,13 @@ type ChatbotAnalytics = {
     };
 };
 
+type BotInterruption = {
+    id: string;
+    sent_by: string;
+    contact_name: string;
+    interrupted_at: string;
+};
+
 type ChatbotWorkspaceSection = 'overview' | 'behavior' | 'sales' | 'knowledge' | 'test';
 
 const PIPELINE_LABELS: Record<string, string> = {
@@ -289,6 +296,17 @@ function percentage(numerator: number, denominator: number) {
 
 function formatMetric(value: number) {
     return Number(value || 0).toLocaleString();
+}
+
+function formatPhilippineTimestamp(value: string) {
+    return new Intl.DateTimeFormat('en-PH', {
+        timeZone: 'Asia/Manila',
+        year: 'numeric',
+        month: 'short',
+        day: 'numeric',
+        hour: 'numeric',
+        minute: '2-digit'
+    }).format(new Date(value));
 }
 
 async function readJsonResponse(response: Response): Promise<Record<string, any>> {
@@ -382,6 +400,9 @@ export default function ChatbotPage() {
     const [analyticsDays, setAnalyticsDays] = useState(7);
     const [analyticsLoading, setAnalyticsLoading] = useState(false);
     const [analyticsError, setAnalyticsError] = useState('');
+    const [interruptions, setInterruptions] = useState<BotInterruption[]>([]);
+    const [interruptionsLoading, setInterruptionsLoading] = useState(false);
+    const [interruptionsError, setInterruptionsError] = useState('');
     const [activeSection, setActiveSection] = useState<ChatbotWorkspaceSection>('overview');
     const [saving, setSaving] = useState(false);
     const [testing, setTesting] = useState(false);
@@ -541,10 +562,32 @@ export default function ChatbotPage() {
         }
     }, [analyticsDays, selectedPageId]);
 
+    const loadInterruptions = useCallback(async () => {
+        if (!selectedPageId) return;
+        setInterruptionsLoading(true);
+        setInterruptionsError('');
+        try {
+            const response = await fetch(`/api/pages/${selectedPageId}/chatbot/interruptions`);
+            const body = await readJsonResponse(response);
+            if (!response.ok) throw new Error(body.message || body.error || 'Failed to load bot interruptions');
+            setInterruptions(Array.isArray(body.interruptions) ? body.interruptions : []);
+        } catch (loadError) {
+            setInterruptions([]);
+            setInterruptionsError((loadError as Error).message);
+        } finally {
+            setInterruptionsLoading(false);
+        }
+    }, [selectedPageId]);
+
     useEffect(() => {
         setAnalytics(null);
         void loadAnalytics();
     }, [loadAnalytics]);
+
+    useEffect(() => {
+        setInterruptions([]);
+        void loadInterruptions();
+    }, [loadInterruptions]);
 
     useEffect(() => {
         if (testConversation.length > 0 || testing) {
@@ -1389,13 +1432,13 @@ export default function ChatbotPage() {
                                 ))}
                                 <button
                                     type="button"
-                                    onClick={() => void loadAnalytics()}
-                                    disabled={analyticsLoading}
+                                    onClick={() => void Promise.all([loadAnalytics(), loadInterruptions()])}
+                                    disabled={analyticsLoading || interruptionsLoading}
                                     className="ml-1 flex h-9 w-9 items-center justify-center border border-black bg-white hover:bg-gray-100 disabled:opacity-50"
                                     aria-label="Refresh analytics"
                                     title="Refresh analytics"
                                 >
-                                    <RefreshCw className={`h-4 w-4 ${analyticsLoading ? 'animate-spin' : ''}`} />
+                                    <RefreshCw className={`h-4 w-4 ${analyticsLoading || interruptionsLoading ? 'animate-spin' : ''}`} />
                                 </button>
                             </div>
                         </div>
@@ -1573,6 +1616,44 @@ export default function ChatbotPage() {
                                 </p>
                             </>
                         )}
+
+                        <div className="mt-5 border-t-2 border-black pt-5">
+                            <div className="mb-3 flex items-start justify-between gap-3">
+                                <div>
+                                    <h3 className="text-sm font-bold">Bot interruption log</h3>
+                                    <p className="mt-1 text-xs text-gray-500">Manual VeoBot messages sent while the bot was still collecting details.</p>
+                                </div>
+                                <span className="font-mono text-[10px] uppercase text-gray-500">Philippine time</span>
+                            </div>
+                            {interruptionsError ? (
+                                <div className="border border-red-600 bg-red-50 p-3 text-sm text-red-800">{interruptionsError}</div>
+                            ) : interruptionsLoading ? (
+                                <div className="border border-dashed border-gray-400 bg-gray-50 p-5 text-center font-mono text-xs text-gray-500">Loading interruption log...</div>
+                            ) : interruptions.length === 0 ? (
+                                <div className="border border-dashed border-gray-400 bg-gray-50 p-5 text-center font-mono text-xs text-gray-500">No bot interruptions recorded yet.</div>
+                            ) : (
+                                <div className="overflow-x-auto border border-black">
+                                    <table className="min-w-full border-collapse text-left text-sm">
+                                        <thead className="bg-black text-white">
+                                            <tr>
+                                                <th className="px-3 py-2 font-mono text-[10px] uppercase">Sent by</th>
+                                                <th className="px-3 py-2 font-mono text-[10px] uppercase">Contact interrupted</th>
+                                                <th className="px-3 py-2 font-mono text-[10px] uppercase">Timestamp</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            {interruptions.map((interruption) => (
+                                                <tr key={interruption.id} className="border-t border-gray-300">
+                                                    <td className="px-3 py-2 font-semibold">{interruption.sent_by}</td>
+                                                    <td className="px-3 py-2">{interruption.contact_name}</td>
+                                                    <td className="whitespace-nowrap px-3 py-2 font-mono text-xs">{formatPhilippineTimestamp(interruption.interrupted_at)}</td>
+                                                </tr>
+                                            ))}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            )}
+                        </div>
                     </section>
 
                     <section id="behavior" className={`scroll-mt-20 border-2 border-black p-5 md:p-6 mb-4 bg-white ${activeSection !== 'behavior' ? 'hidden' : ''}`}>

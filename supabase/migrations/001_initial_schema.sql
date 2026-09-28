@@ -361,6 +361,27 @@
             CHECK (source_type IN ('manual', 'campaign', 'automation', 'welcome', 'chatbot'))
     );
 
+    -- Staff messages sent while the chatbot is still gathering lead details.
+    CREATE TABLE IF NOT EXISTS chatbot_interruption_events (
+        id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+        page_id UUID NOT NULL REFERENCES pages(id) ON DELETE CASCADE,
+        contact_id UUID NOT NULL REFERENCES contacts(id) ON DELETE CASCADE,
+        message_id TEXT NOT NULL UNIQUE,
+        actor_user_id UUID REFERENCES users(id) ON DELETE SET NULL,
+        actor_name TEXT,
+        source TEXT NOT NULL DEFAULT 'veobot' CHECK (source IN ('veobot', 'business_suite')),
+        collected_detail_count INTEGER NOT NULL DEFAULT 0,
+        required_detail_count INTEGER NOT NULL DEFAULT 0,
+        missing_detail_count INTEGER NOT NULL DEFAULT 0,
+        interrupted_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        CONSTRAINT chatbot_interruption_events_counts_check CHECK (
+            collected_detail_count >= 0
+            AND required_detail_count >= 0
+            AND missing_detail_count >= 0
+        )
+    );
+
     -- Indexes for better query performance
     CREATE INDEX IF NOT EXISTS idx_users_email ON users(email);
     CREATE INDEX IF NOT EXISTS idx_users_facebook_id ON users(facebook_id);
@@ -373,6 +394,8 @@
     CREATE INDEX IF NOT EXISTS idx_contact_tags_created_by ON contact_tags(created_by);
     CREATE INDEX IF NOT EXISTS idx_outbound_message_events_page_message ON outbound_message_events(page_id, message_id);
     CREATE INDEX IF NOT EXISTS idx_outbound_message_events_page_sent ON outbound_message_events(page_id, sent_at DESC);
+    CREATE INDEX IF NOT EXISTS idx_chatbot_interruption_events_page_time
+        ON chatbot_interruption_events(page_id, interrupted_at DESC);
     CREATE INDEX IF NOT EXISTS idx_tags_owner_type ON tags(owner_type);
     CREATE INDEX IF NOT EXISTS idx_tags_owner_id ON tags(owner_id);
     CREATE INDEX IF NOT EXISTS idx_tags_page_id ON tags(page_id);
@@ -502,6 +525,7 @@
     ALTER TABLE chatbot_configs ENABLE ROW LEVEL SECURITY;
     ALTER TABLE chatbot_reply_events ENABLE ROW LEVEL SECURITY;
     ALTER TABLE outbound_message_events ENABLE ROW LEVEL SECURITY;
+    ALTER TABLE chatbot_interruption_events ENABLE ROW LEVEL SECURITY;
     ALTER TABLE welcome_messages ENABLE ROW LEVEL SECURITY;
 
     -- Note: Since we're using service role key in the API routes,

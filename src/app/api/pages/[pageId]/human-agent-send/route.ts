@@ -169,7 +169,7 @@ export async function POST(
                 sent.push({ kind: media.type, partId: media.partId, messageId: result.message_id });
                 await recordOutboundMessageEvent(db, {
                     pageId, contactId, messageId: result.message_id, sourceType: 'manual',
-                    actorUserId: session.user.id, actorName: session.user.name || null,
+                    actorUserId: session.user.id, actorName: session.user.name || session.user.email || null,
                     messageKind: `${media.type} attachment`
                 });
             }
@@ -178,7 +178,7 @@ export async function POST(
                 sent.push({ kind: 'text', partId: 'text', messageId: result.message_id });
                 await recordOutboundMessageEvent(db, {
                     pageId, contactId, messageId: result.message_id, sourceType: 'manual',
-                    actorUserId: session.user.id, actorName: session.user.name || null,
+                    actorUserId: session.user.id, actorName: session.user.name || session.user.email || null,
                     messageKind: messagingType
                 });
             }
