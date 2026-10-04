@@ -10,6 +10,8 @@ const mocks = vi.hoisted(() => ({
     sendMessengerGenericCarousel: vi.fn(),
     getUserProfile: vi.fn(),
     getConversationForPsid: vi.fn(),
+    analyzeInboundCustomerImages: vi.fn(),
+    generateChatbotResponse: vi.fn(),
     handleFollowUpWorkflowContactReply: vi.fn(),
     triggerReplyWorkflowAutomations: vi.fn(),
     stopWorkflowAutomationsFromPageMessage: vi.fn()
@@ -31,6 +33,16 @@ vi.mock('@/lib/facebook', () => ({
 
 vi.mock('@/lib/placeholders', () => ({
     replaceTemplateVariables: vi.fn((template: string) => template)
+}));
+
+vi.mock('@/lib/chatbot-media', async (importOriginal) => ({
+    ...await importOriginal<typeof import('@/lib/chatbot-media')>(),
+    analyzeInboundCustomerImages: mocks.analyzeInboundCustomerImages
+}));
+
+vi.mock('@/lib/chatbot', async (importOriginal) => ({
+    ...await importOriginal<typeof import('@/lib/chatbot')>(),
+    generateChatbotResponse: mocks.generateChatbotResponse
 }));
 
 vi.mock('@/lib/workflow-automations', () => ({
@@ -206,6 +218,140 @@ function createSupabaseMock(options?: {
         from,
         contactsUpsert
     };
+}
+
+function createPhotoChatbotSupabaseMock() {
+    const welcomeSelect = vi.fn(() => {
+        throw new Error('Photo chatbot handling should bypass the welcome lookup');
+    });
+    const chatbotConfig = {
+        page_id: 'page_row_1',
+        enabled: true,
+        trial_mode_enabled: false,
+        trial_contact_id: null,
+        instructions: 'Help the customer.',
+        fallback_reply: 'A teammate will reply soon.',
+        model: 'test-model',
+        rag_enabled: false,
+        follow_up_prompt: '',
+        details_to_collect: [],
+        details_completion_percent: 100,
+        bot_dos: '',
+        bot_donts: '',
+        follow_up_enabled: false,
+        follow_up_quick_delays_minutes: [],
+        follow_up_best_time_days: [],
+        follow_up_messages: [],
+        follow_up_ai_instructions: 'Keep it personal.',
+        follow_up_utility_template_name: 'acct_followup_v1',
+        follow_up_utility_template_language: 'en_US',
+        follow_up_utility_text: 'Following up',
+        follow_up_media_asset_id: null,
+        split_messages: false,
+        max_message_parts: 1,
+        stop_when_details_collected: false,
+        stop_on_opt_out: true,
+        stop_on_refusal: true,
+        stop_on_qualified: true,
+        stop_on_not_qualified: true,
+        stop_on_converted: true,
+        stop_on_order_created: true
+    };
+
+    const from = vi.fn((table: string) => {
+        if (table === 'pages') {
+            return {
+                select: vi.fn().mockReturnValue({
+                    eq: vi.fn().mockReturnValue({
+                        single: vi.fn().mockResolvedValue({
+                            data: { id: 'page_row_1', name: 'Test Page', access_token: 'page_access_token_1' },
+                            error: null
+                        })
+                    })
+                })
+            };
+        }
+        if (table === 'contacts') {
+            return {
+                select: vi.fn((columns: string) => ({
+                    eq: vi.fn().mockReturnValue({
+                        eq: vi.fn().mockReturnValue({
+                            maybeSingle: vi.fn().mockResolvedValue({
+                                data: columns === 'pipeline_stage' ? { pipeline_stage: 'engaged' } : null,
+                                error: null
+                            })
+                        })
+                    })
+                })),
+                upsert: vi.fn().mockReturnValue({
+                    select: vi.fn().mockReturnValue({
+                        single: vi.fn().mockResolvedValue({
+                            data: { id: 'contact_row_1', name: 'Photo Contact', pipeline_stage: 'engaged' },
+                            error: null
+                        })
+                    })
+                }),
+                update: vi.fn().mockReturnValue({
+                    eq: vi.fn().mockReturnValue({ eq: vi.fn().mockResolvedValue({ error: null }) })
+                })
+            };
+        }
+        if (table === 'chatbot_configs') {
+            return {
+                select: vi.fn().mockReturnValue({
+                    eq: vi.fn().mockReturnValue({
+                        maybeSingle: vi.fn().mockResolvedValue({ data: chatbotConfig, error: null })
+                    })
+                })
+            };
+        }
+        if (table === 'chatbot_follow_up_jobs') {
+            return {
+                update: vi.fn().mockReturnValue({
+                    eq: vi.fn().mockReturnValue({
+                        eq: vi.fn().mockReturnValue({
+                            in: vi.fn().mockResolvedValue({ error: null })
+                        })
+                    })
+                })
+            };
+        }
+        if (table === 'chatbot_contact_states') {
+            return {
+                select: vi.fn().mockReturnValue({
+                    eq: vi.fn().mockReturnValue({
+                        eq: vi.fn().mockReturnValue({
+                            maybeSingle: vi.fn().mockResolvedValue({ data: null, error: null })
+                        })
+                    })
+                }),
+                upsert: vi.fn().mockResolvedValue({ error: null })
+            };
+        }
+        if (table === 'chatbot_reply_events') {
+            return {
+                insert: vi.fn().mockResolvedValue({ error: null }),
+                update: vi.fn().mockReturnValue({ eq: vi.fn().mockResolvedValue({ error: null }) })
+            };
+        }
+        if (table === 'outbound_message_events') {
+            return { upsert: vi.fn().mockResolvedValue({ error: null }) };
+        }
+        if (table === 'contact_interactions') {
+            return {
+                insert: vi.fn().mockResolvedValue({ error: null }),
+                select: vi.fn().mockReturnValue({
+                    eq: vi.fn().mockReturnValue({
+                        eq: vi.fn().mockResolvedValue({ data: [{ hour_of_day: 22 }], error: null })
+                    })
+                })
+            };
+        }
+        if (table === 'welcome_messages') return { select: welcomeSelect };
+        throw new Error(`Unexpected table: ${table}`);
+    });
+
+    return { from, welcomeSelect };
 }
 
 function createSupabaseMockWithFirstInteractionColumnFailure() {
@@ -443,6 +589,16 @@ describe('POST /api/facebook/webhook', () => {
             skipped: 0
         });
         mocks.getConversationForPsid.mockResolvedValue(null);
+        mocks.analyzeInboundCustomerImages.mockResolvedValue('A payment receipt showing PHP 150.');
+        mocks.generateChatbotResponse.mockResolvedValue({
+            reply: 'Thanks, I can see the PHP 150 receipt.',
+            messages: ['Thanks, I can see the PHP 150 receipt.'],
+            knowledge: [],
+            collected_details: {},
+            missing_details: [],
+            details_complete: false
+        });
+        mocks.sendMessage.mockResolvedValue({ message_id: 'mid.reply' });
     });
 
     afterEach(() => {
@@ -780,6 +936,67 @@ describe('POST /api/facebook/webhook', () => {
             { timeoutMs: 2500 }
         );
         expect(supabase.contactsUpsert).toHaveBeenCalledTimes(1);
+    });
+
+    it('analyzes and replies to an image-only first message instead of sending only a welcome', async () => {
+        const supabase = createPhotoChatbotSupabaseMock();
+        mocks.getSupabaseAdmin.mockReturnValue(supabase);
+        mocks.getUserProfile.mockResolvedValue({
+            id: 'contact_psid_1',
+            name: 'Photo Contact'
+        });
+        mocks.getConversationForPsid.mockResolvedValue({
+            id: 'conversation_1',
+            participants: { data: [{ id: 'contact_psid_1', name: 'Photo Contact' }] },
+            messages: {
+                data: [{
+                    id: 'mid.photo',
+                    message: '',
+                    from: { id: 'contact_psid_1', name: 'Photo Contact' },
+                    created_time: '2026-10-04T10:00:00Z'
+                }]
+            }
+        });
+
+        const response = await POST(createWebhookRequest({
+            object: 'page',
+            entry: [{
+                id: 'fb_page_1',
+                messaging: [{
+                    sender: { id: 'contact_psid_1' },
+                    recipient: { id: 'fb_page_1' },
+                    timestamp: 1791108000000,
+                    message: {
+                        mid: 'mid.photo',
+                        attachments: [{
+                            type: 'image',
+                            payload: { url: 'https://cdn.example.test/receipt.jpg' }
+                        }]
+                    }
+                }]
+            }]
+        }));
+
+        expect(response.status).toBe(200);
+        expect(supabase.welcomeSelect).not.toHaveBeenCalled();
+        expect(mocks.analyzeInboundCustomerImages).toHaveBeenCalledWith({
+            imageUrls: ['https://cdn.example.test/receipt.jpg'],
+            caption: ''
+        });
+        expect(mocks.generateChatbotResponse).toHaveBeenCalledWith(expect.objectContaining({
+            inboundMessage: expect.stringContaining('A payment receipt showing PHP 150.')
+        }));
+        expect(mocks.sendMessage).toHaveBeenCalledWith(
+            'fb_page_1',
+            'page_access_token_1',
+            'contact_psid_1',
+            'Thanks, I can see the PHP 150 receipt.',
+            'RESPONSE',
+            undefined,
+            undefined,
+            undefined,
+            undefined
+        );
     });
 
     it('sends welcome as RESPONSE with mapped buttons when welcome config has buttons', async () => {

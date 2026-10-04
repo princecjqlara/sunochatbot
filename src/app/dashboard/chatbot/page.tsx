@@ -1884,7 +1884,7 @@ export default function ChatbotPage() {
                                         })}
                                         disabled={!config.follow_up_enabled}
                                         className="input-wireframe w-full mt-2 text-sm"
-                                        placeholder="10, 60, 240, 720, 1380"
+                                        placeholder="60, 240, 720, 1380"
                                     />
                                     <span className="block text-[10px] text-gray-500 mt-1">Uses RESPONSE and may include the selected media.</span>
                                 </label>

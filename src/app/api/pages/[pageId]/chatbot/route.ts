@@ -34,7 +34,7 @@ function defaultConfig(pageId: string): ChatbotConfig {
         bot_dos: '',
         bot_donts: '',
         follow_up_enabled: false,
-        follow_up_quick_delays_minutes: [10, 60, 240, 720, 1380],
+        follow_up_quick_delays_minutes: [60, 240, 720, 1380],
         follow_up_best_time_days: [2, 3, 5, 7],
         follow_up_messages: [],
         follow_up_ai_instructions: 'Read the full conversation first. Continue from the customer\'s latest request, interest, objection, or promised next step, and naturally mention one verified detail from the conversation. Never send a generic check-in, repeat an earlier Page message, restart the sales flow, or ask for information already collected. Mirror the customer\'s English, Filipino, or Taglish. When relevant, offer helpful proof such as previous work, product photos, or a promotional video from the Page knowledge base.',

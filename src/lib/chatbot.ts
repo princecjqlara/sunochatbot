@@ -18,6 +18,8 @@ export const DEFAULT_CHATBOT_FALLBACK =
     'Thanks for your message! A member of our team will get back to you shortly.';
 const CHATBOT_BUBBLE_TARGET_CHARS = 110;
 const CHATBOT_BUBBLE_MIN_BREAK_CHARS = 55;
+const FOLLOW_UP_MAX_CHARS = 320;
+const FOLLOW_UP_MAX_PARTS = 2;
 
 export type ChatbotConfig = {
     page_id: string;
@@ -347,6 +349,21 @@ function limitNaturalMessageParts(parts: string[], maxMessageParts: number): str
         ...parts.slice(0, limit - 1),
         parts.slice(limit - 1).join(' ').trim().slice(0, 600)
     ];
+}
+
+function capCombinedMessageLength(parts: string[], maxCharacters: number): string[] {
+    const capped: string[] = [];
+    let usedCharacters = 0;
+    for (const part of parts) {
+        const separatorLength = capped.length > 0 ? 2 : 0;
+        const remainingCharacters = maxCharacters - usedCharacters - separatorLength;
+        if (remainingCharacters <= 0) break;
+        const cappedPart = part.slice(0, remainingCharacters).trim();
+        if (!cappedPart) continue;
+        capped.push(cappedPart);
+        usedCharacters += separatorLength + cappedPart.length;
+    }
+    return capped;
 }
 
 function sanitizeGeneratedMessage(content: string): string {
@@ -797,8 +814,8 @@ export async function generateChatbotFollowUp(input: {
     const configuredFollowUpParts = Math.round(Number(input.config.max_message_parts));
     const followUpMaxMessageParts = input.config.split_messages
         ? Number.isFinite(configuredFollowUpParts) && configuredFollowUpParts > 0
-            ? Math.min(6, configuredFollowUpParts)
-            : 6
+            ? Math.min(FOLLOW_UP_MAX_PARTS, configuredFollowUpParts)
+            : FOLLOW_UP_MAX_PARTS
         : 1;
     const splitFollowUpMessages = input.config.split_messages && followUpMaxMessageParts > 1;
     const system =
@@ -835,8 +852,8 @@ export async function generateChatbotFollowUp(input: {
         'Do not use em dashes, en dashes, dash-style bullet lists, or headline-style labels ending in a colon. Use ordinary conversational sentences and punctuation instead. ' +
         'Answer first, then give one useful next step or question, and vary the wording naturally. ' +
         (splitFollowUpMessages
-            ? `Return only JSON: {"messages":["first short Messenger bubble","second short Messenger bubble"],"personalization_basis":"briefly name the exact verified customer topic or detail used","media_decision_reason":null,"media_document_ids":[],"drive_file_document_ids":[],"link_document_id":null}. Use 2 to ${followUpMaxMessageParts} concise bubbles when the thought naturally benefits from splitting; keep the complete follow-up under 600 characters and do not add filler merely to create another bubble. `
-            : 'Return only JSON: {"message":"one natural Messenger message under 600 characters","personalization_basis":"briefly name the exact verified customer topic or detail used","media_decision_reason":null,"media_document_ids":[],"drive_file_document_ids":[],"link_document_id":null}. ') +
+            ? `Return only JSON: {"messages":["first short Messenger bubble","optional second short Messenger bubble"],"personalization_basis":"briefly name the exact verified customer topic or detail used","media_decision_reason":null,"media_document_ids":[],"drive_file_document_ids":[],"link_document_id":null}. Use only 1 or ${followUpMaxMessageParts} concise bubbles; keep the complete follow-up under ${FOLLOW_UP_MAX_CHARS} characters and do not add filler merely to create another bubble. `
+            : `Return only JSON: {"message":"one natural Messenger message under ${FOLLOW_UP_MAX_CHARS} characters","personalization_basis":"briefly name the exact verified customer topic or detail used","media_decision_reason":null,"media_document_ids":[],"drive_file_document_ids":[],"link_document_id":null}. `) +
         'personalization_basis is required for validation and must come from the conversation or verified collected details, never from guessing. Do not include it in the customer-facing message. ' +
         'Set media_decision_reason to null when sending text only. When selecting any media, set it to a short explanation of why that exact sample helps this customer now. ' +
         'media_document_ids must contain exact document_ids of retrieved MEDIA ASSET entries. Select one when only one helps, or 2 to 10 only for a useful related carousel; otherwise use an empty array. ' +
@@ -878,15 +895,15 @@ export async function generateChatbotFollowUp(input: {
                 : typeof parsed.message === 'string'
                     ? [parsed.message]
                     : [])
-                .map(value => sanitizeGeneratedMessage(value).slice(0, 600))
+                .map(value => sanitizeGeneratedMessage(value))
                 .filter(Boolean);
-            const combinedMessage = rawMessages.join('\n\n').slice(0, 600);
-            const messages = limitNaturalMessageParts(
+            const cappedRawMessages = capCombinedMessageLength(rawMessages, FOLLOW_UP_MAX_CHARS);
+            const messages = capCombinedMessageLength(limitNaturalMessageParts(
                 splitFollowUpMessages
-                    ? rawMessages.flatMap((message) => splitChatbotMessageBubbles(message, true))
-                    : splitChatbotMessageBubbles(combinedMessage, splitFollowUpMessages),
+                    ? cappedRawMessages.flatMap((message) => splitChatbotMessageBubbles(message, true))
+                    : splitChatbotMessageBubbles(cappedRawMessages.join('\n\n'), false),
                 followUpMaxMessageParts
-            );
+            ), FOLLOW_UP_MAX_CHARS);
             const message = messages.join('\n\n').trim();
             if (!message || messages.length === 0) throw new Error('missing message');
             const personalizationBasis = typeof parsed.personalization_basis === 'string'

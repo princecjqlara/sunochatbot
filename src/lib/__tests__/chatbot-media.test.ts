@@ -1,7 +1,9 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
+    analyzeInboundCustomerImages,
     analyzeChatbotMedia,
     createChatbotMediaPublicViewUrl,
+    getInboundMessengerImageUrls,
     MAX_CHATBOT_MEDIA_BYTES,
     MAX_CHATBOT_MEDIA_FILES_PER_BATCH,
     normalizeChatbotMediaSourcePath,
@@ -47,6 +49,47 @@ describe('VeoBot folder media metadata', () => {
 });
 
 describe('VeoBot media analysis', () => {
+    it('extracts only safe image attachment URLs from an inbound Messenger message', () => {
+        expect(getInboundMessengerImageUrls({
+            attachments: [
+                { type: 'image', payload: { url: 'https://cdn.example.test/receipt.jpg' } },
+                { type: 'video', payload: { url: 'https://cdn.example.test/demo.mp4' } },
+                { type: 'image', payload: { url: 'http://cdn.example.test/insecure.jpg' } },
+                { type: 'image', payload: { url: 'not-a-url' } },
+                { type: 'image', payload: { url: 'https://cdn.example.test/receipt.jpg' } }
+            ]
+        })).toEqual(['https://cdn.example.test/receipt.jpg']);
+    });
+
+    it('analyzes customer photos with their caption for chatbot context', async () => {
+        process.env.OPENROUTER_API_KEY = 'test-key';
+        const fetchMock = vi.fn().mockResolvedValue({
+            ok: true,
+            status: 200,
+            json: async () => ({ choices: [{ message: { content: 'A receipt showing PHP 150 paid.' } }] })
+        });
+        vi.stubGlobal('fetch', fetchMock);
+
+        await expect(analyzeInboundCustomerImages({
+            imageUrls: [
+                'https://cdn.example.test/receipt-front.jpg',
+                'https://cdn.example.test/receipt-back.jpg'
+            ],
+            caption: 'Paid na po'
+        })).resolves.toBe('A receipt showing PHP 150 paid.');
+
+        const body = JSON.parse(fetchMock.mock.calls[0][1].body);
+        expect(body.model).toBe(DEFAULT_MULTIMODAL_MODEL);
+        expect(body.messages[0].content).toEqual([
+            expect.objectContaining({
+                type: 'text',
+                text: expect.stringContaining("The customer's accompanying caption is: Paid na po")
+            }),
+            { type: 'image_url', image_url: { url: 'https://cdn.example.test/receipt-front.jpg' } },
+            { type: 'image_url', image_url: { url: 'https://cdn.example.test/receipt-back.jpg' } }
+        ]);
+    });
+
     it.each([
         ['image', 'image_url'],
         ['video', 'video_url']

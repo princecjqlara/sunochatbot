@@ -220,11 +220,42 @@ describe('VeoBot chatbot', () => {
         expect(requestBody.messages[0].content).toContain('The normal follow-up is text-only');
         expect(requestBody.messages[0].content).toContain('do not keep sending samples on every follow-up');
         expect(requestBody.messages[0].content).toContain('Prefer one best video or image card');
-        expect(requestBody.messages[0].content).toContain('Use 2 to 6 concise bubbles');
+        expect(requestBody.messages[0].content).toContain('Use only 1 or 2 concise bubbles');
         expect(result.messages).toEqual([
             'Hi po!',
             'Interested pa rin ba kayo sa haircut schedule next week?'
         ]);
+    });
+
+    it('keeps scheduled follow-ups short even when the model returns long copy', async () => {
+        process.env.OPENROUTER_API_KEY = 'test-key';
+        const longFollowUp = 'Still interested in the haircut appointment next week? '.repeat(12);
+        vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
+            ok: true,
+            status: 200,
+            json: async () => ({
+                choices: [{ message: { content: JSON.stringify({
+                    message: longFollowUp,
+                    personalization_basis: 'Customer asked about a haircut appointment next week.'
+                }) } }]
+            })
+        }));
+
+        const result = await generateChatbotFollowUp({
+            config: { ...config, split_messages: true, max_message_parts: 6 },
+            pageId: 'page-facebook-id',
+            sequenceNumber: 1,
+            scheduleLabel: 'first 24 hours',
+            history: [{
+                id: 'm1',
+                message: 'Can I book a haircut next week?',
+                from: { id: 'customer-id', name: 'CJ' },
+                created_time: '2026-09-22T10:00:00Z'
+            }]
+        });
+
+        expect(result.message.length).toBeLessThanOrEqual(320);
+        expect(result.messages.length).toBeLessThanOrEqual(2);
     });
 
     it('refuses to create a follow-up without customer conversation history', async () => {

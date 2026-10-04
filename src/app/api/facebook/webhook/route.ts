@@ -12,7 +12,13 @@ import {
     splitChatbotMessageBubbles,
     type ChatbotConfig
 } from '@/lib/chatbot';
-import { createChatbotMediaPublicViewUrl, createChatbotMediaSignedUrl, getReadyChatbotMediaForDocuments } from '@/lib/chatbot-media';
+import {
+    analyzeInboundCustomerImages,
+    createChatbotMediaPublicViewUrl,
+    createChatbotMediaSignedUrl,
+    getInboundMessengerImageUrls,
+    getReadyChatbotMediaForDocuments
+} from '@/lib/chatbot-media';
 import { getReadyChatbotDriveFilesForDocuments, getReadyChatbotDriveFolderForDocument } from '@/lib/chatbot-drive-folders';
 import { cancelPendingChatbotFollowUps, scheduleChatbotFollowUps } from '@/lib/chatbot-follow-ups';
 import { claimChatbotReply, finishChatbotReply } from '@/lib/chatbot-replies';
@@ -229,8 +235,36 @@ export async function POST(request: NextRequest) {
                 // Fetch welcome message config for this page (cached per webhook batch)
                 let welcomeConfig: { enabled: boolean; message_text: string; buttons: Array<{ type: string; text: string; url?: string; payload?: string }> } | null = null;
                 let welcomeConfigFetched = false;
-                let chatbotConfig: ChatbotConfig | null = null;
+                let cachedChatbotConfig: ChatbotConfig | null = null;
                 let chatbotConfigFetched = false;
+                const loadChatbotConfig = async (): Promise<ChatbotConfig | null> => {
+                    if (chatbotConfigFetched) return cachedChatbotConfig;
+                    try {
+                        const { data: storedChatbotConfig, error: chatbotConfigError } = await supabase
+                            .from('chatbot_configs')
+                            .select('page_id, knowledge_source_page_id, enabled, trial_mode_enabled, trial_contact_id, instructions, fallback_reply, model, rag_enabled, follow_up_prompt, details_to_collect, details_completion_percent, bot_dos, bot_donts, follow_up_enabled, follow_up_quick_delays_minutes, follow_up_best_time_days, follow_up_messages, follow_up_ai_instructions, follow_up_utility_template_name, follow_up_utility_template_language, follow_up_utility_text, follow_up_media_asset_id, split_messages, max_message_parts, stop_when_details_collected, stop_on_opt_out, stop_on_refusal, stop_on_qualified, stop_on_not_qualified, stop_on_converted, stop_on_order_created')
+                            .eq('page_id', page.id)
+                            .maybeSingle();
+
+                        if (chatbotConfigError) {
+                            logWarn('Failed to fetch chatbot config', {
+                                pageId,
+                                pageDbId: page.id,
+                                error: chatbotConfigError.message
+                            });
+                        } else {
+                            cachedChatbotConfig = storedChatbotConfig as ChatbotConfig | null;
+                        }
+                    } catch (chatbotConfigError) {
+                        logWarn('Chatbot config is unavailable; skipping automatic reply', {
+                            pageId,
+                            pageDbId: page.id,
+                            error: (chatbotConfigError as Error).message
+                        });
+                    }
+                    chatbotConfigFetched = true;
+                    return cachedChatbotConfig;
+                };
 
                 // Process inbound events from both messaging and standby arrays
                 if (inboundEvents.length > 0) {
@@ -523,6 +557,22 @@ export async function POST(request: NextRequest) {
                         processedContacts += 1;
                         let welcomeMessageSent = false;
                         let conversationHistoryUnavailable = false;
+                        const inboundMessageText = typeof event.message?.text === 'string'
+                            ? event.message.text.trim()
+                            : '';
+                        const inboundImageUrls = getInboundMessengerImageUrls(event.message);
+
+                        const configForInboundImages = eventType === 'message' &&
+                            inboundImageUrls.length > 0 &&
+                            !isStandbyEvent
+                            ? await loadChatbotConfig()
+                            : null;
+                        const chatbotWillHandleInboundImages = Boolean(
+                            contact &&
+                            inboundImageUrls.length > 0 &&
+                            configForInboundImages?.enabled &&
+                            isChatbotContactAllowed(configForInboundImages, contact.id)
+                        );
 
                         // A contact can be new to our database while already having an
                         // existing Messenger thread. Read that thread before treating
@@ -553,7 +603,13 @@ export async function POST(request: NextRequest) {
                         );
 
                         // Send welcome message to new contacts
-                        if (isNewContact && contact && !hasPriorConversation && !conversationHistoryUnavailable) {
+                        if (
+                            isNewContact &&
+                            contact &&
+                            !hasPriorConversation &&
+                            !conversationHistoryUnavailable &&
+                            !chatbotWillHandleInboundImages
+                        ) {
                             // Lazy-load welcome config once per page per webhook batch
                             if (!welcomeConfigFetched) {
                                 const { data: wc, error: welcomeConfigError } = await supabase
@@ -659,10 +715,6 @@ export async function POST(request: NextRequest) {
 
                         // Record interaction for best time to contact analysis
                         if (contact) {
-                            const inboundMessageText = typeof event.message?.text === 'string'
-                                ? event.message.text.trim()
-                                : '';
-
                             // Attachments are replies too. The workflow handler
                             // does not require text, so schedule/reset on every
                             // inbound message rather than text-only messages.
@@ -738,37 +790,12 @@ export async function POST(request: NextRequest) {
 
                             if (
                                 eventType === 'message' &&
-                                inboundMessageText &&
+                                (inboundMessageText || inboundImageUrls.length > 0) &&
                                 inboundMessageId &&
                                 !isStandbyEvent &&
                                 !welcomeMessageSent
                             ) {
-                                if (!chatbotConfigFetched) {
-                                    try {
-                                        const { data: storedChatbotConfig, error: chatbotConfigError } = await supabase
-                                            .from('chatbot_configs')
-                                            .select('page_id, knowledge_source_page_id, enabled, trial_mode_enabled, trial_contact_id, instructions, fallback_reply, model, rag_enabled, follow_up_prompt, details_to_collect, details_completion_percent, bot_dos, bot_donts, follow_up_enabled, follow_up_quick_delays_minutes, follow_up_best_time_days, follow_up_messages, follow_up_ai_instructions, follow_up_utility_template_name, follow_up_utility_template_language, follow_up_utility_text, follow_up_media_asset_id, split_messages, max_message_parts, stop_when_details_collected, stop_on_opt_out, stop_on_refusal, stop_on_qualified, stop_on_not_qualified, stop_on_converted, stop_on_order_created')
-                                            .eq('page_id', page.id)
-                                            .maybeSingle();
-
-                                        if (chatbotConfigError) {
-                                            logWarn('Failed to fetch chatbot config', {
-                                                pageId,
-                                                pageDbId: page.id,
-                                                error: chatbotConfigError.message
-                                            });
-                                        } else {
-                                            chatbotConfig = storedChatbotConfig as ChatbotConfig | null;
-                                        }
-                                    } catch (chatbotConfigError) {
-                                        logWarn('Chatbot config is unavailable; skipping automatic reply', {
-                                            pageId,
-                                            pageDbId: page.id,
-                                            error: (chatbotConfigError as Error).message
-                                        });
-                                    }
-                                    chatbotConfigFetched = true;
-                                }
+                                const chatbotConfig = await loadChatbotConfig();
 
                                 if (chatbotConfig?.enabled && isChatbotContactAllowed(chatbotConfig, contact.id)) {
                                     let chatbotState = null;
@@ -922,12 +949,36 @@ export async function POST(request: NextRequest) {
                                             let generatedDriveFileDocumentIds: string[] = [];
                                             let generatedLinkDocumentId: string | undefined;
                                             try {
+                                                let chatbotInboundMessage = inboundMessageText;
+                                                if (inboundImageUrls.length > 0) {
+                                                    try {
+                                                        const visualSummary = await analyzeInboundCustomerImages({
+                                                            imageUrls: inboundImageUrls,
+                                                            caption: inboundMessageText
+                                                        });
+                                                        chatbotInboundMessage = [
+                                                            inboundMessageText
+                                                                ? `Customer message: ${inboundMessageText}`
+                                                                : 'The customer sent one or more photos without a text caption.',
+                                                            `Visual analysis of the customer photos: ${visualSummary}`
+                                                        ].join('\n\n');
+                                                    } catch (photoAnalysisError) {
+                                                        logWarn('Could not analyze inbound customer photos; replying with safe image context', {
+                                                            pageId,
+                                                            senderId,
+                                                            imageCount: inboundImageUrls.length,
+                                                            error: (photoAnalysisError as Error).message
+                                                        });
+                                                        chatbotInboundMessage = inboundMessageText ||
+                                                            'The customer sent one or more photos without a text caption, but the visual content could not be read reliably. Acknowledge the photos and ask one concise clarifying question.';
+                                                    }
+                                                }
                                                 const generated = await generateChatbotResponse({
                                                     config: chatbotConfig,
                                                     contactName: (contact as { name?: string | null }).name,
                                                     pageName: page.name,
                                                     pageId,
-                                                    inboundMessage: inboundMessageText,
+                                                    inboundMessage: chatbotInboundMessage,
                                                     history: resolvedConversation?.messages?.data || [],
                                                     collectedDetails
                                                 });

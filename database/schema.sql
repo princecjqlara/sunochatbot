@@ -317,7 +317,7 @@
         bot_dos TEXT NOT NULL DEFAULT '' CHECK (char_length(bot_dos) <= 3000),
         bot_donts TEXT NOT NULL DEFAULT '' CHECK (char_length(bot_donts) <= 3000),
         follow_up_enabled BOOLEAN NOT NULL DEFAULT FALSE,
-        follow_up_quick_delays_minutes JSONB NOT NULL DEFAULT '[10, 60, 240, 720, 1380]'::jsonb,
+        follow_up_quick_delays_minutes JSONB NOT NULL DEFAULT '[60, 240, 720, 1380]'::jsonb,
         follow_up_best_time_days JSONB NOT NULL DEFAULT '[2, 3, 5, 7]'::jsonb,
         follow_up_messages JSONB NOT NULL DEFAULT '["Just checking in — would you like help with anything else?", "I am still here if you have questions about your request."]'::jsonb,
         follow_up_ai_instructions TEXT NOT NULL DEFAULT 'Write a fresh, personal follow-up based on this contact''s conversation. Do not repeat earlier wording. When relevant, offer helpful proof such as previous work, product photos, or a promotional video from the Page knowledge base.' CHECK (char_length(follow_up_ai_instructions) BETWEEN 1 AND 3000),
