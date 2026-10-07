@@ -41,7 +41,7 @@ export default function HomePage() {
       <nav className="border-b border-black px-6 py-4 flex justify-between items-center sticky top-0 bg-white z-50">
         <div className="flex items-center gap-2">
           <Square className="w-5 h-5 fill-black" />
-          <span className="font-bold tracking-tighter text-lg">VEOBOT</span>
+          <span className="font-bold tracking-tighter text-lg">SUNOBOT</span>
         </div>
         <button
           onClick={handleLogin}
@@ -165,7 +165,7 @@ export default function HomePage() {
       {/* Footer */}
       <footer className="border-t border-black p-6 md:p-12 flex flex-col md:flex-row justify-between items-center gap-6 text-xs font-mono uppercase">
         <div className="flex gap-4">
-          <span>&copy; 2026 VeoBot</span>
+          <span>&copy; 2026 Sunobot</span>
           <span>Beta Version 2.0</span>
         </div>
         <div className="flex gap-6">

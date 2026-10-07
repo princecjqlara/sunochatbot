@@ -106,7 +106,7 @@ export async function analyzeInboundCustomerImages(input: {
                 Authorization: `Bearer ${apiKey}`,
                 'Content-Type': 'application/json',
                 'HTTP-Referer': process.env.NEXTAUTH_URL || 'http://localhost:3000',
-                'X-OpenRouter-Title': 'VeoBot Customer Photos'
+                'X-OpenRouter-Title': 'Sunobot Customer Photos'
             },
             body: JSON.stringify({
                 model: process.env.OPENROUTER_MULTIMODAL_MODEL || DEFAULT_MULTIMODAL_MODEL,
@@ -219,7 +219,7 @@ export async function analyzeChatbotMedia(input: {
                 Authorization: `Bearer ${apiKey}`,
                 'Content-Type': 'application/json',
                 'HTTP-Referer': process.env.NEXTAUTH_URL || 'http://localhost:3000',
-                'X-OpenRouter-Title': 'VeoBot Media RAG'
+                'X-OpenRouter-Title': 'Sunobot Media RAG'
             },
             body: JSON.stringify({
                 model: process.env.OPENROUTER_MULTIMODAL_MODEL || DEFAULT_MULTIMODAL_MODEL,

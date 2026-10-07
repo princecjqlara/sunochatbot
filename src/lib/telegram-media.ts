@@ -123,7 +123,7 @@ async function fetchTelegramFile(input: {
     const fileSize = Number(fileBody.result.file_size ?? input.candidate.fileSize);
     if (Number.isFinite(fileSize) && fileSize > MAX_CHATBOT_MEDIA_BYTES) {
         throw new TelegramMediaTooLargeError(
-            `Telegram media exceeds VeoBot's ${MAX_CHATBOT_MEDIA_BYTES / 1024 / 1024} MB limit`
+            `Telegram media exceeds Sunobot's ${MAX_CHATBOT_MEDIA_BYTES / 1024 / 1024} MB limit`
         );
     }
 
@@ -135,14 +135,14 @@ async function fetchTelegramFile(input: {
     const contentLength = Number(downloadResponse.headers.get('content-length'));
     if (Number.isFinite(contentLength) && contentLength > MAX_CHATBOT_MEDIA_BYTES) {
         throw new TelegramMediaTooLargeError(
-            `Telegram media exceeds VeoBot's ${MAX_CHATBOT_MEDIA_BYTES / 1024 / 1024} MB limit`
+            `Telegram media exceeds Sunobot's ${MAX_CHATBOT_MEDIA_BYTES / 1024 / 1024} MB limit`
         );
     }
     const bytes = Buffer.from(await downloadResponse.arrayBuffer());
     if (bytes.length <= 0) throw new Error('Telegram media file is empty');
     if (bytes.length > MAX_CHATBOT_MEDIA_BYTES) {
         throw new TelegramMediaTooLargeError(
-            `Telegram media exceeds VeoBot's ${MAX_CHATBOT_MEDIA_BYTES / 1024 / 1024} MB limit`
+            `Telegram media exceeds Sunobot's ${MAX_CHATBOT_MEDIA_BYTES / 1024 / 1024} MB limit`
         );
     }
     return bytes;

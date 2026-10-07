@@ -1,5 +1,6 @@
 import type { FacebookMessage } from '@/types';
 import {
+    getPinnedChatbotKnowledge,
     retrieveChatbotKnowledge,
     type ChatbotKnowledgeMatch
 } from '@/lib/chatbot-knowledge';
@@ -10,6 +11,121 @@ import {
     normalizeDetailsToCollect,
     type ChatbotStopReason
 } from '@/lib/chatbot-control';
+
+function isOutdatedPricingReply(message: FacebookMessage, pageId: string, ownerInstructions: string): boolean {
+    if (!ownerInstructions.includes('CURRENT APPROVED PRICES') || message.from?.id !== pageId) return false;
+    const text = message.message || '';
+    const unavailablePricing = /rate\s*card|rates?|prices?|presyo/i.test(text) &&
+        /hindi.{0,80}(?:hawak|masabi|ma-confirm|alam|sigurado)|wala|missing|unavailable|outdated|don't have|do not have|not (?:available|confirmed)/i.test(text);
+    const quoteReferral = /human\s+agent|ipapasa|matawagan|best\s+number/i.test(text);
+    return unavailablePricing || quoteReferral;
+}
+
+function enforceReplyPartsAndQuestion(parts: string[], maxParts: number): string[] {
+    const kept: string[] = [];
+    for (const part of parts) {
+        const questionAt = part.indexOf('?');
+        kept.push(questionAt >= 0 ? part.slice(0, questionAt + 1).trim() : part);
+        if (questionAt >= 0) break;
+    }
+    const configuredLimit = Math.round(Number(maxParts));
+    return limitNaturalMessageParts(kept, configuredLimit > 0 ? configuredLimit : 6);
+}
+
+function hasExplicitPackageAcceptance(inboundMessage: string, history: FacebookMessage[], pageId: string) {
+    const acceptance = /\b(?:agree|agreed|accept|accepted|payag|sige|game|proceed|go ahead|deal|confirmed|okay|ok|yes|opo|oo|tuloy)\b/i;
+    if (!acceptance.test(inboundMessage)) return false;
+    const price = /(?:PHP|\u20b1|\bP)\s*\d|\d[\d,.]*\s*pesos?/i;
+    if (inboundMessage.includes('?') && price.test(inboundMessage)) return false;
+    if (!inboundMessage.includes('?') && price.test(inboundMessage)) return true;
+    if (/sample|preview|demo|magkano|how much|send (?:me|a)|can you|pwede bang/i.test(inboundMessage)) return false;
+    const previousQuestion = history.find(message =>
+        message.from?.id === pageId && message.message?.includes('?'))?.message || '';
+    if (/sample|preview|demo/i.test(previousQuestion)) return false;
+    return price.test(previousQuestion) && /okay|ok po|agree|payag|sang-ayon|proceed|tuloy|deal/i.test(previousQuestion);
+}
+
+function getReplyCharacterLimit(instructions: string, setting: string, fallback: number) {
+    const value = instructions.match(new RegExp(`^${setting}:\\s*(\\d+)\\s*$`, 'im'))?.[1];
+    return value ? Math.min(fallback, Math.max(100, Number(value))) : fallback;
+}
+
+function isBriefFormMessage(content: string) {
+    return /^\s*[1-7]\.\s+[^\n:?!]{1,70}:\s*[^\n]*$/m.test(content) ||
+        (content.match(/^[^\n:?!]{1,70}:\s*[^\n]*$/gm) || []).length >= 2;
+}
+
+function splitBriefFormBubbles(content: string): string[] {
+    const parts: string[] = [];
+    for (const line of content.split('\n').map(line => line.trim()).filter(Boolean)) {
+        const chunks = line.length > CHATBOT_BUBBLE_TARGET_CHARS ? splitChatbotMessageBubbles(line, true) : [line];
+        for (const chunk of chunks) {
+            const previous = parts.at(-1);
+            if (previous && `${previous}\n${chunk}`.length <= CHATBOT_BUBBLE_TARGET_CHARS) {
+                parts[parts.length - 1] = `${previous}\n${chunk}`;
+            } else parts.push(chunk);
+        }
+    }
+    return parts;
+}
+
+function formatOwnerSongForm(messages: string[], details: Record<string, string>): string[] {
+    const fields = [
+        ['Business Name', 'Business name'], ['Specialty/Products', 'Main products or services'],
+        ['Tagline', 'Tagline or slogan'], ['English or Tagalog lyrics', 'Lyrics language'],
+        ['Male or Female singer', 'Vocal preference'], ['Genre', 'Preferred mood/style'],
+        ['Additional requests', 'Additional requests']
+    ];
+    const missing = fields.flatMap(([label, key], index) => details[key]?.trim() ? [] :
+        [`${index + 1}. ${label}:`, ...(index === 5 ? ['(sample: Pop)'] : [])]);
+    if (!missing.length) return messages;
+    const lines = messages.flatMap(message => message.split('\n')).map(line => line.trim()).filter(Boolean);
+    const isField = (line: string) => /^\d+\.\s|^\(sample:|^Pa-sagutan/i.test(line);
+    const context = lines.filter(line => !isField(line) && !line.includes('?'));
+    // Retain the model's quote/answer; the fixed form must not be expanded into
+    // a long narrative or renumbered when some customer details are known.
+    const priced = context.filter(line => /(?:PHP|\u20b1)\s*\d|kanta muna bago bayad|\b\d+\s*(?:songs?|kanta)\b/i.test(line));
+    const answer = context.filter(line => /Facebook|\bFB\b|reels?|video|receipt|reference/i.test(line));
+    const before = (priced.length ? priced.slice(0, 2) : answer.slice(0, 1));
+    const question = messages.join('\n').match(/[^.!?\n]*\?/g)?.at(-1)?.trim();
+    const safeQuestion = question && question.length <= 90 && !/(?:PHP|\u20b1)\s*\d|price|presyo|agree|confirm|payag/i.test(question)
+        ? question
+        : !details['Preferred mood/style'] ? 'Pop o acoustic ang genre na gusto ninyo?'
+            : !details['Lyrics language'] ? 'English o Tagalog ang lyrics?'
+                : !details['Vocal preference'] ? 'Male o female vocals ang gusto ninyo?'
+                    : 'May promo o pangalan bang gusto ninyong isama?';
+    return [...before, ['Pa-sagutan po para sa kanta', ...missing].join('\n'), safeQuestion];
+}
+
+function applyOwnerNameUsage(parts: string[], input: {
+    instructions: string;
+    contactName?: string | null;
+    history?: FacebookMessage[];
+    pageId: string;
+}) {
+    if (!/^SPARSE_FIRST_NAME:\s*true\s*$/im.test(input.instructions)) return parts;
+    const fullName = input.contactName?.trim().replace(/\s+/g, ' ') || '';
+    if (!fullName || UNRELIABLE_CONTACT_NAMES.has(fullName.toLowerCase())) return parts;
+    const firstName = fullName.split(' ')[0];
+    const escape = (value: string) => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const first = escape(firstName);
+    const usedRecently = (input.history || []).filter(message => message.from?.id === input.pageId)
+        .slice(0, 3).some(message => new RegExp(`(^|[^\\p{L}\\p{N}])${first}([^\\p{L}\\p{N}]|$)`, 'iu').test(message.message || ''));
+    const cleaned = parts.map((part, index) => {
+        let text = fullName === firstName ? part : part.replace(
+            new RegExp(`(^|\\s)${escape(fullName)}(?=[,!.?:]|\\s|$)`, 'giu'), `$1${firstName}`);
+        if (index === 0) {
+            const withoutOpener = text.replace(/^(?:sige|okay|ok|noted|salamat|nice|great|perfect|ayos)(?:\s+po)?[,\s.!:-]+/i, '');
+            if (withoutOpener !== text) text = withoutOpener.replace(new RegExp(`^${first}[,!.:]\\s*`, 'iu'), '');
+        }
+        if (usedRecently) text = text
+            .replace(new RegExp(`^${first}[,!.:]\\s*`, 'iu'), '')
+            .replace(new RegExp(`,\\s*${first}(?=[,!.?]|$)`, 'giu'), '')
+            .replace(new RegExp(`([.!?]\\s+)${first}[,!.:]\\s*`, 'giu'), '$1');
+        return text.trim();
+    }).filter(Boolean);
+    return cleaned.length > 0 ? cleaned : parts;
+}
 
 export const DEFAULT_CHATBOT_MODEL = '~deepseek/deepseek-flash-latest';
 export const DEFAULT_CHATBOT_INSTRUCTIONS =
@@ -366,7 +482,7 @@ function capCombinedMessageLength(parts: string[], maxCharacters: number): strin
     return capped;
 }
 
-function sanitizeGeneratedMessage(content: string): string {
+function sanitizeGeneratedMessage(content: string, preserveFormLabels: boolean = false): string {
     let cleaned = content.trim();
     cleaned = cleaned
         .replace(/^\s*(?:certainly|absolutely|great question|of course|i(?:'d| would) be happy to (?:help|assist))\s*[!,. :\-—]*\s*/i, '')
@@ -378,7 +494,7 @@ function sanitizeGeneratedMessage(content: string): string {
         .replace(/__([^_\r\n]+)__/g, '$1')
         .replace(/^\s*[-–—•]\s+/gm, '')
         .replace(/[–—]/g, ',')
-        .replace(/:(?=\s|$)/gm, '.')
+        .replace(/:(?=\s|$)/gm, preserveFormLabels ? ':' : '.')
         .replace(/!{2,}/g, '!')
         .replace(/[ \t]+/g, ' ')
         .replace(/\s+,/g, ',')
@@ -386,11 +502,27 @@ function sanitizeGeneratedMessage(content: string): string {
     return cleaned;
 }
 
+function hasUsableChatbotContent(content: string): boolean {
+    const candidate = content.trim().replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/, '');
+    if (!candidate) return false;
+    try {
+        const parsed = JSON.parse(candidate);
+        if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return false;
+        return (Array.isArray(parsed.messages) && parsed.messages.some((message: unknown) =>
+            typeof message === 'string' && sanitizeGeneratedMessage(message).length > 0)) ||
+            (typeof parsed.reply === 'string' && sanitizeGeneratedMessage(parsed.reply).length > 0);
+    } catch {
+        // Retain compatibility with plain-text replies, but never send broken JSON.
+        return !/^[{\[]/.test(candidate) && sanitizeGeneratedMessage(candidate).length > 0;
+    }
+}
+
 function parseChatbotPlan(
     content: string,
     config: ChatbotConfig,
     existingDetails: Record<string, string>,
-    knowledge: ChatbotKnowledgeMatch[]
+    knowledge: ChatbotKnowledgeMatch[],
+    allowPackageAcceptance: boolean = false
 ): Pick<ChatbotResponse, 'reply' | 'messages' | 'collected_details' | 'missing_details' | 'details_complete' | 'detected_stop_reason' | 'media_document_ids' | 'media_document_id' | 'drive_file_document_ids' | 'link_document_id'> {
     let parsed: Record<string, unknown> | null = null;
     const jsonCandidate = content.trim()
@@ -413,6 +545,8 @@ function parseChatbotPlan(
         for (const [rawKey, rawValue] of Object.entries(rawDetails as Record<string, unknown>)) {
             const canonicalKey = canonicalDetails.get(rawKey.trim().toLowerCase());
             if (canonicalKey && typeof rawValue === 'string' && rawValue.trim()) {
+                if (/^(?:asked|pending|unknown|tbd|not provided|not yet provided|to be confirmed|waiting for (?:reply|answer))(?:$|\s*[:(])/i.test(rawValue.trim())) continue;
+                if (canonicalKey.toLowerCase() === 'agreed package' && !allowPackageAcceptance) continue;
                 extractedDetails[canonicalKey] = rawValue.trim().slice(0, 500);
             }
         }
@@ -426,19 +560,34 @@ function parseChatbotPlan(
     const collectedDetailCount = requestedDetails.length - missingDetails.length;
     const detailsComplete = requiredDetailCount > 0 && collectedDetailCount >= requiredDetailCount;
 
-    const rawMessages = (Array.isArray(parsed?.messages)
+    const allowBriefForm = /^ALLOW_BRIEF_FORM:\s*true\s*$/im.test(config.instructions);
+    const sevenFieldForm = /^SONG_BRIEF_FORM:\s*hiraya-seven-fields\s*$/im.test(config.instructions);
+    let rawMessages = (Array.isArray(parsed?.messages)
         ? parsed.messages.filter((message): message is string => typeof message === 'string')
         : typeof parsed?.reply === 'string'
             ? [parsed.reply]
             : [])
-        .map(sanitizeGeneratedMessage)
+        .map(value => sanitizeGeneratedMessage(value, allowBriefForm && isBriefFormMessage(value)))
         .filter(Boolean);
+    if (sevenFieldForm && rawMessages.some(isBriefFormMessage)) {
+        rawMessages = formatOwnerSongForm(rawMessages, collectedDetails);
+    }
+    if (allowBriefForm && rawMessages.some(isBriefFormMessage) && !rawMessages.join('\n').includes('?')) {
+        const lastIndex = rawMessages.length - 1;
+        if (/(?:isa-isa|one by one)/i.test(rawMessages[lastIndex].split('\n').at(-1) || '')) {
+            rawMessages[lastIndex] = rawMessages[lastIndex].replace(/[.!]?\s*$/, '?');
+        } else {
+            rawMessages.push('Sagutan nang sabay, o isa-isa muna tayo?');
+        }
+    }
     const messageContent = rawMessages.length > 0
         ? rawMessages.join('\n\n')
         : sanitizeGeneratedMessage(content);
-    const messages = rawMessages.length > 0 && config.split_messages
-        ? rawMessages.flatMap((message) => splitChatbotMessageBubbles(message, true))
+    const generatedMessages = rawMessages.length > 0 && config.split_messages
+        ? rawMessages.flatMap((message) => allowBriefForm && isBriefFormMessage(message)
+            ? sevenFieldForm ? splitBriefFormBubbles(message) : [message] : splitChatbotMessageBubbles(message, true))
         : splitChatbotMessageBubbles(messageContent, config.split_messages);
+    const messages = enforceReplyPartsAndQuestion(generatedMessages, config.max_message_parts);
     if (messages.length === 0) throw new Error('OpenRouter returned an empty reply');
 
     const rawStopReason = parsed?.stop_reason;
@@ -518,6 +667,7 @@ export function buildChatbotMessages(input: {
     history?: FacebookMessage[];
     knowledge?: ChatbotKnowledgeMatch[];
     detailsToCollect?: string[];
+    ownerKnowledgePolicy?: { title: string; content: string };
     collectedDetails?: Record<string, string>;
     detailsCompletionPercent?: number;
     followUpPrompt?: string;
@@ -546,6 +696,30 @@ export function buildChatbotMessages(input: {
     const requiredDetailCount = getRequiredChatbotDetailCount(details.length, targetPercent);
     const collectedDetailCount = details.length - missingDetails.length;
     const targetReached = requiredDetailCount > 0 && collectedDetailCount >= requiredDetailCount;
+    const allowBriefForm = /^ALLOW_BRIEF_FORM:\s*true\s*$/im.test(input.instructions);
+    const formFirst = allowBriefForm && /^FORM-FIRST COLLECTION\b/im.test(input.instructions);
+    const sevenFieldForm = /^SONG_BRIEF_FORM:\s*hiraya-seven-fields\s*$/im.test(input.instructions);
+    const formGuidance = formFirst && !targetReached && missingDetails.length > 0
+        ? sevenFieldForm
+            ? '\nFORM COLLECTION THIS TURN: Use the owner seven-field numbered song form, not Style/Lyrics/Deadline mini-forms. ' +
+                'On requirements turns, the form itself is the answer: no recap, lengthy introduction, explanation, extra menu or usage pitch. Aim under300 total characters. ' +
+                'When business/product/purpose are known and no studio quote was already given, state the approved bundle count/total in one short bubble before the form. Retain prior quotes without repeating them. ' +
+                'Send all unanswered fields in their original order across tiny bubbles, each <=110 characters, up to5 bubbles/400 total. ' +
+                'Template:\nPa-sagutan po para sa kanta\n1. Business Name:\n2. Specialty/Products:\n3. Tagline:\n4. English or Tagalog lyrics:\n5. Male or Female singer:\n6. Genre:\n(sample: Pop)\n7. Additional requests:\n' +
+                'Omit known fields rather than re-asking; keep original numbering and labels. All submitted values must be saved with configured canonical labels: ' +
+                'Business Name=Business name; Specialty/Products=Main products or services; Tagline=Tagline or slogan; ' +
+                'English or Tagalog lyrics=Lyrics language; Male or Female singer=Vocal preference; Genre=Preferred mood/style; Additional requests=Additional requests. ' +
+                'Do not assume English/Tagalog, male/female or Pop from blank labels/options. Answer objections first; one brief persuasion/creative question complements the form. ' +
+                'Do not resend completed/unanswered forms. Honor explicit one-by-one preference. Greetings alone, support and opt-outs need no form.\n'
+            : '\nFORM COLLECTION THIS TURN: When collecting requirements, include a compact fill-up form by default, not just a question. ' +
+            'Use 2-3 short relevant unknown fields (fewer if all remaining), each on a separate line as Label: ___. ' +
+            'Keep a tiny form in ONE separate bubble. Exclude details already supplied in this message/history, name and price agreement. ' +
+            'Answer direct questions or objections first; individual questions persuade or clarify, not replace the form. ' +
+            'Do not resend an unanswered/completed form; clarify individually instead. Honor explicit one-by-one preference. ' +
+            'Greetings alone, support and opt-outs need no form. Use at most 3 tiny bubbles: short answer/offer, short form, ONE useful final choice question. ' +
+            'Do not mix an essay with the form. Follow the owner per-bubble and total character limits; omit filler and extra package menus. ' +
+            'Example form structure (only when these fields are unknown): Style: ___\\nLyrics: ___\\nDeadline: ___.\n'
+        : '';
     const salesFlowContext = details.length > 0
         ? '\n\nCONVERSATION GOAL:\n' +
         `Collect these details in priority order: ${details.join(', ')}.\n` +
@@ -561,7 +735,9 @@ export function buildChatbotMessages(input: {
     const responseFormat = '\n\nReturn only valid JSON with this shape: ' +
         '{"messages":["message bubble"],"collected_details":{"exact requested detail":"customer-provided value"},"stop_reason":null,"media_document_ids":[],"drive_file_document_ids":[],"link_document_id":null}. ' +
         (input.splitMessages
-            ? 'Prefer 3 to 6 brief message bubbles for a multi-sentence reply. Keep each bubble near 110 characters or less, split at natural sentence or clause boundaries, and do not pad a reply that is already short. '
+            ? allowBriefForm
+                ? 'Use brief conversational bubbles and keep an entire multiline fill-up form in one bubble. Choose fewer fields and short labels to follow the owner per-bubble, bubble count and TOTAL character limits. '
+                : 'Prefer 3 to 6 brief message bubbles for a multi-sentence reply. Keep each bubble near 110 characters or less, split at natural sentence or clause boundaries, and do not pad a reply that is already short. '
             : 'Use exactly 1 message bubble. ') +
         'Set stop_reason to "opt_out" when the customer asks not to be contacted, "refusal" when they clearly decline to buy, otherwise null. ' +
         'Set media_document_ids to exact document_ids of retrieved MEDIA ASSET entries that directly help this reply. Select one when only one is useful, or 2 to 10 only when a relevant set would be helpful as a swipeable Messenger carousel. Preserve the best display order, never pad the list, and otherwise use an empty array. ' +
@@ -597,6 +773,13 @@ export function buildChatbotMessages(input: {
             : '') +
         '\nFollow these Page owner settings exactly for language, tone, sales behavior, questions, and next steps. ' +
         'When an owner setting conflicts with a default style rule, the owner setting wins.';
+    const ownerKnowledgePolicy = input.ownerKnowledgePolicy
+        ? `\n\nOWNER-SELECTED CURRENT KNOWLEDGE POLICY: ${input.ownerKnowledgePolicy.title}\n` +
+            input.ownerKnowledgePolicy.content +
+            '\nThe owner explicitly selected this document for current pricing, strategy and techniques. ' +
+            'Use its current business facts and sales guidance on this turn. Explicit owner restrictions, ' +
+            'verified accepted customer terms, and non-overridable response rules still take precedence.'
+        : '';
     const customerRequestRule = '\n\nCUSTOMER REQUEST HANDLING:\n' +
         'Read the available conversation from oldest to newest before drafting. Determine what the customer wants, what has already been answered, any objections or constraints, and the current sales step. Continue the existing conversation instead of restarting it. ' +
         'Never repeat a greeting for an ongoing conversation, repeat an answer already given, or ask for information the customer already supplied. ' +
@@ -610,14 +793,16 @@ export function buildChatbotMessages(input: {
         'Do not use canned assistant openers such as "Certainly", "Absolutely", "Great question", or "I would be happy to assist". ' +
         'Avoid generic filler, fake enthusiasm, corporate buzzwords, repeated summaries, essay-like explanations, excessive emojis, excessive punctuation, headings, and decorative Markdown. ' +
         'Do not use em dashes, en dashes, dash-style bullet lists, or headline-style labels ending in a colon. Use ordinary conversational sentences and punctuation instead. ' +
+        (allowBriefForm ? 'Exception: owner-approved fill-up forms MUST use plain field labels ending in a colon, with separate lines and blank placeholders; these are allowed and are not decorative headings. ' : '') +
         'Answer first, then give one useful next step or question. Vary wording naturally instead of reusing a response template. ' +
         'Keep each message under 600 characters.';
     const system = pageIdentity + 'You are replying to ' + contactName + ' in Facebook Messenger. ' + contactIdentity +
         knowledgeContext + salesFlowContext + '\n\n' + languageStyle +
         'Write naturally and avoid repetitive greetings. ' +
-        ownerInstructions + customerRequestRule + immutableRules + responseFormat;
+        ownerInstructions + ownerKnowledgePolicy + customerRequestRule + immutableRules + responseFormat + formGuidance;
 
     const history = (input.history || [])
+        .filter((message) => !isOutdatedPricingReply(message, input.pageId, input.instructions))
         .filter((message) => typeof message.message === 'string' && message.message.trim().length > 0)
         .slice(0, 20)
         .reverse()
@@ -630,6 +815,39 @@ export function buildChatbotMessages(input: {
     const lastMessage = history[history.length - 1];
     if (!lastMessage || lastMessage.role !== 'user' || lastMessage.content !== inboundMessage) {
         history.push({ role: 'user', content: inboundMessage });
+    }
+
+    const turnGuidance = input.followUpPrompt?.trim();
+    if ((turnGuidance && history.some((message) => message.role === 'assistant')) ||
+        Object.keys(collectedDetails).length > 0) {
+        const priorPageText = history
+            .filter((message) => message.role === 'assistant')
+            .map((message) => message.content)
+            .join('\n');
+        const hasPriorQuote = /(?:PHP|₱|\bP\s*\d{3,}|\b\d{3,}\s*pesos?)/i.test(priorPageText) &&
+            /(?:kanta|song|jingle|package|presyo|price|total)/i.test(priorPageText);
+        const latestNeedsPricing = /(?:magkano|magkaha(?:la|laga)|presyo|price|cost|rate|budget|mahal|mura|how much|PHP|₱|\bP\s*\d{3,}|\b\d{3,}\s*pesos?|\b\d+\s*(?:kanta|songs?|jingles?))/i.test(input.inboundMessage);
+        // Restate current policy and saved facts after historical output so an old
+        // quote cannot become the model's template for a returning customer.
+        const currentTurn = '\nCURRENT TURN GUIDANCE:\n' +
+            'Historical assistant replies are previous output, not current owner policy. ' +
+            'Use the current Page owner settings even when earlier replies contradict them. ' +
+            (turnGuidance ? `\nCurrent owner conversation guidance:\n${turnGuidance.slice(0, 3000)}` : '') +
+            `\nVerified saved customer details: ${JSON.stringify(collectedDetails)}.\n` +
+            `Still missing: ${missingDetails.join(', ') || 'none'}.\n` +
+            (hasPriorQuote && !latestNeedsPricing
+                ? 'A previous studio message already quoted a song count/total and the latest customer message is not a pricing or scope-change request. Continue the brief with a fresh creative suggestion or missing-detail question. Do not mention any PHP amount, repeat the quote, repeat kanta muna bago bayad, reset the scope to one song, or ask for price confirmation.\n'
+                : '') +
+            formGuidance +
+            'A short greeting does not reset saved facts or an accepted offer. Never ask for a saved detail again. ' +
+            'Never invent acceptance. Address the latest message, retain verified facts, and ask at most one next-step question. ' +
+            'The non-overridable response rules and JSON response format above still apply.';
+        return [
+            { role: 'system' as const, content: system },
+            ...history.slice(0, -1),
+            { role: 'system' as const, content: currentTurn },
+            history[history.length - 1]
+        ];
     }
 
     return [{ role: 'system' as const, content: system }, ...history];
@@ -653,6 +871,10 @@ export async function generateChatbotResponse(input: {
         input.collectedDetails,
         input.contactName
     );
+    const ownerKnowledgePolicy = await getPinnedChatbotKnowledge({
+        pageId: getChatbotKnowledgePageId(input.config),
+        instructions: input.config.instructions
+    });
     let knowledge = input.knowledge || [];
     let retrievalWarning: string | undefined;
     if (input.config.rag_enabled && input.knowledge === undefined) {
@@ -677,6 +899,7 @@ export async function generateChatbotResponse(input: {
         inboundMessage: input.inboundMessage,
         history: input.history,
         knowledge,
+        ownerKnowledgePolicy,
         detailsToCollect: input.config.details_to_collect,
         detailsCompletionPercent: input.config.details_completion_percent,
         collectedDetails,
@@ -687,7 +910,7 @@ export async function generateChatbotResponse(input: {
     });
     let body = await requestOpenRouterCompletion({
         apiKey,
-        title: 'VeoBot Chatbot',
+        title: 'Sunobot Chatbot',
         model,
         maxTokens: 700,
         temperature: 0.4,
@@ -696,11 +919,11 @@ export async function generateChatbotResponse(input: {
     let tokenUsage = normalizeTokenUsage(body);
     let content = extractOpenRouterText(body);
 
-    if (!content) {
+    if (!hasUsableChatbotContent(content)) {
         logEmptyOpenRouterReply('[CHATBOT_EMPTY_REPLY]', body, 1);
         const retryBody = await requestOpenRouterCompletion({
             apiKey,
-            title: 'VeoBot Chatbot',
+            title: 'Sunobot Chatbot',
             model,
             maxTokens: 900,
             temperature: 0.25,
@@ -715,18 +938,71 @@ export async function generateChatbotResponse(input: {
         tokenUsage = combineTokenUsage(tokenUsage, normalizeTokenUsage(retryBody));
         body = retryBody;
         content = extractOpenRouterText(body);
-        if (!content) logEmptyOpenRouterReply('[CHATBOT_EMPTY_REPLY]', body, 2);
+        if (!hasUsableChatbotContent(content)) {
+            logEmptyOpenRouterReply('[CHATBOT_EMPTY_REPLY]', body, 2);
+            content = '';
+        }
     }
 
-    const generationWarning = content
+    let generationWarning = content
         ? undefined
         : 'OpenRouter returned no user-visible reply after two attempts. The configured fallback was used.';
-    const plan = parseChatbotPlan(
+    let plan = parseChatbotPlan(
         content || input.config.fallback_reply || DEFAULT_CHATBOT_FALLBACK,
         input.config,
         collectedDetails,
-        knowledge
+        knowledge,
+        hasExplicitPackageAcceptance(input.inboundMessage, input.history || [], input.pageId)
     );
+    const maxReplyCharacters = getReplyCharacterLimit(input.config.instructions, 'MAX_REPLY_CHARACTERS', Number.POSITIVE_INFINITY);
+    const maxBubbleCharacters = getReplyCharacterLimit(input.config.instructions, 'MAX_BUBBLE_CHARACTERS', Number.POSITIVE_INFINITY);
+    if (plan.reply.length > maxReplyCharacters || plan.messages.some(message => message.length > maxBubbleCharacters)) {
+        const conciseBody = await requestOpenRouterCompletion({
+            apiKey, title: 'Sunobot Chatbot', model, maxTokens: 700, temperature: 0.25,
+            messages: [...messages, {
+                role: 'system',
+                content: `Return the required JSON with a complete reply under ${maxReplyCharacters} characters TOTAL${Number.isFinite(maxBubbleCharacters) ? ` and each bubble at most ${maxBubbleCharacters} characters, at most ${input.config.max_message_parts || 3} bubbles` : ''}. Preserve verified accepted terms and known facts, answer the latest question, and ask at most one useful next-step question. Follow the owner form template; group its missing fields into tiny bubbles without dropping or renaming them. Remove filler and extra package menus; do not truncate a sentence or agreement question.`
+            }]
+        });
+        tokenUsage = combineTokenUsage(tokenUsage, normalizeTokenUsage(conciseBody));
+        const conciseContent = extractOpenRouterText(conciseBody);
+        const usableConciseContent = hasUsableChatbotContent(conciseContent);
+        if (usableConciseContent) plan = parseChatbotPlan(
+            conciseContent, input.config, collectedDetails, knowledge,
+            hasExplicitPackageAcceptance(input.inboundMessage, input.history || [], input.pageId)
+        );
+        if (!usableConciseContent || plan.reply.length > maxReplyCharacters || plan.messages.some(message => message.length > maxBubbleCharacters)) {
+            generationWarning = 'AI could not meet the owner reply length limit; the configured fallback was used.';
+            plan = parseChatbotPlan(input.config.fallback_reply || DEFAULT_CHATBOT_FALLBACK,
+                input.config, collectedDetails, knowledge);
+        }
+    }
+    const languageKey = normalizeDetailsToCollect(input.config.details_to_collect)
+        .find(key => key.toLowerCase() === 'lyrics language');
+    const styleKey = normalizeDetailsToCollect(input.config.details_to_collect)
+        .find(key => key.toLowerCase() === 'preferred mood/style');
+    // Keep an explicitly supplied language from being lost when the model
+    // places "Upbeat Tagalog" in the style field but omits the language field.
+    if (languageKey && styleKey && !input.inboundMessage.includes('?')) {
+        const style = plan.collected_details[styleKey] || '';
+        const languages = ['Tagalog', 'Taglish', 'English', 'Filipino', 'Bisaya', 'Cebuano'];
+        const explicitLanguages = languages.filter(language =>
+            new RegExp(`\\b${language}\\b`, 'i').test(style) &&
+            new RegExp(`\\b${language}\\b`, 'i').test(input.inboundMessage) &&
+            !new RegExp(`(?:not|hindi|ayaw|no)\\s+${language}\\b`, 'i').test(input.inboundMessage));
+        if (explicitLanguages.length === 1) {
+            plan.collected_details[languageKey] = explicitLanguages[0];
+            const details = normalizeDetailsToCollect(input.config.details_to_collect);
+            plan.missing_details = getMissingChatbotDetails(details, plan.collected_details);
+            const requiredCount = getRequiredChatbotDetailCount(details.length, input.config.details_completion_percent);
+            plan.details_complete = requiredCount > 0 && details.length - plan.missing_details.length >= requiredCount;
+        }
+    }
+    plan.messages = applyOwnerNameUsage(plan.messages, {
+        instructions: input.config.instructions, contactName: input.contactName,
+        history: input.history, pageId: input.pageId
+    });
+    plan.reply = plan.messages.join('\n\n');
     return {
         ...plan,
         knowledge,
@@ -757,6 +1033,7 @@ export async function generateChatbotFollowUp(input: {
     if (!apiKey) throw new Error('OPENROUTER_API_KEY is not configured');
 
     const history = (input.history || [])
+        .filter((message) => !isOutdatedPricingReply(message, input.pageId, input.config.instructions))
         .filter((message) => typeof message.message === 'string' && message.message.trim())
         .slice(0, 30)
         .reverse()
@@ -768,6 +1045,11 @@ export async function generateChatbotFollowUp(input: {
     if (customerMessages.length === 0) {
         throw new Error('Cannot create a personalized follow-up without readable customer conversation history');
     }
+
+    const ownerKnowledgePolicy = await getPinnedChatbotKnowledge({
+        pageId: getChatbotKnowledgePageId(input.config),
+        instructions: input.config.instructions
+    });
 
     const collectedDetails = Object.fromEntries(
         Object.entries(input.collectedDetails || {})
@@ -818,6 +1100,7 @@ export async function generateChatbotFollowUp(input: {
             : FOLLOW_UP_MAX_PARTS
         : 1;
     const splitFollowUpMessages = input.config.split_messages && followUpMaxMessageParts > 1;
+    const followUpMaxCharacters = getReplyCharacterLimit(input.config.instructions, 'MAX_FOLLOW_UP_CHARACTERS', FOLLOW_UP_MAX_CHARS);
     const system =
         `You are the official Messenger assistant for the Facebook Page "${pageName}". That Page identity is fixed; never claim to represent another Page. ` +
         `The contact's saved Messenger profile name is "${contactName}". This is the customer identity, not the Page identity. ` +
@@ -839,6 +1122,11 @@ export async function generateChatbotFollowUp(input: {
         `PAGE OWNER FOLLOW-UP INSTRUCTIONS:\n${input.config.follow_up_ai_instructions}\n\n` +
         (input.config.bot_dos ? `PAGE OWNER - BOT SHOULD:\n${input.config.bot_dos}\n\n` : '') +
         (input.config.bot_donts ? `PAGE OWNER - BOT SHOULD NOT:\n${input.config.bot_donts}\n\n` : '') +
+        (ownerKnowledgePolicy
+            ? `OWNER-SELECTED CURRENT KNOWLEDGE POLICY: ${ownerKnowledgePolicy.title}\n${ownerKnowledgePolicy.content}\n` +
+                'Use this owner-selected document for current prices, strategy and techniques. Explicit owner restrictions, ' +
+                'verified accepted terms and non-overridable response rules still take precedence.\n\n'
+            : '') +
         'Follow these Page owner settings exactly for language, tone, sales behavior, questions, and next steps. ' +
         'When an owner setting conflicts with a default style rule, the owner setting wins.\n\n' +
         'NON-OVERRIDABLE RESPONSE RULES:\n' +
@@ -852,8 +1140,8 @@ export async function generateChatbotFollowUp(input: {
         'Do not use em dashes, en dashes, dash-style bullet lists, or headline-style labels ending in a colon. Use ordinary conversational sentences and punctuation instead. ' +
         'Answer first, then give one useful next step or question, and vary the wording naturally. ' +
         (splitFollowUpMessages
-            ? `Return only JSON: {"messages":["first short Messenger bubble","optional second short Messenger bubble"],"personalization_basis":"briefly name the exact verified customer topic or detail used","media_decision_reason":null,"media_document_ids":[],"drive_file_document_ids":[],"link_document_id":null}. Use only 1 or ${followUpMaxMessageParts} concise bubbles; keep the complete follow-up under ${FOLLOW_UP_MAX_CHARS} characters and do not add filler merely to create another bubble. `
-            : `Return only JSON: {"message":"one natural Messenger message under ${FOLLOW_UP_MAX_CHARS} characters","personalization_basis":"briefly name the exact verified customer topic or detail used","media_decision_reason":null,"media_document_ids":[],"drive_file_document_ids":[],"link_document_id":null}. `) +
+            ? `Return only JSON: {"messages":["first short Messenger bubble","optional second short Messenger bubble"],"personalization_basis":"briefly name the exact verified customer topic or detail used","media_decision_reason":null,"media_document_ids":[],"drive_file_document_ids":[],"link_document_id":null}. Use only 1 or ${followUpMaxMessageParts} concise bubbles; keep the complete follow-up under ${followUpMaxCharacters} characters and do not add filler merely to create another bubble. `
+            : `Return only JSON: {"message":"one natural Messenger message under ${followUpMaxCharacters} characters","personalization_basis":"briefly name the exact verified customer topic or detail used","media_decision_reason":null,"media_document_ids":[],"drive_file_document_ids":[],"link_document_id":null}. `) +
         'personalization_basis is required for validation and must come from the conversation or verified collected details, never from guessing. Do not include it in the customer-facing message. ' +
         'Set media_decision_reason to null when sending text only. When selecting any media, set it to a short explanation of why that exact sample helps this customer now. ' +
         'media_document_ids must contain exact document_ids of retrieved MEDIA ASSET entries. Select one when only one helps, or 2 to 10 only for a useful related carousel; otherwise use an empty array. ' +
@@ -862,14 +1150,29 @@ export async function generateChatbotFollowUp(input: {
         'When selecting a Drive folder, naturally introduce the button without pasting its raw URL.';
     const user = 'Create the personalized follow-up now using only the verified conversation, collected details, Page instructions, and Page knowledge above.';
     const model = input.config.model || process.env.OPENROUTER_MODEL || DEFAULT_CHATBOT_MODEL;
-    const messages = [{ role: 'system' as const, content: system }, ...history, { role: 'user' as const, content: user }];
+    const currentFollowUpGuidance = '\nCURRENT FOLLOW-UP GUIDANCE:\n' +
+        'Historical assistant replies are previous output, not current owner policy. ' +
+        `Current owner follow-up instructions:\n${input.config.follow_up_ai_instructions}\n` +
+        `Verified saved customer details: ${JSON.stringify(collectedDetails)}.\n` +
+        `Still missing: ${missingDetails.join(', ') || 'none'}.\n` +
+        (/^SONG_BRIEF_FORM:\s*hiraya-seven-fields\s*$/im.test(input.config.instructions)
+            ? `This is a short reminder, not a main requirements reply. Do not resend the seven-field form. Give one fresh personal suggestion and one short choice question; aim80-140 characters TOTAL, strictly under${followUpMaxCharacters}. Include personalization_basis in the required JSON.\n`
+            : '') +
+        'Retain saved facts and accepted offers, never invent acceptance, and do not restart the sales flow. ' +
+        'Current owner instructions, non-overridable response rules, and required JSON format above still apply.';
+    const messages = [
+        { role: 'system' as const, content: system },
+        ...history,
+        { role: 'system' as const, content: currentFollowUpGuidance },
+        { role: 'user' as const, content: user }
+    ];
     let tokenUsage: ChatbotTokenUsage | undefined;
     let invalidReason = 'empty';
 
     for (let attempt = 1; attempt <= 2; attempt += 1) {
         const body = await requestOpenRouterCompletion({
             apiKey,
-            title: 'VeoBot Follow-ups',
+            title: 'Sunobot Follow-ups',
             model,
             maxTokens: attempt === 1 ? 500 : 700,
             temperature: attempt === 1 ? 0.65 : 0.35,
@@ -877,7 +1180,7 @@ export async function generateChatbotFollowUp(input: {
                 ? messages
                 : [...messages, {
                     role: 'system' as const,
-                    content: 'Return the required JSON now with one non-empty personalized message and a non-empty personalization_basis grounded in the customer conversation. Do not output reasoning outside the JSON.'
+                    content: `Return the required JSON now with one concise non-empty personalized message and a non-empty personalization_basis grounded in the customer conversation. Keep the complete message under ${followUpMaxCharacters} characters, retain the current accepted package and known details, and ask at most one next-step question. Do not output reasoning outside the JSON.`
                 }]
         });
         tokenUsage = combineTokenUsage(tokenUsage, normalizeTokenUsage(body));
@@ -897,13 +1200,19 @@ export async function generateChatbotFollowUp(input: {
                     : [])
                 .map(value => sanitizeGeneratedMessage(value))
                 .filter(Boolean);
-            const cappedRawMessages = capCombinedMessageLength(rawMessages, FOLLOW_UP_MAX_CHARS);
-            const messages = capCombinedMessageLength(limitNaturalMessageParts(
+            if (followUpMaxCharacters < FOLLOW_UP_MAX_CHARS && rawMessages.join('\n\n').length > followUpMaxCharacters) {
+                throw new Error('follow-up exceeds the owner character limit');
+            }
+            const cappedRawMessages = capCombinedMessageLength(rawMessages, followUpMaxCharacters);
+            const messages = applyOwnerNameUsage(capCombinedMessageLength(enforceReplyPartsAndQuestion(
                 splitFollowUpMessages
                     ? cappedRawMessages.flatMap((message) => splitChatbotMessageBubbles(message, true))
                     : splitChatbotMessageBubbles(cappedRawMessages.join('\n\n'), false),
                 followUpMaxMessageParts
-            ), FOLLOW_UP_MAX_CHARS);
+            ), followUpMaxCharacters), {
+                instructions: input.config.instructions, contactName: input.contactName,
+                history: input.history, pageId: input.pageId
+            });
             const message = messages.join('\n\n').trim();
             if (!message || messages.length === 0) throw new Error('missing message');
             const personalizationBasis = typeof parsed.personalization_basis === 'string'

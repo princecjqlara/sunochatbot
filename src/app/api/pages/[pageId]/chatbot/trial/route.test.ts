@@ -85,4 +85,35 @@ describe('live Messenger chatbot trial controls', () => {
         expect(response.status).toBe(403);
         expect(mocks.getSupabaseAdmin).not.toHaveBeenCalled();
     });
+
+    it.each([true, false, undefined])('resets only the selected contact with ignore history = %s', async (ignore) => {
+        const contacts = contactBuilder();
+        const pipeline: Record<string, any> = { error: null };
+        pipeline.eq = vi.fn(() => pipeline);
+        contacts.update = vi.fn(() => pipeline);
+        const states = { upsert: vi.fn().mockResolvedValue({ error: null }) };
+        const jobs: Record<string, any> = {};
+        jobs.update = vi.fn(() => jobs);
+        jobs.eq = vi.fn(() => jobs);
+        jobs.in = vi.fn().mockResolvedValue({ error: null });
+        const from = vi.fn((table: string) => table === 'contacts' ? contacts : table === 'chatbot_contact_states' ? states : jobs);
+        mocks.getSupabaseAdmin.mockReturnValue({ from });
+        const response = await POST(new Request('http://localhost/api/pages/page_1/chatbot/trial', {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ action: 'reset', contact_id: 'contact_1', ignore_past_conversation: ignore })
+        }) as NextRequest, { params: Promise.resolve({ pageId: 'page_1' }) });
+        expect(response.status).toBe(200);
+        const payload = states.upsert.mock.calls[0][0];
+        expect(payload).toMatchObject({ page_id: 'page_1', contact_id: 'contact_1', status: 'active',
+            collected_details: {}, stop_reason: null, last_inbound_at: null, last_bot_reply_at: null });
+        expect(payload.history_start_at).toBe(ignore === true ? payload.started_at : null);
+        expect(Date.parse(payload.window_expires_at)).toBeGreaterThan(Date.parse(payload.started_at));
+        expect(pipeline.eq).toHaveBeenCalledWith('page_id', 'page_1');
+        expect(pipeline.eq).toHaveBeenCalledWith('id', 'contact_1');
+        expect(jobs.eq).toHaveBeenCalledWith('page_id', 'page_1');
+        expect(jobs.eq).toHaveBeenCalledWith('contact_id', 'contact_1');
+        expect(jobs.update).toHaveBeenCalledWith(expect.objectContaining({ status: 'cancelled' }));
+        expect(from).not.toHaveBeenCalledWith('chatbot_configs');
+        expect(await response.json()).toMatchObject({ ignore_past_conversation: ignore === true });
+    });
 });

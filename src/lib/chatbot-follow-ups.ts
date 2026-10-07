@@ -10,7 +10,7 @@ import { getPhilippinesDateParts, getPhilippinesScheduledAtIso } from '@/lib/phi
 import { replaceTemplateVariables } from '@/lib/placeholders';
 import { getSupabaseAdmin } from '@/lib/supabase';
 import { generateChatbotFollowUp, getChatbotKnowledgePageId, type ChatbotConfig } from '@/lib/chatbot';
-import { isChatbotContactAllowed } from '@/lib/chatbot-control';
+import { filterChatbotConversationHistory, isChatbotContactAllowed } from '@/lib/chatbot-control';
 import { getReadyChatbotDriveFilesForDocuments, getReadyChatbotDriveFolderForDocument, type ChatbotDriveFile, type ChatbotDriveFolder } from '@/lib/chatbot-drive-folders';
 import { isPipelineClosedForAutomation, type ContactPipelineStage } from '@/lib/contact-pipeline';
 
@@ -19,6 +19,25 @@ const HUMAN_AGENT_WINDOW_MS = 7 * RESPONSE_WINDOW_MS;
 const RESPONSE_SAFETY_MS = 60 * 1000;
 const PROCESSING_LEASE_MS = 10 * 60 * 1000;
 const MAX_ATTEMPTS = 3;
+
+function getUnansweredFollowUpLimit(config: Pick<ChatbotConfig, 'instructions'>): number | undefined {
+    const configured = config.instructions?.match(/^MAX_UNANSWERED_FOLLOW_UPS:\s*(\d+)\s*$/im)?.[1];
+    return configured === undefined ? undefined : Math.min(16, Number(configured));
+}
+
+export function isChatbotFollowUpWithinLimit(
+    config: Pick<ChatbotConfig, 'instructions' | 'follow_up_quick_delays_minutes' | 'follow_up_best_time_days'>,
+    scheduleType: FollowUpJob['schedule_type'],
+    sequenceIndex: number
+) {
+    const limit = getUnansweredFollowUpLimit(config);
+    if (limit === undefined || scheduleType === 'manual_human_agent') return true;
+    const quickCount = normalizeQuickFollowUpDelays(config.follow_up_quick_delays_minutes).length;
+    const bestTimeCount = normalizeBestTimeFollowUpDays(config.follow_up_best_time_days).length;
+    const groupCount = scheduleType === 'response' ? quickCount : bestTimeCount;
+    const overallIndex = sequenceIndex + (scheduleType === 'response' ? 0 : quickCount);
+    return Number.isInteger(sequenceIndex) && sequenceIndex >= 0 && sequenceIndex < groupCount && overallIndex < limit;
+}
 
 type SupabaseLike = { from: (table: string) => any };
 
@@ -177,7 +196,9 @@ export async function scheduleChatbotFollowUps(input: {
             message_text: 'AI-generated from conversation at send time',
             status: 'pending'
         }));
-    const jobs = [...quickJobs, ...bestTimeJobs].filter((job) => new Date(job.due_at).getTime() > now.getTime());
+    const jobs = [...quickJobs, ...bestTimeJobs]
+        .filter((job) => isChatbotFollowUpWithinLimit(input.config, job.schedule_type as FollowUpJob['schedule_type'], job.sequence_index))
+        .filter((job) => new Date(job.due_at).getTime() > now.getTime());
     if (jobs.length === 0) return 0;
     const { error } = await input.supabase.from('chatbot_follow_up_jobs').upsert(jobs, {
         onConflict: 'contact_id,anchor_inbound_at,schedule_type,sequence_index'
@@ -240,7 +261,7 @@ export async function processDueChatbotFollowUps(input: {
                 supabase.from('pages').select('id, name, fb_page_id, access_token').eq('id', job.page_id).maybeSingle(),
                 supabase.from('contacts').select('id, page_id, psid, name, last_interaction_at, last_inbound_at, pipeline_stage').eq('id', job.contact_id).maybeSingle(),
                 supabase.from('chatbot_configs').select('*').eq('page_id', job.page_id).maybeSingle(),
-                supabase.from('chatbot_contact_states').select('status, collected_details, missing_details').eq('page_id', job.page_id).eq('contact_id', job.contact_id).maybeSingle()
+                supabase.from('chatbot_contact_states').select('status, collected_details, missing_details, history_start_at').eq('page_id', job.page_id).eq('contact_id', job.contact_id).maybeSingle()
             ]);
             const anchorTime = new Date(job.anchor_inbound_at).getTime();
             const latestInboundTime = new Date(contact?.last_inbound_at || contact?.last_interaction_at || 0).getTime();
@@ -250,8 +271,10 @@ export async function processDueChatbotFollowUps(input: {
                 now
             );
             if (!page?.access_token || !contact?.psid || !config?.enabled || !config?.follow_up_enabled ||
+                !isChatbotFollowUpWithinLimit(config as ChatbotConfig, job.schedule_type, job.sequence_index) ||
                 !isChatbotContactAllowed(config, job.contact_id) ||
                 state?.status === 'stopped' || isPipelineClosedForAutomation(contact?.pipeline_stage) ||
+                (state?.history_start_at && anchorTime < Date.parse(state.history_start_at)) ||
                 latestInboundTime > anchorTime ||
                 (!messagingType && job.schedule_type !== 'manual_human_agent')) {
                 await markJob(supabase, job.id, {
@@ -275,7 +298,9 @@ export async function processDueChatbotFollowUps(input: {
                 page.access_token,
                 { throwOnError: true, timeoutMs: 5000 }
             );
-            const conversationHistory = conversation?.messages?.data || [];
+            const conversationHistory = filterChatbotConversationHistory(
+                conversation?.messages?.data || [], state?.history_start_at
+            );
             const hasCustomerMessage = hasReadableCustomerConversationHistory(
                 conversationHistory,
                 page.fb_page_id

@@ -1,16 +1,47 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import {
     CHATBOT_CONVERSATION_WINDOW_MS,
     classifyChatbotStopIntent,
+    filterChatbotConversationHistory,
     getRequiredChatbotDetailCount,
     getChatbotStateStopReason,
     getMissingChatbotDetails,
     isChatbotContactAllowed,
     normalizeDetailsToCollect,
+    saveChatbotContactState,
     type ChatbotContactState
 } from '@/lib/chatbot-control';
 
 describe('chatbot conversation controls', () => {
+    it('uses only post-reset messages, including the boundary, and retains ordering', () => {
+        const cutoff = '2026-10-07T02:00:00.000Z';
+        const history = [
+            { id: 'newest', created_time: '2026-10-07T02:01:00Z' },
+            { id: 'boundary', created_time: cutoff },
+            { id: 'old', created_time: '2026-10-07T01:59:59Z' },
+            { id: 'unknown-time' },
+            { id: 'bad-time', created_time: 'invalid' }
+        ];
+        expect(filterChatbotConversationHistory(history, cutoff).map(message => message.id)).toEqual(['newest', 'boundary']);
+        expect(filterChatbotConversationHistory(history, null)).toBe(history);
+        expect(filterChatbotConversationHistory(history, 'invalid')).toEqual([]);
+    });
+
+    it('preserves the history cutoff when saving subsequent details and stop state', async () => {
+        const cutoff = '2026-10-07T02:00:00.000Z';
+        const upsert = vi.fn().mockResolvedValue({ error: null });
+        await saveChatbotContactState({ from: () => ({ upsert }) }, {
+            pageId: 'page-1', contactId: 'contact-1',
+            existingState: { page_id: 'page-1', contact_id: 'contact-1', status: 'active', started_at: cutoff,
+                window_expires_at: '2026-10-14T02:00:00Z', collected_details: {}, missing_details: [],
+                stop_reason: null, stopped_at: null, last_inbound_at: null, last_bot_reply_at: null, history_start_at: cutoff },
+            collectedDetails: { 'Business name': 'New Bakery' }, stopReason: 'qualified',
+            now: new Date('2026-10-07T03:00:00Z')
+        });
+        expect(upsert).toHaveBeenCalledWith(expect.objectContaining({ history_start_at: cutoff,
+            collected_details: { 'Business name': 'New Bakery' }, stop_reason: 'qualified' }), { onConflict: 'page_id,contact_id' });
+    });
+
     it('limits live trial mode to the selected contact', () => {
         expect(isChatbotContactAllowed(undefined, 'contact_1')).toBe(true);
         expect(isChatbotContactAllowed({ trial_mode_enabled: false, trial_contact_id: null }, 'contact_1')).toBe(true);
@@ -46,6 +77,19 @@ describe('chatbot conversation controls', () => {
             stopOnOptOut: true,
             stopOnRefusal: false
         })).toBeNull();
+    });
+
+    it.each([
+        'Ayoko ng male vocals, gusto ko female.',
+        'Pass muna sa two songs package, isang kanta lang gusto ko.',
+        "I don't want that style, prefer upbeat instead."
+    ])('keeps an option change active: %s', text => {
+        expect(classifyChatbotStopIntent(text, { stopOnOptOut: true, stopOnRefusal: true })).toBeNull();
+    });
+
+    it('keeps explicit opt-outs and purchase refusals durable even when a style is mentioned', () => {
+        expect(classifyChatbotStopIntent('Stop messaging, ayoko ng male vocals, prefer female.', { stopOnOptOut: true, stopOnRefusal: true })).toBe('opt_out');
+        expect(classifyChatbotStopIntent('Not interested in this package, prefer not buying.', { stopOnOptOut: true, stopOnRefusal: true })).toBe('refusal');
     });
 
     it('stops an active bot state when its fixed seven-day lifecycle expires', () => {

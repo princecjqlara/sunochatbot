@@ -228,7 +228,7 @@ async function listPublicFolderEntries(folderId: string) {
         const response = await fetch(
             `https://drive.google.com/embeddedfolderview?id=${encodeURIComponent(folderId)}#grid`,
             {
-                headers: { 'User-Agent': 'Mozilla/5.0 (compatible; VeoBot-Drive-Indexer/1.0)' },
+                headers: { 'User-Agent': 'Mozilla/5.0 (compatible; Sunobot-Drive-Indexer/1.0)' },
                 signal: controller.signal
             }
         );

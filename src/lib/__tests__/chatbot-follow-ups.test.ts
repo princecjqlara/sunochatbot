@@ -28,6 +28,7 @@ vi.mock('@/lib/outbound-message-events', () => ({
 import {
     getBestTimeFollowUpDueAt,
     getAutomatedFollowUpMessagingType,
+    isChatbotFollowUpWithinLimit,
     hasReadableCustomerConversationHistory,
     normalizeBestTimeFollowUpDays,
     normalizeQuickFollowUpDelays,
@@ -119,6 +120,37 @@ describe('chatbot follow-up scheduling', () => {
         expect(inserted.some((job) => job.message_text === 'First check-in' || job.message_text === 'Update about your request')).toBe(false);
     });
 
+    it('caps scheduled reminders across both schedule groups when the owner sets a limit', async () => {
+        const chain: any = {
+            update: vi.fn(() => chain), eq: vi.fn(() => chain),
+            in: vi.fn(async () => ({ error: null })),
+            upsert: vi.fn(async () => ({ error: null }))
+        };
+        const config = {
+            instructions: 'MAX_UNANSWERED_FOLLOW_UPS: 3', follow_up_enabled: true,
+            follow_up_quick_delays_minutes: [60, 240], follow_up_best_time_days: [2, 3, 5, 7]
+        } as ChatbotConfig;
+        await expect(scheduleChatbotFollowUps({
+            supabase: { from: () => chain }, pageId: 'page-1',
+            contact: { id: 'contact-1', page_id: 'page-1', psid: 'psid-1' }, config,
+            anchorInboundAt: '2026-10-06T02:00:00Z', now: new Date('2026-10-06T02:00:00Z')
+        })).resolves.toBe(3);
+        expect(chain.upsert.mock.calls[0][0]).toHaveLength(3);
+        expect(isChatbotFollowUpWithinLimit(config, 'human_agent', 0)).toBe(true);
+        expect(isChatbotFollowUpWithinLimit(config, 'human_agent', 1)).toBe(false);
+    });
+
+    it('rejects stale queued jobs removed from the owner schedule', () => {
+        const config = {
+            instructions: 'MAX_UNANSWERED_FOLLOW_UPS: 3',
+            follow_up_quick_delays_minutes: [60, 240, 720], follow_up_best_time_days: []
+        };
+        expect(isChatbotFollowUpWithinLimit(config, 'response', 2)).toBe(true);
+        expect(isChatbotFollowUpWithinLimit(config, 'response', 3)).toBe(false);
+        expect(isChatbotFollowUpWithinLimit(config, 'human_agent', 0)).toBe(false);
+        expect(isChatbotFollowUpWithinLimit(config, 'manual_human_agent', 0)).toBe(true);
+    });
+
     it('does not schedule follow-ups after a contact is qualified', async () => {
         const from = vi.fn();
         const config = {
@@ -146,7 +178,7 @@ describe('chatbot follow-up scheduling', () => {
         expect(from).not.toHaveBeenCalled();
     });
 
-    it('sends a due day 2-7 job as ordered split HUMAN_AGENT bubbles', async () => {
+    it.each([null, '2026-09-21T01:00:00.000Z'])('uses allowed history for a due day 2-7 job (cutoff = %s)', async historyStartAt => {
         vi.clearAllMocks();
         const conversationHistory = [{
             id: 'message-1',
@@ -154,7 +186,10 @@ describe('chatbot follow-up scheduling', () => {
             from: { id: 'psid-1', name: 'Alex' },
             created_time: '2026-09-21T02:00:00.000Z'
         }];
-        mocks.getConversationForPsid.mockResolvedValue({ messages: { data: conversationHistory } });
+        const oldMessage = { id: 'before-reset', message: 'Old business and old price.',
+            from: { id: 'psid-1', name: 'Alex' }, created_time: '2026-09-20T02:00:00.000Z' };
+        const fetchedHistory = [...conversationHistory, oldMessage];
+        mocks.getConversationForPsid.mockResolvedValue({ messages: { data: fetchedHistory } });
         mocks.generateChatbotFollowUp.mockResolvedValue({
             message: 'Personalized Human Agent follow-up\n\nWould Friday work?',
             messages: ['Personalized Human Agent follow-up', 'Would Friday work?'],
@@ -203,7 +238,7 @@ describe('chatbot follow-up scheduling', () => {
                         if (table === 'pages') return { data: { id: 'page-1', name: 'Test Page', fb_page_id: 'fb-page-1', access_token: 'token' }, error: null };
                         if (table === 'contacts') return { data: { id: 'contact-1', page_id: 'page-1', psid: 'psid-1', name: 'Alex', last_interaction_at: dueJob.anchor_inbound_at, last_inbound_at: dueJob.anchor_inbound_at, pipeline_stage: 'engaged' }, error: null };
                         if (table === 'chatbot_configs') return { data: { enabled: true, follow_up_enabled: true }, error: null };
-                        return { data: { status: 'active', collected_details: { Service: 'Premium haircut' }, missing_details: ['Mobile number'] }, error: null };
+                        return { data: { status: 'active', collected_details: { Service: 'Premium haircut' }, missing_details: ['Mobile number'], history_start_at: historyStartAt }, error: null };
                     })
                 };
                 return chain;
@@ -239,7 +274,7 @@ describe('chatbot follow-up scheduling', () => {
             { throwOnError: true, timeoutMs: 5000 }
         );
         expect(mocks.generateChatbotFollowUp).toHaveBeenCalledWith(expect.objectContaining({
-            history: conversationHistory,
+            history: historyStartAt ? conversationHistory : fetchedHistory,
             collectedDetails: { Service: 'Premium haircut' },
             missingDetails: ['Mobile number']
         }));

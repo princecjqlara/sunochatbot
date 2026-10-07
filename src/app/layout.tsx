@@ -7,7 +7,7 @@ import { ToastProvider } from '@/components/Toast';
 const inter = Inter({ subsets: ['latin'] });
 
 export const metadata: Metadata = {
-  title: 'VeoBot - Facebook Page Management',
+  title: 'Sunobot - Facebook Page Management',
   description: 'Manage your Facebook Page contacts, tags, and messaging in one place',
 };
 

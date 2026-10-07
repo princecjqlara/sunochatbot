@@ -1,9 +1,16 @@
 export type MessengerSystemSignal = 'order_created' | 'qualified' | 'not_qualified' | 'converted';
 
 type MessengerHistoryMessage = {
+    id?: string;
     message?: string;
     from?: { id?: string };
     created_time?: string;
+};
+
+export type MessengerLeadStageEvent = {
+    messageId: string;
+    signal: MessengerSystemSignal;
+    createdTime: string | null;
 };
 
 // These are Meta-generated conversation-history messages, not customer/staff prose.
@@ -51,4 +58,49 @@ export function findLatestMessengerSystemSignal(
         return left.index - right.index;
     });
     return matches[0].signal;
+}
+
+/** Find the newest explicit Lead Center stage change and keep its audit metadata. */
+export function findLatestMessengerLeadStageEvent(
+    messages: MessengerHistoryMessage[],
+    facebookPageId: string
+): MessengerLeadStageEvent | null {
+    const matches = messages.flatMap((message, index) => {
+        if (
+            message.from?.id !== facebookPageId ||
+            typeof message.id !== 'string' ||
+            !message.id.trim() ||
+            typeof message.message !== 'string' ||
+            !/^Lead stage set to /i.test(message.message.trim())
+        ) return [];
+        const signal = classifyMessengerSystemMessage(message.message);
+        if (!signal) return [];
+        const timestamp = typeof message.created_time === 'string'
+            ? new Date(message.created_time).getTime()
+            : Number.NaN;
+        return [{
+            messageId: message.id.trim(),
+            signal,
+            createdTime: message.created_time || null,
+            index,
+            timestamp
+        }];
+    });
+
+    if (matches.length === 0) return null;
+    matches.sort((left, right) => {
+        const leftHasTimestamp = Number.isFinite(left.timestamp);
+        const rightHasTimestamp = Number.isFinite(right.timestamp);
+        if (leftHasTimestamp && rightHasTimestamp && left.timestamp !== right.timestamp) {
+            return right.timestamp - left.timestamp;
+        }
+        if (leftHasTimestamp !== rightHasTimestamp) return leftHasTimestamp ? -1 : 1;
+        return left.index - right.index;
+    });
+    const latest = matches[0];
+    return {
+        messageId: latest.messageId,
+        signal: latest.signal,
+        createdTime: latest.createdTime
+    };
 }

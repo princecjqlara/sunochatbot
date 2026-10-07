@@ -19,7 +19,7 @@ afterEach(() => {
     delete process.env.FACEBOOK_WEBHOOK_URL;
 });
 
-describe('VeoBot folder media metadata', () => {
+describe('Sunobot folder media metadata', () => {
     it('keeps the selected folder and nested relative path for RAG', () => {
         expect(normalizeChatbotMediaSourcePath(
             'Video Samples/Condo/Two Bedroom.mp4',
@@ -48,7 +48,7 @@ describe('VeoBot folder media metadata', () => {
     });
 });
 
-describe('VeoBot media analysis', () => {
+describe('Sunobot media analysis', () => {
     it('extracts only safe image attachment URLs from an inbound Messenger message', () => {
         expect(getInboundMessengerImageUrls({
             attachments: [

@@ -63,7 +63,7 @@ afterEach(() => {
     delete process.env.OPENROUTER_API_KEY;
 });
 
-describe('VeoBot chatbot', () => {
+describe('Sunobot chatbot', () => {
     it('splits long replies into short natural Messenger bubbles without dropping text', () => {
         const reply = 'Our standard package includes a consultation, a customized service plan, and aftercare guidance based on your needs. We can also adjust the schedule around your preferred date, subject to availability. Which date and service are you considering so I can guide you to the best option?';
         const messages = splitChatbotMessageBubbles(reply, true);
@@ -121,6 +121,74 @@ describe('VeoBot chatbot', () => {
             'user'
         ]);
         expect(messages.at(-1)?.content).toBe('Are you open today?');
+    });
+
+    it('prioritizes the current sales guidance and saved package after an older quote', () => {
+        const messages = buildChatbotMessages({
+            instructions: 'Speak as our studio.',
+            followUpPrompt: 'Recommend 2 songs PHP 499 when no count is requested. Keep accepted packages fixed.',
+            detailsToCollect: ['Agreed package', 'Business name', 'Tagline or slogan'],
+            collectedDetails: { 'Agreed package': '3 songs, PHP 699', 'Business name': 'Sunrise Bakery' },
+            pageId: 'page-facebook-id',
+            inboundMessage: 'hi',
+            history: [
+                { id: 'latest-hi', message: 'hi', from: { id: 'customer-id', name: 'Cj' }, created_time: '2026-10-06T10:02:00Z' },
+                { id: 'old-quote', message: 'PHP 399 for one song. Okay po ba?', from: { id: 'page-facebook-id', name: 'Hiraya Studios' }, created_time: '2026-10-06T10:01:00Z' }
+            ]
+        });
+
+        expect(messages.map(message => message.role)).toEqual(['system', 'assistant', 'system', 'user']);
+        expect(messages[1].content).toContain('PHP 399');
+        expect(messages[2].content).toContain('Recommend 2 songs PHP 499');
+        expect(messages[2].content).toContain('3 songs, PHP 699');
+        expect(messages[2].content).toContain('Sunrise Bakery');
+        expect(messages[2].content).toContain('Still missing: Tagline or slogan');
+        expect(messages.filter(message => message.role === 'user' && message.content === 'hi')).toHaveLength(1);
+        expect(messages.at(-1)?.content).toBe('hi');
+    });
+
+    it('excludes obsolete bot pricing referrals while retaining customer facts and valid quotes', () => {
+        const messages = buildChatbotMessages({
+            instructions: 'Hiraya Studios. CURRENT APPROVED PRICES: 1 song PHP 399.',
+            pageId: 'page-facebook-id',
+            inboundMessage: 'hi',
+            history: [
+                { id: 'old-referral', message: 'Ipapasa ko sa human agent para sa exact price.', from: { id: 'page-facebook-id', name: 'Hiraya Studios' }, created_time: '2026-10-06T10:03:00Z' },
+                { id: 'old-rate-card', message: 'Hindi ko pa hawak ang updated rate card.', from: { id: 'page-facebook-id', name: 'Hiraya Studios' }, created_time: '2026-10-06T10:02:00Z' },
+                { id: 'valid-quote', message: 'Updated rate card: PHP 399 for one song.', from: { id: 'page-facebook-id', name: 'Hiraya Studios' }, created_time: '2026-10-06T10:01:00Z' },
+                { id: 'customer-facts', message: 'Sunrise Bakery kami. Sabi ninyo missing rate card at human agent pa.', from: { id: 'customer-id', name: 'CJ' }, created_time: '2026-10-06T10:00:00Z' }
+            ]
+        });
+
+        expect(messages.filter(message => message.role === 'assistant').map(message => message.content))
+            .toEqual(['Updated rate card: PHP 399 for one song.']);
+        expect(messages.some(message => message.role === 'user' && message.content.includes('Sunrise Bakery'))).toBe(true);
+        expect(messages.at(-1)?.content).toBe('hi');
+    });
+
+    it('retains historical replies when the owner has not configured approved pricing', () => {
+        const messages = buildChatbotMessages({
+            instructions: config.instructions,
+            pageId: 'page-facebook-id',
+            inboundMessage: 'Hello',
+            history: [{ id: 'salon-reply', message: 'A human agent can confirm the price.', from: { id: 'page-facebook-id', name: 'Salon' }, created_time: '2026-10-06T10:00:00Z' }]
+        });
+
+        expect(messages.some(message => message.role === 'assistant' && message.content.includes('human agent'))).toBe(true);
+    });
+
+    it('includes the selected owner policy even for a greeting with no search matches', () => {
+        const messages = buildChatbotMessages({
+            instructions: 'Follow the selected knowledge policy.',
+            pageId: 'page-facebook-id',
+            inboundMessage: 'hi',
+            knowledge: [],
+            ownerKnowledgePolicy: { title: 'Current studio strategy', content: 'Two independent songs PHP 699. Trust objections get relevant approved samples, not discounts.' }
+        });
+        expect(messages[0].content).toContain('OWNER-SELECTED CURRENT KNOWLEDGE POLICY');
+        expect(messages[0].content).toContain('Two independent songs PHP 699');
+        expect(messages[0].content).toContain('Trust objections get relevant approved samples');
+        expect(messages.at(-1)?.content).toBe('hi');
     });
 
     it('adds retrieved knowledge as guarded context', () => {
@@ -475,6 +543,313 @@ describe('VeoBot chatbot', () => {
         expect(response.link_document_id).toBeUndefined();
     });
 
+    it('restates accepted packages and current follow-up guidance after older quotes', async () => {
+        process.env.OPENROUTER_API_KEY = 'test-key';
+        const fetchMock = vi.fn().mockResolvedValue({
+            ok: true,
+            json: async () => ({ choices: [{ message: { content: JSON.stringify({
+                messages: ['Para sa Sunrise Bakery, ano pong tagline ang isasama natin?'],
+                personalization_basis: 'Sunrise Bakery ordered three songs.'
+            }) } }] })
+        });
+        vi.stubGlobal('fetch', fetchMock);
+
+        await generateChatbotFollowUp({
+            config: { ...config, follow_up_ai_instructions: 'Keep accepted packages fixed and ask one missing detail.' },
+            pageId: 'page-facebook-id',
+            sequenceNumber: 1,
+            scheduleLabel: 'first follow-up',
+            collectedDetails: { 'Agreed package': '3 songs, PHP 699', 'Business name': 'Sunrise Bakery' },
+            missingDetails: ['Tagline or slogan'],
+            history: [
+                { id: 'old-quote', message: 'PHP 399 for one song.', from: { id: 'page-facebook-id', name: 'Studio' }, created_time: '2026-10-06T10:01:00Z' },
+                { id: 'customer', message: 'Sunrise Bakery wants three songs.', from: { id: 'customer-id', name: 'Cj' }, created_time: '2026-10-06T10:00:00Z' }
+            ]
+        });
+
+        const request = JSON.parse(fetchMock.mock.calls[0][1].body);
+        expect(request.messages.at(-2).role).toBe('system');
+        expect(request.messages.at(-2).content).toContain('3 songs, PHP 699');
+        expect(request.messages.at(-2).content).toContain('Keep accepted packages fixed');
+        expect(request.messages.at(-2).content).toContain('Still missing: Tagline or slogan');
+        expect(request.messages.at(-1).role).toBe('user');
+    });
+
+    it('filters obsolete pricing history from follow-ups and enforces one question', async () => {
+        process.env.OPENROUTER_API_KEY = 'test-key';
+        const fetchMock = vi.fn().mockResolvedValue({
+            ok: true,
+            json: async () => ({ choices: [{ message: { content: JSON.stringify({
+                messages: ['PHP 399 ang isang kanta para sa Sunrise Bakery.', 'Okay po ba sa inyo? Anong style ang gusto ninyo?'],
+                personalization_basis: 'The customer requested a song for Sunrise Bakery.'
+            }) } }] })
+        });
+        vi.stubGlobal('fetch', fetchMock);
+
+        const response = await generateChatbotFollowUp({
+            config: { ...config, instructions: 'Hiraya Studios. CURRENT APPROVED PRICES: 1 song PHP 399.', split_messages: true, max_message_parts: 2 },
+            pageId: 'page-facebook-id',
+            sequenceNumber: 1,
+            scheduleLabel: 'first follow-up',
+            history: [
+                { id: 'old-referral', message: 'Ipapasa ko sa human agent para sa price.', from: { id: 'page-facebook-id', name: 'Hiraya Studios' }, created_time: '2026-10-06T10:01:00Z' },
+                { id: 'customer-request', message: 'Gusto namin ng kanta para sa Sunrise Bakery.', from: { id: 'customer-id', name: 'CJ' }, created_time: '2026-10-06T10:00:00Z' }
+            ]
+        });
+
+        const request = JSON.parse(fetchMock.mock.calls[0][1].body);
+        expect(request.messages.filter((message: { role: string }) => message.role === 'assistant')).toEqual([]);
+        expect(response.messages.length).toBeLessThanOrEqual(2);
+        expect(response.message.match(/\?/g)).toHaveLength(1);
+        expect(response.message).not.toContain('Anong style');
+    });
+
+    it('preserves a short fill-up form as one readable bubble when the owner enables forms', async () => {
+        process.env.OPENROUTER_API_KEY = 'test-key';
+        const form = 'Style: upbeat / mellow ___\nLyrics: Tagalog / Taglish ___\nTagline: ___\nDeadline: ___';
+        vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: true, json: async () => ({
+            choices: [{ message: { content: JSON.stringify({
+                messages: ['Pwede mong sagutan ito nang sabay.', form, 'O style muna, upbeat o mellow?'], collected_details: {}
+            }) } }]
+        }) }));
+        const response = await generateChatbotResponse({
+            config: { ...config, instructions: 'ALLOW_BRIEF_FORM: true', split_messages: true, max_message_parts: 3 },
+            pageId: 'page-facebook-id', inboundMessage: 'Send me a form.'
+        });
+        expect(response.messages).toEqual(['Pwede mong sagutan ito nang sabay.', form, 'O style muna, upbeat o mellow?']);
+        expect(response.reply.match(/\?/g)).toHaveLength(1);
+    });
+
+    it('keeps every numbered song field while splitting the full form into tiny bubbles', async () => {
+        process.env.OPENROUTER_API_KEY = 'test-key';
+        const form = 'Pa-sagutan po para sa kanta\n1. Business Name:\n2. Specialty/Products:\n3. Tagline:\n4. English or Tagalog lyrics:\n5. Male or Female singer:\n6. Genre:\n(sample: Pop)\n7. Additional requests:';
+        const fetchMock = vi.fn().mockResolvedValue({ ok: true, json: async () => ({
+            choices: [{ message: { content: JSON.stringify({ messages: [form, 'Pop o acoustic ang peg ninyo?'], collected_details: {} }) } }]
+        }) });
+        vi.stubGlobal('fetch', fetchMock);
+        const response = await generateChatbotResponse({
+            config: { ...config, instructions: 'ALLOW_BRIEF_FORM: true\nSONG_BRIEF_FORM: hiraya-seven-fields\nMAX_BUBBLE_CHARACTERS: 110\nMAX_REPLY_CHARACTERS: 400', split_messages: true, max_message_parts: 5 },
+            pageId: 'page-facebook-id', inboundMessage: 'Ano ang kailangan para sa kanta?'
+        });
+        expect(response.messages.every(message => message.length <= 110)).toBe(true);
+        expect(response.messages).toHaveLength(3);
+        expect(response.messages.slice(0, -1).join('\n')).toBe(form);
+        expect(response.reply).toContain('7. Additional requests:');
+        expect(response.reply).toContain('(sample: Pop)');
+        expect(fetchMock).toHaveBeenCalledTimes(1);
+    });
+
+    it('restores owner labels and numbering after the model changes or expands the form', async () => {
+        process.env.OPENROUTER_API_KEY = 'test-key';
+        vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: true, json: async () => ({
+            choices: [{ message: { content: JSON.stringify({ messages: [
+                '2 kanta: brand jingle at product song, PHP699 total. Kanta muna bago bayad.',
+                'Para makapagsimula, ito ang ilan sa mga bagay na maaari mong ibigay upang matulungan kaming mas maintindihan ang direksyon na gusto mong tahakin sa isang magandang commercial campaign song.\n1. Tagline:\n2. English o Tagalog lyrics:\n3. Male o Female singer:\n4. Genre:\n5. Haba ng kanta:\n6. Target audience:\n7. Additional requests:',
+                'Pop o acoustic ang genre na gusto ninyo?'
+            ], collected_details: {} }) } }]
+        }) }));
+        const response = await generateChatbotResponse({
+            config: { ...config, instructions: 'ALLOW_BRIEF_FORM: true\nSONG_BRIEF_FORM: hiraya-seven-fields\nMAX_BUBBLE_CHARACTERS: 110\nMAX_REPLY_CHARACTERS: 400', split_messages: true, max_message_parts: 5 },
+            pageId: 'page-facebook-id', inboundMessage: 'Ano kailangan?',
+            collectedDetails: { 'Business name': 'Sunrise Bakery', 'Main products or services': 'pandesal' }
+        });
+        expect(response.reply).toContain('3. Tagline:');
+        expect(response.reply).toContain('4. English or Tagalog lyrics:');
+        expect(response.reply).toContain('5. Male or Female singer:');
+        expect(response.reply).toContain('7. Additional requests:');
+        expect(response.reply).not.toMatch(/1\. Tagline|Haba ng kanta|Target audience|Para makapagsimula/);
+        expect(response.reply).toContain('PHP699');
+        expect(response.messages.every(message => message.length <= 110)).toBe(true);
+        expect(response.generation_warning).toBeUndefined();
+    });
+
+    it('preserves the colon for a single remaining numbered form field', async () => {
+        process.env.OPENROUTER_API_KEY = 'test-key';
+        vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: true, json: async () => ({
+            choices: [{ message: { content: JSON.stringify({ messages: ['7. Additional requests:', 'May pangalan o promo bang isasama?'], collected_details: {} }) } }]
+        }) }));
+        const response = await generateChatbotResponse({
+            config: { ...config, instructions: 'ALLOW_BRIEF_FORM: true\nSONG_BRIEF_FORM: hiraya-seven-fields', split_messages: true, max_message_parts: 5 },
+            pageId: 'page-facebook-id', inboundMessage: 'Ano pa ang kulang?',
+            collectedDetails: { 'Business name': 'Sunrise Bakery', 'Main products or services': 'pandesal',
+                'Tagline or slogan': 'Mainit araw-araw', 'Lyrics language': 'Tagalog', 'Vocal preference': 'Female', 'Preferred mood/style': 'Pop' }
+        });
+        expect(response.messages[0]).toBe('Pa-sagutan po para sa kanta\n7. Additional requests:');
+    });
+
+    it('keeps form fields together and turns the conversational choice into a final question', async () => {
+        process.env.OPENROUTER_API_KEY = 'test-key';
+        vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: true, json: async () => ({
+            choices: [{ message: { content: JSON.stringify({
+                messages: ['Style: ___\nLyrics: ___\nDeadline: ___\n\nPwede mong sagutan o isa-isa muna tayo.'], collected_details: {}
+            }) } }]
+        }) }));
+        const response = await generateChatbotResponse({
+            config: { ...config, instructions: 'ALLOW_BRIEF_FORM: true', split_messages: true, max_message_parts: 3 },
+            pageId: 'page-facebook-id', inboundMessage: 'Form please.'
+        });
+        expect(response.messages).toEqual(['Style: ___\nLyrics: ___\nDeadline: ___\n\nPwede mong sagutan o isa-isa muna tayo?']);
+        expect(response.reply.match(/\?/g)).toHaveLength(1);
+    });
+
+    it('collects several submitted form fields while retaining earlier facts', async () => {
+        process.env.OPENROUTER_API_KEY = 'test-key';
+        vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: true, json: async () => ({
+            choices: [{ message: { content: JSON.stringify({
+                messages: ['Sino ang target audience, pamilya o office workers?'],
+                collected_details: { 'Preferred mood/style': 'upbeat', 'Lyrics language': 'Tagalog', 'Song duration': '30 seconds', 'Deadline or occasion date': 'October 20' }
+            }) } }]
+        }) }));
+        const response = await generateChatbotResponse({
+            config: { ...config, details_to_collect: ['Business name', 'Preferred mood/style', 'Lyrics language', 'Song duration', 'Deadline or occasion date'] },
+            pageId: 'page-facebook-id', inboundMessage: 'Style: upbeat\nLyrics: Tagalog\nDuration: 30 seconds\nDeadline: October 20',
+            collectedDetails: { 'Business name': 'Sunrise Bakery' }
+        });
+        expect(response.collected_details).toEqual({ 'Business name': 'Sunrise Bakery', 'Preferred mood/style': 'upbeat', 'Lyrics language': 'Tagalog', 'Song duration': '30 seconds', 'Deadline or occasion date': 'October 20' });
+        expect(response.missing_details).toEqual([]);
+    });
+
+    it('does not count an unanswered model question as a collected preference', async () => {
+        process.env.OPENROUTER_API_KEY = 'test-key';
+        vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: true, json: async () => ({
+            choices: [{ message: { content: JSON.stringify({
+                messages: ['Upbeat o mellow?'], collected_details: { 'Preferred mood/style': 'asked (upbeat vs mellow)', 'Existing lyrics or script': 'none' }
+            }) } }]
+        }) }));
+        const response = await generateChatbotResponse({
+            config: { ...config, details_to_collect: ['Preferred mood/style', 'Existing lyrics or script'] },
+            pageId: 'page-facebook-id', inboundMessage: 'Wala pa akong lyrics.'
+        });
+        expect(response.collected_details).toEqual({ 'Existing lyrics or script': 'none' });
+        expect(response.missing_details).toEqual(['Preferred mood/style']);
+    });
+
+    it.each([
+        { text: 'Upbeat Tagalog ang gusto ko.', expected: 'Tagalog' },
+        { text: 'Upbeat ang gusto ko.', expected: undefined },
+        { text: 'Hindi Tagalog ang gusto ko.', expected: undefined }
+    ])('retains an explicit lyrics language omitted from a combined style value for $text', async ({ text, expected }) => {
+        process.env.OPENROUTER_API_KEY = 'test-key';
+        vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: true, json: async () => ({
+            choices: [{ message: { content: JSON.stringify({ messages: ['May tagline ka na?'], collected_details: { 'Preferred mood/style': 'Upbeat Tagalog' } }) } }]
+        }) }));
+        const response = await generateChatbotResponse({
+            config: { ...config, details_to_collect: ['Preferred mood/style', 'Lyrics language'] },
+            pageId: 'page-facebook-id', inboundMessage: text
+        });
+        expect(response.collected_details['Lyrics language']).toBe(expected);
+        expect(response.details_complete).toBe(expected !== undefined);
+    });
+
+    it('removes a repeated first-name acknowledgment without changing saved customer identity', async () => {
+        process.env.OPENROUTER_API_KEY = 'test-key';
+        vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: true, json: async () => ({
+            choices: [{ message: { content: JSON.stringify({ messages: ['Sige, Cj Lara! Upbeat o mellow ang gusto mo?'], collected_details: {} }) } }]
+        }) }));
+        const response = await generateChatbotResponse({
+            config: { ...config, instructions: 'SPARSE_FIRST_NAME: true', details_to_collect: ['Customer name'] },
+            contactName: 'Cj Lara', pageId: 'page-facebook-id', inboundMessage: 'Business song please.',
+            history: [{ id: 'previous', message: 'Cj, para sa bakery song.', from: { id: 'page-facebook-id', name: 'Hiraya Studios' }, created_time: '2026-10-06T10:00:00Z' }]
+        });
+        expect(response.reply).toBe('Upbeat o mellow ang gusto mo?');
+        expect(response.collected_details['Customer name']).toBe('Cj Lara');
+    });
+
+    it('removes repeated first-name addressing from a follow-up', async () => {
+        process.env.OPENROUTER_API_KEY = 'test-key';
+        vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: true, json: async () => ({
+            choices: [{ message: { content: JSON.stringify({ message: 'Cj Lara, para sa pandesal promo, pamilya o office workers ang target?', personalization_basis: 'Customer needs a pandesal promotion song.' }) } }]
+        }) }));
+        const response = await generateChatbotFollowUp({
+            config: { ...config, instructions: 'SPARSE_FIRST_NAME: true' }, contactName: 'Cj Lara', pageId: 'page-facebook-id',
+            history: [
+                { id: 'page', message: 'Cj, upbeat o mellow?', from: { id: 'page-facebook-id', name: 'Hiraya Studios' }, created_time: '2026-10-06T10:01:00Z' },
+                { id: 'customer', message: 'Need a pandesal promotion song.', from: { id: 'customer', name: 'Cj Lara' }, created_time: '2026-10-06T10:00:00Z' }
+            ], collectedDetails: {}, missingDetails: ['Target audience'], sequenceNumber: 1, scheduleLabel: 'first reminder'
+        });
+        expect(response.message).toBe('para sa pandesal promo, pamilya o office workers ang target?');
+    });
+
+    it('enforces configured bubble limits and one question without losing collected details', async () => {
+        process.env.OPENROUTER_API_KEY = 'test-key';
+        vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
+            ok: true,
+            json: async () => ({ choices: [{ message: { content: JSON.stringify({
+                messages: ['Gagawan namin kayo ng kanta.', 'Sunrise Bakery at pandesal, noted.', 'Ano pong slogan ninyo?', 'Anong voice ang gusto ninyo?'],
+                collected_details: { 'Business name': 'Sunrise Bakery', 'Agreed package': '1 song, PHP 399' },
+                stop_reason: null
+            }) } }] })
+        }));
+
+        const response = await generateChatbotResponse({
+            config: { ...config, split_messages: true, max_message_parts: 2, details_to_collect: ['Business name', 'Agreed package'] },
+            pageId: 'page-facebook-id',
+            inboundMessage: 'Agree ako sa PHP 399 for 1 song. Sunrise Bakery kami.'
+        });
+
+        expect(response.messages).toHaveLength(2);
+        expect(response.reply.match(/\?/g)).toHaveLength(1);
+        expect(response.reply).toContain('Ano pong slogan ninyo?');
+        expect(response.reply).not.toContain('Anong voice');
+        expect(response.collected_details).toEqual({ 'Business name': 'Sunrise Bakery', 'Agreed package': '1 song, PHP 399' });
+    });
+
+    it.each([
+        { text: 'Magkano ang 3 kanta?', previous: 'PHP 999 ang 3 kanta. Okay po ba?' },
+        { text: 'Sige, sample muna.', previous: 'Magpapadala ba ako ng sample?' },
+        { text: 'Okay ba PHP 900 for 3 songs?', previous: 'PHP 999 ang 3 kanta. Okay po ba?' },
+        { text: 'Okay', previous: 'Okay bang sample muna ng PHP 999 package?' }
+    ])('does not save a model-invented agreement for $text', async ({ text, previous }) => {
+        process.env.OPENROUTER_API_KEY = 'test-key';
+        vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: true, json: async () => ({ choices: [{ message: { content: JSON.stringify({
+            messages: ['PHP 999 ang 3 kanta. Okay po ba?'], collected_details: { 'Agreed package': '3 songs, PHP 999', 'Business name': 'Sunrise Bakery' }
+        }) } }] }) }));
+        const response = await generateChatbotResponse({
+            config: { ...config, details_to_collect: ['Agreed package', 'Business name'] },
+            pageId: 'page-facebook-id', inboundMessage: `${text} Sunrise Bakery kami.`,
+            history: [{ id: 'previous', message: previous, from: { id: 'page-facebook-id', name: 'Studio' }, created_time: '2026-10-06T10:00:00Z' }]
+        });
+        expect(response.collected_details['Agreed package']).toBeUndefined();
+        expect(response.collected_details['Business name']).toBe('Sunrise Bakery');
+    });
+
+    it('accepts a short agreement to an explicit preceding price question', async () => {
+        process.env.OPENROUTER_API_KEY = 'test-key';
+        vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: true, json: async () => ({ choices: [{ message: { content: JSON.stringify({
+            messages: ['Ano pong tagline?'], collected_details: { 'Agreed package': '3 songs, PHP 999' }
+        }) } }] }) }));
+        const response = await generateChatbotResponse({
+            config: { ...config, details_to_collect: ['Agreed package'] }, pageId: 'page-facebook-id', inboundMessage: 'Sige po',
+            history: [{ id: 'quote', message: 'Okay po ba sa inyo ang 3 kanta sa PHP 999?', from: { id: 'page-facebook-id', name: 'Studio' }, created_time: '2026-10-06T10:00:00Z' }]
+        });
+        expect(response.collected_details['Agreed package']).toBe('3 songs, PHP 999');
+    });
+
+    it('retries an overlong reply instead of clipping its final question', async () => {
+        process.env.OPENROUTER_API_KEY = 'test-key';
+        const fetchMock = vi.fn()
+            .mockResolvedValueOnce({ ok: true, json: async () => ({ choices: [{ message: { content: JSON.stringify({ messages: ['A'.repeat(450)] }) } }] }) })
+            .mockResolvedValueOnce({ ok: true, json: async () => ({ choices: [{ message: { content: JSON.stringify({ messages: ['PHP 999 ang 3 kanta. Okay po ba?'] }) } }] }) });
+        vi.stubGlobal('fetch', fetchMock);
+        const response = await generateChatbotResponse({ config: { ...config, instructions: 'MAX_REPLY_CHARACTERS: 400' }, pageId: 'page-facebook-id', inboundMessage: 'Magkano 3 songs?' });
+        expect(fetchMock).toHaveBeenCalledTimes(2);
+        expect(response.reply).toBe('PHP 999 ang 3 kanta. Okay po ba?');
+    });
+
+    it('retries an overlong follow-up without cutting the agreement question', async () => {
+        process.env.OPENROUTER_API_KEY = 'test-key';
+        const fetchMock = vi.fn()
+            .mockResolvedValueOnce({ ok: true, json: async () => ({ choices: [{ message: { content: JSON.stringify({ message: 'A'.repeat(260), personalization_basis: 'Bakery songs' }) } }] }) })
+            .mockResolvedValueOnce({ ok: true, json: async () => ({ choices: [{ message: { content: JSON.stringify({ message: 'Para sa Sunrise Bakery, 3 kanta PHP 999. Okay po ba?', personalization_basis: 'Bakery songs' }) } }] }) });
+        vi.stubGlobal('fetch', fetchMock);
+        const response = await generateChatbotFollowUp({
+            config: { ...config, instructions: 'MAX_FOLLOW_UP_CHARACTERS: 240' }, pageId: 'page-facebook-id', sequenceNumber: 1, scheduleLabel: 'first-day',
+            history: [{ id: 'customer', message: '3 songs para sa Sunrise Bakery', from: { id: 'customer', name: 'Cj' }, created_time: '2026-10-06T10:00:00Z' }]
+        });
+        expect(fetchMock).toHaveBeenCalledTimes(2);
+        expect(response.message).toBe('Para sa Sunrise Bakery, 3 kanta PHP 999. Okay po ba?');
+    });
+
     it('uses the configured OpenRouter model and returns the generated reply', async () => {
         process.env.OPENROUTER_API_KEY = 'test-key';
         const fetchMock = vi.fn().mockResolvedValue({
@@ -609,6 +984,66 @@ describe('VeoBot chatbot', () => {
         expect(JSON.parse(fetchMock.mock.calls[0][1].body).reasoning_effort).toBe('none');
         expect(JSON.parse(fetchMock.mock.calls[0][1].body).response_format).toEqual({ type: 'json_object' });
         expect(JSON.parse(fetchMock.mock.calls[1][1].body).max_completion_tokens).toBe(900);
+    });
+
+    it('retries an empty JSON object rather than sending it as a customer message', async () => {
+        process.env.OPENROUTER_API_KEY = 'test-key';
+        const fetchMock = vi.fn()
+            .mockResolvedValueOnce({ ok: true, status: 200,
+                json: async () => ({ choices: [{ message: { content: '{ }' } }] }) })
+            .mockResolvedValueOnce({ ok: true, status: 200,
+                json: async () => ({ choices: [{ message: { content: JSON.stringify({ messages: ['Use it in your Facebook reels. Brand or product focus?'] }) } }] }) });
+        vi.stubGlobal('fetch', fetchMock);
+        const response = await generateChatbotResponse({ config, pageId: 'page-facebook-id', inboundMessage: 'How can we use this?' });
+        expect(response.reply).toBe('Use it in your Facebook reels. Brand or product focus?');
+        expect(response.generation_warning).toBeUndefined();
+        expect(fetchMock).toHaveBeenCalledTimes(2);
+    });
+
+    it('falls back without exposing JSON when both structured replies have no usable message', async () => {
+        process.env.OPENROUTER_API_KEY = 'test-key';
+        vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: true, status: 200,
+            json: async () => ({ choices: [{ message: { content: '{"messages":[],"collected_details":{}}' } }] }) }));
+        const response = await generateChatbotResponse({ config, pageId: 'page-facebook-id', inboundMessage: 'Hello' });
+        expect(response.reply).toBe(config.fallback_reply);
+        expect(response.generation_warning).toContain('fallback was used');
+    });
+
+    it('allows form labels and reinforces form-first collection after historical replies', () => {
+        const messages = buildChatbotMessages({
+            instructions: 'ALLOW_BRIEF_FORM: true\nFORM-FIRST COLLECTION\nUse forms for requirements.',
+            detailsToCollect: ['Business name', 'Preferred mood/style', 'Lyrics language', 'Song duration'],
+            collectedDetails: { 'Business name': 'Sunrise Bakery' },
+            pageId: 'page-facebook-id', inboundMessage: 'For our Facebook campaign.', splitMessages: true,
+            history: [{ id: 'old-question', message: 'What style do you like?', from: { id: 'page-facebook-id', name: 'Hiraya Studios' }, created_time: '2026-10-07T10:00:00Z' }]
+        });
+        expect(messages[0].content).toContain('fill-up forms MUST use plain field labels ending in a colon');
+        expect(messages[0].content).toContain('keep an entire multiline fill-up form in one bubble');
+        expect(messages[0].content).not.toContain('Prefer 3 to 6 brief message bubbles');
+        const finalSystem = messages.filter(message => message.role === 'system').at(-1)!.content;
+        expect(finalSystem).toContain('FORM COLLECTION THIS TURN');
+        expect(finalSystem).toContain('Still missing: Preferred mood/style, Lyrics language, Song duration');
+        expect(finalSystem).toContain('Honor explicit one-by-one preference');
+    });
+
+    it('retries a large form bubble even when the total reply is under the overall limit', async () => {
+        process.env.OPENROUTER_API_KEY = 'test-key';
+        const largeForm = 'Campaign concept or creative direction: ___\nPreferred music mood and vocal style: ___\nPreferred lyrics language for the campaign: ___';
+        const tinyForm = 'Style: ___\nLyrics: ___\nDeadline: ___';
+        const fetchMock = vi.fn()
+            .mockResolvedValueOnce({ ok: true, status: 200,
+                json: async () => ({ choices: [{ message: { content: JSON.stringify({ messages: [largeForm, 'Upbeat o mellow?'] }) } }] }) })
+            .mockResolvedValueOnce({ ok: true, status: 200,
+                json: async () => ({ choices: [{ message: { content: JSON.stringify({ messages: [tinyForm, 'Upbeat o mellow?'] }) } }] }) });
+        vi.stubGlobal('fetch', fetchMock);
+        const response = await generateChatbotResponse({
+            config: { ...config, instructions: 'ALLOW_BRIEF_FORM: true\nMAX_REPLY_CHARACTERS: 400\nMAX_BUBBLE_CHARACTERS: 110', split_messages: true, max_message_parts: 3 },
+            pageId: 'page-facebook-id', inboundMessage: 'Send the requirements.'
+        });
+        expect(response.messages).toEqual([tinyForm, 'Upbeat o mellow?']);
+        expect(response.messages.every(message => message.length <= 110)).toBe(true);
+        expect(response.generation_warning).toBeUndefined();
+        expect(fetchMock).toHaveBeenCalledTimes(2);
     });
 
     it('uses the configured fallback instead of failing when both completions are empty', async () => {
@@ -763,7 +1198,7 @@ describe('VeoBot chatbot', () => {
     });
 });
 
-describe('VeoBot knowledge pipeline', () => {
+describe('Sunobot knowledge pipeline', () => {
     it('normalizes and splits long text into overlapping searchable chunks', () => {
         const text = ('Business hours are 9 AM to 8 PM. Services require an appointment.\n\n').repeat(50);
         const chunks = chunkKnowledgeText(text);

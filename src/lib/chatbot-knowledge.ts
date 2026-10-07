@@ -31,6 +31,26 @@ export type ChatbotKnowledgeMatch = {
     similarity: number;
 };
 
+export async function getPinnedChatbotKnowledge(input: { pageId: string; instructions: string }) {
+    const documentId = input.instructions.match(
+        /^KNOWLEDGE_POLICY_DOCUMENT_ID:\s*([a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12})\s*$/im
+    )?.[1];
+    if (!documentId) return undefined;
+
+    const { data, error } = await getSupabaseAdmin()
+        .from('chatbot_knowledge_documents')
+        .select('id, title, content, status, media_asset_id')
+        .eq('id', documentId)
+        .eq('page_id', input.pageId)
+        .eq('status', 'ready')
+        .maybeSingle();
+    if (error) throw new Error(error.message || 'Could not load the owner-selected knowledge policy');
+    if (data?.status !== 'ready' || !data.content?.trim() || data.media_asset_id || data.content.length > 16_000) {
+        throw new Error('The owner-selected knowledge policy is unavailable or exceeds 16000 characters');
+    }
+    return { title: String(data.title), content: String(data.content) };
+}
+
 type EmbeddingsResponse = {
     data?: Array<{ index: number; embedding: number[] }>;
     error?: { message?: string };
@@ -96,7 +116,7 @@ function openRouterHeaders() {
         Authorization: `Bearer ${apiKey}`,
         'Content-Type': 'application/json',
         'HTTP-Referer': process.env.NEXTAUTH_URL || 'http://localhost:3000',
-        'X-OpenRouter-Title': 'VeoBot RAG'
+        'X-OpenRouter-Title': 'Sunobot RAG'
     };
 }
 

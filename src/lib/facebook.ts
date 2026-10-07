@@ -403,7 +403,7 @@ const FACEBOOK_SEND_TIMEOUT_MS = 20_000;
 export async function takeThreadControl(
     pageAccessToken: string,
     recipientPsid: string,
-    metadata: string = 'VeoBot campaign delivery'
+    metadata: string = 'Sunobot campaign delivery'
 ): Promise<void> {
     const endpoint = '/me/take_thread_control';
     const controller = new AbortController();

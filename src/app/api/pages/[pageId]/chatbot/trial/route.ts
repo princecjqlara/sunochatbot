@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getSessionFromRequest } from '@/lib/get-session';
 import { userHasPageAccess } from '@/lib/page-access';
 import { getSupabaseAdmin } from '@/lib/supabase';
+import { CHATBOT_CONVERSATION_WINDOW_MS } from '@/lib/chatbot-control';
 
 async function authorize(request: NextRequest, pageId: string) {
     const session = await getSessionFromRequest(request);
@@ -43,7 +44,7 @@ export async function GET(
                     .maybeSingle(),
                 supabase
                     .from('chatbot_contact_states')
-                    .select('status, collected_details, missing_details, stop_reason, started_at, window_expires_at, last_inbound_at, last_bot_reply_at')
+                    .select('status, collected_details, missing_details, stop_reason, started_at, window_expires_at, last_inbound_at, last_bot_reply_at, history_start_at')
                     .eq('page_id', pageId)
                     .eq('contact_id', config.trial_contact_id)
                     .maybeSingle(),
@@ -135,12 +136,25 @@ export async function POST(
         }
 
         const now = new Date().toISOString();
+        const ignorePastConversation = body.ignore_past_conversation === true;
         const [stateResult, followUpResult, pipelineResult] = await Promise.all([
             supabase
                 .from('chatbot_contact_states')
-                .delete()
-                .eq('page_id', pageId)
-                .eq('contact_id', contactId),
+                .upsert({
+                    page_id: pageId,
+                    contact_id: contactId,
+                    status: 'active',
+                    started_at: now,
+                    window_expires_at: new Date(Date.parse(now) + CHATBOT_CONVERSATION_WINDOW_MS).toISOString(),
+                    collected_details: {},
+                    missing_details: [],
+                    stop_reason: null,
+                    stopped_at: null,
+                    last_inbound_at: null,
+                    last_bot_reply_at: null,
+                    history_start_at: ignorePastConversation ? now : null,
+                    updated_at: now
+                }, { onConflict: 'page_id,contact_id' }),
             supabase
                 .from('chatbot_follow_up_jobs')
                 .update({
@@ -169,7 +183,10 @@ export async function POST(
 
         return NextResponse.json({
             success: true,
-            message: `${contact.name || 'The selected contact'} is ready for a fresh chatbot trial.`,
+            message: ignorePastConversation
+                ? `${contact.name || 'The selected contact'} is ready for a fresh trial. The bot will only use messages sent after this reset.`
+                : `${contact.name || 'The selected contact'} is ready for a fresh trial with past conversation available.`,
+            ignore_past_conversation: ignorePastConversation,
             contact_id: contactId
         });
     } catch (error) {

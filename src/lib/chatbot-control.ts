@@ -24,11 +24,26 @@ export type ChatbotContactState = {
     stopped_at: string | null;
     last_inbound_at: string | null;
     last_bot_reply_at: string | null;
+    history_start_at?: string | null;
 };
 
 type SupabaseLike = {
     from: (table: string) => any;
 };
+
+export function filterChatbotConversationHistory<T extends { created_time?: string | null }>(
+    history: T[],
+    historyStartAt?: string | null
+): T[] {
+    if (!historyStartAt) return history;
+    const cutoff = Date.parse(historyStartAt);
+    // A broken cutoff or missing message date must not restore excluded history.
+    if (!Number.isFinite(cutoff)) return [];
+    return history.filter(message => {
+        const createdAt = Date.parse(message.created_time || '');
+        return Number.isFinite(createdAt) && createdAt >= cutoff;
+    });
+}
 
 export function isChatbotContactAllowed(
     config: { trial_mode_enabled?: unknown; trial_contact_id?: unknown } | null | undefined,
@@ -89,6 +104,10 @@ export function classifyChatbotStopIntent(
     if (options.stopOnOptOut && OPT_OUT_PATTERNS.some((pattern) => pattern.test(value))) {
         return 'opt_out';
     }
+    const rejectsAnOption = /\b(?:ayoko|pass|wag na|huwag na|don't want|do not want)\b.{0,100}\b(?:boses|vocals?|style|genre|lyrics|mood|version|package|bundle|dalawa|tatlo|two songs|three songs)\b/i.test(value);
+    const requestsAnAlternative = /\b(?:gusto|prefer|instead|rather|palitan|change|switch|isa(?:ng)?|one|female|male)\b/i.test(value);
+    const clearlyDeclinesPurchase = /not interested|not buying|(?:don't|do not) want to buy|(?:hindi|di) ako interesado|ayoko.{0,20}(?:bumili|magpagawa|umorder)/i.test(value);
+    if (rejectsAnOption && requestsAnAlternative && !clearlyDeclinesPurchase) return null;
     if (options.stopOnRefusal && REFUSAL_PATTERNS.some((pattern) => pattern.test(value))) {
         return 'refusal';
     }
@@ -138,7 +157,7 @@ export async function getChatbotContactState(
 ): Promise<ChatbotContactState | null> {
     const { data, error } = await supabase
         .from('chatbot_contact_states')
-        .select('id, page_id, contact_id, status, started_at, window_expires_at, collected_details, missing_details, stop_reason, stopped_at, last_inbound_at, last_bot_reply_at')
+        .select('id, page_id, contact_id, status, started_at, window_expires_at, collected_details, missing_details, stop_reason, stopped_at, last_inbound_at, last_bot_reply_at, history_start_at')
         .eq('page_id', pageId)
         .eq('contact_id', contactId)
         .maybeSingle();
@@ -188,6 +207,7 @@ export async function saveChatbotContactState(
         stopped_at: stopReason ? now.toISOString() : null,
         last_inbound_at: input.inboundAt || input.existingState?.last_inbound_at || null,
         last_bot_reply_at: input.botRepliedAt || input.existingState?.last_bot_reply_at || null,
+        history_start_at: input.existingState?.history_start_at || null,
         updated_at: now.toISOString()
     };
     const { error } = await supabase

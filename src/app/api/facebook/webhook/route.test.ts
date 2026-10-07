@@ -220,7 +220,7 @@ function createSupabaseMock(options?: {
     };
 }
 
-function createPhotoChatbotSupabaseMock() {
+function createPhotoChatbotSupabaseMock(options?: { state?: Record<string, unknown> }) {
     const welcomeSelect = vi.fn(() => {
         throw new Error('Photo chatbot handling should bypass the welcome lookup');
     });
@@ -258,6 +258,7 @@ function createPhotoChatbotSupabaseMock() {
         stop_on_order_created: true
     };
 
+    const stateUpsert = vi.fn().mockResolvedValue({ error: null });
     const from = vi.fn((table: string) => {
         if (table === 'pages') {
             return {
@@ -321,11 +322,11 @@ function createPhotoChatbotSupabaseMock() {
                 select: vi.fn().mockReturnValue({
                     eq: vi.fn().mockReturnValue({
                         eq: vi.fn().mockReturnValue({
-                            maybeSingle: vi.fn().mockResolvedValue({ data: null, error: null })
+                            maybeSingle: vi.fn().mockResolvedValue({ data: options?.state || null, error: null })
                         })
                     })
                 }),
-                upsert: vi.fn().mockResolvedValue({ error: null })
+                upsert: stateUpsert
             };
         }
         if (table === 'chatbot_reply_events') {
@@ -351,7 +352,7 @@ function createPhotoChatbotSupabaseMock() {
         throw new Error(`Unexpected table: ${table}`);
     });
 
-    return { from, welcomeSelect };
+    return { from, welcomeSelect, stateUpsert };
 }
 
 function createSupabaseMockWithFirstInteractionColumnFailure() {
@@ -997,6 +998,31 @@ describe('POST /api/facebook/webhook', () => {
             undefined,
             undefined
         );
+    });
+
+    it.each([false, true])('excludes pre-reset prices and lead stops from a fresh trial (expired = %s)', async expired => {
+        const cutoff = '2026-10-04T09:00:00Z';
+        const supabase = createPhotoChatbotSupabaseMock({ state: {
+            page_id: 'page_row_1', contact_id: 'contact_row_1', status: 'active',
+            started_at: cutoff, window_expires_at: expired ? '2026-10-04T09:30:00Z' : '2026-10-11T09:00:00Z',
+            collected_details: {}, missing_details: [], stop_reason: null, stopped_at: null,
+            last_inbound_at: null, last_bot_reply_at: null, history_start_at: cutoff
+        } });
+        mocks.getSupabaseAdmin.mockReturnValue(supabase);
+        mocks.getUserProfile.mockResolvedValue({ id: 'contact_psid_1', name: 'Photo Contact' });
+        const latest = { id: 'fresh-inbound', message: 'New business song inquiry', from: { id: 'contact_psid_1', name: 'Photo Contact' }, created_time: '2026-10-04T10:00:00Z' };
+        mocks.getConversationForPsid.mockResolvedValue({ messages: { data: [latest,
+            { id: 'old-stop', message: 'Lead stage set to Converted.', from: { id: 'fb_page_1' }, created_time: '2026-10-03T10:00:00Z' },
+            { id: 'old-price', message: 'One song PHP299, okay?', from: { id: 'fb_page_1' }, created_time: '2026-10-02T10:00:00Z' }
+        ] } });
+        const response = await POST(createWebhookRequest({ object: 'page', entry: [{ id: 'fb_page_1', messaging: [{
+            sender: { id: 'contact_psid_1' }, recipient: { id: 'fb_page_1' }, timestamp: Date.parse(latest.created_time),
+            message: { mid: latest.id, text: latest.message }
+        }] }] }));
+        expect(response.status).toBe(200);
+        expect(mocks.generateChatbotResponse).toHaveBeenCalledWith(expect.objectContaining({ history: [latest], collectedDetails: {} }));
+        expect(supabase.stateUpsert).toHaveBeenCalledWith(expect.objectContaining({ history_start_at: cutoff }), { onConflict: 'page_id,contact_id' });
+        expect(mocks.sendMessage).toHaveBeenCalledTimes(1);
     });
 
     it('sends welcome as RESPONSE with mapped buttons when welcome config has buttons', async () => {

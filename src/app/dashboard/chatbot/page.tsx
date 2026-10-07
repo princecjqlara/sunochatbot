@@ -202,6 +202,7 @@ type LiveTrialStatus = {
         stop_reason: string | null;
         window_expires_at: string;
         last_bot_reply_at: string | null;
+        history_start_at?: string | null;
     } | null;
     pending_follow_ups: number;
 };
@@ -261,6 +262,10 @@ type BotInterruption = {
     id: string;
     sent_by: string;
     contact_name: string;
+    interruption_type: 'manual_message' | 'lead_stage_change';
+    lead_stage: string | null;
+    collected_detail_count: number;
+    required_detail_count: number;
     interrupted_at: string;
 };
 
@@ -420,6 +425,7 @@ export default function ChatbotPage() {
     const [trialContactId, setTrialContactId] = useState('');
     const [liveTrialStatus, setLiveTrialStatus] = useState<LiveTrialStatus | null>(null);
     const [liveTrialLoading, setLiveTrialLoading] = useState(false);
+    const [ignorePastTrialConversation, setIgnorePastTrialConversation] = useState(true);
     const testChatEndRef = useRef<HTMLDivElement | null>(null);
     const [knowledgeDocuments, setKnowledgeDocuments] = useState<KnowledgeDocument[]>([]);
     const [knowledgeTitle, setKnowledgeTitle] = useState('');
@@ -726,7 +732,7 @@ export default function ChatbotPage() {
         if (!selectedPageId || !trialContactId || liveTrialLoading) return;
         const selectedContact = trialContacts.find((contact) => contact.id === trialContactId) || liveTrialStatus?.contact;
         const contactLabel = selectedContact?.name || 'the selected contact';
-        if (!window.confirm(`Reset ${contactLabel}'s collected details, stop state, pending chatbot follow-ups, and pipeline stage to Engaged? Messenger history will remain available to the AI.`)) return;
+        if (!window.confirm(`Reset ${contactLabel}'s collected details, stop state, pending chatbot follow-ups, and pipeline stage to Engaged? ${ignorePastTrialConversation ? 'The bot will ignore messages from before this reset.' : 'Past conversation will remain available to the bot.'}`)) return;
 
         setLiveTrialLoading(true);
         setError('');
@@ -735,7 +741,7 @@ export default function ChatbotPage() {
             const response = await fetch(`/api/pages/${selectedPageId}/chatbot/trial`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ action: 'reset', contact_id: trialContactId })
+                body: JSON.stringify({ action: 'reset', contact_id: trialContactId, ignore_past_conversation: ignorePastTrialConversation })
             });
             const body = await readJsonResponse(response);
             if (!response.ok) throw new Error(body.message || body.error || 'Failed to reset live trial contact');
@@ -1621,7 +1627,7 @@ export default function ChatbotPage() {
                             <div className="mb-3 flex items-start justify-between gap-3">
                                 <div>
                                     <h3 className="text-sm font-bold">Bot interruption log</h3>
-                                    <p className="mt-1 text-xs text-gray-500">Manual VeoBot messages sent while the bot was still collecting details.</p>
+                                    <p className="mt-1 text-xs text-gray-500">Manual messages and Business Suite lead-stage changes made while the bot was still collecting details.</p>
                                 </div>
                                 <span className="font-mono text-[10px] uppercase text-gray-500">Philippine time</span>
                             </div>
@@ -1638,6 +1644,8 @@ export default function ChatbotPage() {
                                             <tr>
                                                 <th className="px-3 py-2 font-mono text-[10px] uppercase">Sent by</th>
                                                 <th className="px-3 py-2 font-mono text-[10px] uppercase">Contact interrupted</th>
+                                                <th className="px-3 py-2 font-mono text-[10px] uppercase">Interruption</th>
+                                                <th className="px-3 py-2 font-mono text-[10px] uppercase">Details</th>
                                                 <th className="px-3 py-2 font-mono text-[10px] uppercase">Timestamp</th>
                                             </tr>
                                         </thead>
@@ -1646,6 +1654,14 @@ export default function ChatbotPage() {
                                                 <tr key={interruption.id} className="border-t border-gray-300">
                                                     <td className="px-3 py-2 font-semibold">{interruption.sent_by}</td>
                                                     <td className="px-3 py-2">{interruption.contact_name}</td>
+                                                    <td className="px-3 py-2">
+                                                        {interruption.interruption_type === 'lead_stage_change'
+                                                            ? `Lead stage set to ${PIPELINE_LABELS[interruption.lead_stage || ''] || interruption.lead_stage || 'Unknown'}`
+                                                            : 'Manual message'}
+                                                    </td>
+                                                    <td className="whitespace-nowrap px-3 py-2 font-mono text-xs">
+                                                        {interruption.collected_detail_count} / {interruption.required_detail_count}
+                                                    </td>
                                                     <td className="whitespace-nowrap px-3 py-2 font-mono text-xs">{formatPhilippineTimestamp(interruption.interrupted_at)}</td>
                                                 </tr>
                                             ))}
@@ -1865,7 +1881,7 @@ export default function ChatbotPage() {
                                     placeholder="Personalize every follow-up from the conversation. When relevant, send samples of previous work, a product photo, or a promotional video from the knowledge base. Never repeat the same wording."
                                 />
                                 <span className="block text-[10px] text-gray-500 mt-1">
-                                    VeoBot reads the existing conversation and saved contact details before writing, then uses Page RAG for relevant facts and media. If history cannot be read or a genuinely personalized message cannot be validated, nothing is sent and the job retries.
+                                    Sunobot reads the existing conversation and saved contact details before writing, then uses Page RAG for relevant facts and media. If history cannot be read or a genuinely personalized message cannot be validated, nothing is sent and the job retries.
                                 </span>
                             </label>
 
@@ -1918,7 +1934,7 @@ export default function ChatbotPage() {
                             </div>
 
                             <p className="mt-3 border border-amber-500 bg-amber-50 p-2 text-[11px] text-amber-900 font-mono">
-                                First-day sends use RESPONSE. On days 2–7, VeoBot sends the AI-personalized follow-up automatically with HUMAN_AGENT. Meta must approve Human Agent access for the connected app.
+                                First-day sends use RESPONSE. On days 2–7, Sunobot sends the AI-personalized follow-up automatically with HUMAN_AGENT. Meta must approve Human Agent access for the connected app.
                             </p>
                         </div>
 
@@ -2135,7 +2151,7 @@ export default function ChatbotPage() {
                         </div>
                         <div className="mt-3 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                             <div className="text-xs text-gray-500 font-mono">
-                                <p>Set the folder and its nested files to Anyone with the link → Viewer. VeoBot indexes only filenames, folder categories, thumbnails and links; videos remain in Google Drive.</p>
+                                <p>Set the folder and its nested files to Anyone with the link → Viewer. Sunobot indexes only filenames, folder categories, thumbnails and links; videos remain in Google Drive.</p>
                                 <p className={`mt-1 break-all ${driveSyncStatus?.configured ? 'text-green-700' : 'text-amber-700'}`}>
                                     {driveSyncStatus?.message || (driveSyncStatus?.service_account_email
                                         ? `Drive sync account: ${driveSyncStatus.service_account_email}`
@@ -2231,7 +2247,7 @@ export default function ChatbotPage() {
                             <div>
                                 <h2 className="font-bold text-sm">Photos and videos</h2>
                                 <p className="text-xs text-gray-500 font-mono mt-1">
-                                    Upload files or a whole folder for {selectedPageName}. Folder and file names become searchable AI context, so VeoBot can pick only the relevant sample.
+                                    Upload files or a whole folder for {selectedPageName}. Folder and file names become searchable AI context, so Sunobot can pick only the relevant sample.
                                 </p>
                             </div>
                         </div>
@@ -2473,6 +2489,20 @@ export default function ChatbotPage() {
                                 </div>
                             )}
 
+                            <label className="mt-4 flex items-center gap-2 text-xs">
+                                <input
+                                    type="checkbox"
+                                    checked={ignorePastTrialConversation}
+                                    onChange={(event) => setIgnorePastTrialConversation(event.target.checked)}
+                                    disabled={liveTrialLoading}
+                                />
+                                Ignore past conversation when resetting
+                            </label>
+                            {liveTrialStatus?.contact?.id === selectedTrialContact?.id && liveTrialStatus?.state?.history_start_at && (
+                                <p className="mt-2 text-xs text-gray-600">
+                                    The bot is using only messages sent since the last fresh reset.
+                                </p>
+                            )}
                             <div className="mt-4 flex flex-wrap gap-2">
                                 <button
                                     type="button"
@@ -2503,7 +2533,7 @@ export default function ChatbotPage() {
                                 </button>
                             </div>
                             <p className="mt-3 text-[10px] leading-4 text-gray-500">
-                                After enabling, send a new message to {selectedPageName} from the selected contact&apos;s Messenger account. Reset clears the bot&apos;s collected details and stop state, cancels pending bot follow-ups, and returns the contact to Engaged. It does not delete Messenger history.
+                                After enabling, send a new message to {selectedPageName} from the selected contact&apos;s Messenger account. Reset clears collected details and stop state, cancels pending bot follow-ups, and returns the contact to Engaged. Choose whether the bot can read the earlier conversation; Messenger messages are kept.
                             </p>
                         </div>
 
@@ -2653,7 +2683,7 @@ export default function ChatbotPage() {
                                 ))}
                                 {testing && (
                                     <div className="flex justify-start">
-                                        <div className="border-2 border-black bg-white px-3 py-2 text-xs text-gray-500 shadow-[2px_2px_0_rgba(0,0,0,0.16)]">VeoBot is typing…</div>
+                                        <div className="border-2 border-black bg-white px-3 py-2 text-xs text-gray-500 shadow-[2px_2px_0_rgba(0,0,0,0.16)]">Sunobot is typing…</div>
                                     </div>
                                 )}
                                 <div ref={testChatEndRef} />

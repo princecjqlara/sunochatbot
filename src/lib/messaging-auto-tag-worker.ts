@@ -1,9 +1,11 @@
 import { getPageConversationsBatch } from '@/lib/facebook';
 import {
     classifyMessengerSystemMessage,
+    findLatestMessengerLeadStageEvent,
     type MessengerSystemSignal
 } from '@/lib/messaging-auto-tag';
 import {
+    filterChatbotConversationHistory,
     getChatbotContactState,
     saveChatbotContactState
 } from '@/lib/chatbot-control';
@@ -12,6 +14,7 @@ import {
     pipelineStageForMessengerSignal,
     updateContactPipelineStage
 } from '@/lib/contact-pipeline';
+import { recordChatbotInterruptionIfNeeded } from '@/lib/outbound-message-events';
 
 type Page = {
     id: string;
@@ -198,8 +201,8 @@ export async function processOneMessagingAutoTagPage() {
         for (const conversation of batch.conversations) {
             const participant = conversation.participants?.data?.find(p => p.id !== current.fb_page_id);
             if (!participant) continue;
-            const messages = await getMessagesSince(conversation.id, current.access_token, current.messaging_auto_tag_checked_at);
-            const signals = [...new Set(messages
+            let messages = await getMessagesSince(conversation.id, current.access_token, current.messaging_auto_tag_checked_at);
+            let signals = [...new Set(messages
                 .filter(message => message.from?.id === current.fb_page_id)
                 .map(message => classifyMessengerSystemMessage(message.message || ''))
                 .filter((signal): signal is MessengerSystemSignal => signal !== null))];
@@ -223,6 +226,27 @@ export async function processOneMessagingAutoTagPage() {
                 } else {
                     contact = inserted.data;
                 }
+            }
+
+            const existingState = await getChatbotContactState(db, current.id, contact.id);
+            messages = filterChatbotConversationHistory(messages, existingState?.history_start_at);
+            signals = [...new Set(messages
+                .filter(message => message.from?.id === current.fb_page_id)
+                .map(message => classifyMessengerSystemMessage(message.message || ''))
+                .filter((signal): signal is MessengerSystemSignal => signal !== null))];
+            if (signals.length === 0) continue;
+
+            const leadStageEvent = findLatestMessengerLeadStageEvent(messages, current.fb_page_id);
+            if (leadStageEvent) {
+                await recordChatbotInterruptionIfNeeded(db, {
+                    pageId: current.id,
+                    contactId: contact.id,
+                    messageId: leadStageEvent.messageId,
+                    source: 'business_suite',
+                    interruptionType: 'lead_stage_change',
+                    leadStage: pipelineStageForMessengerSignal(leadStageEvent.signal),
+                    interruptedAt: leadStageEvent.createdTime || undefined
+                });
             }
             if (signals.some(signal => signal !== 'not_qualified')) {
                 const { error: assignError } = await db.from('contact_tags').upsert({
@@ -259,7 +283,6 @@ export async function processOneMessagingAutoTagPage() {
             const stopSignal = (['order_created', 'converted', 'qualified', 'not_qualified'] as MessengerSystemSignal[])
                 .find(signal => signals.includes(signal) && shouldStopForSignal(chatbotStopConfig, signal));
             if (stopSignal) {
-                const existingState = await getChatbotContactState(db, current.id, contact.id);
                 if (existingState?.status !== 'stopped') {
                     await saveChatbotContactState(db, {
                         pageId: current.id,

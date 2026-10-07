@@ -541,7 +541,7 @@ export async function sendCampaignById({
                                         await takeThreadControl(
                                             page.access_token,
                                             recipient.contact_psid,
-                                            `VeoBot campaign ${campaignId}`
+                                            `Sunobot campaign ${campaignId}`
                                         );
                                         console.warn(`Took Messenger thread control for ${recipient.contact_psid}; retrying delivery once.`);
                                         continue;

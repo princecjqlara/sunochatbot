@@ -66,7 +66,7 @@ function driveKnowledgeContent(folder: ChatbotDriveFolder, remote: GoogleDriveMe
         folder.usage_notes
             ? `Owner guidance and when this sample is useful: ${folder.usage_notes}`
             : `This is a ${remote.mediaType} sample from ${folder.name}.`,
-        'Select this exact document ID only when this individual file directly helps the customer. VeoBot will send it as one card or include it in a relevant carousel.'
+        'Select this exact document ID only when this individual file directly helps the customer. Sunobot will send it as one card or include it in a relevant carousel.'
     ].join('\n\n');
 }
 

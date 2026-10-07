@@ -17,6 +17,18 @@ export type OutboundMessageEventInput = {
     sentAt?: string;
 };
 
+export type ChatbotInterruptionInput = {
+    pageId: string;
+    contactId: string;
+    messageId: string;
+    source: 'veobot' | 'business_suite';
+    interruptionType: 'manual_message' | 'lead_stage_change';
+    actorUserId?: string | null;
+    actorName?: string | null;
+    leadStage?: string | null;
+    interruptedAt?: string;
+};
+
 type ChatbotInterruptionConfig = {
     details_to_collect?: unknown;
     details_completion_percent?: unknown;
@@ -70,9 +82,9 @@ function countCollectedDetails(
 
 export async function recordChatbotInterruptionIfNeeded(
     supabase: SupabaseLike,
-    event: OutboundMessageEventInput
+    event: ChatbotInterruptionInput
 ): Promise<void> {
-    if (event.sourceType !== 'manual' || !event.contactId || !event.messageId?.trim()) return;
+    if (!event.contactId || !event.messageId?.trim()) return;
 
     const [configResult, stateResult] = await Promise.all([
         supabase
@@ -114,11 +126,13 @@ export async function recordChatbotInterruptionIfNeeded(
             message_id: event.messageId.trim(),
             actor_user_id: event.actorUserId || null,
             actor_name: event.actorName?.trim() || null,
-            source: 'veobot',
+            source: event.source,
+            interruption_type: event.interruptionType,
+            lead_stage: event.leadStage?.trim() || null,
             collected_detail_count: collectedDetailCount,
             required_detail_count: requiredDetailCount,
             missing_detail_count: Math.max(0, requestedDetails.length - collectedDetailCount),
-            interrupted_at: event.sentAt || new Date().toISOString()
+            interrupted_at: event.interruptedAt || new Date().toISOString()
         }, { onConflict: 'message_id' });
 
     if (error) throw error;
@@ -156,7 +170,18 @@ export async function recordOutboundMessageEvent(
             return;
         }
 
-        await recordChatbotInterruptionIfNeeded(supabase, event);
+        if (event.sourceType === 'manual' && event.contactId) {
+            await recordChatbotInterruptionIfNeeded(supabase, {
+                pageId: event.pageId,
+                contactId: event.contactId,
+                messageId: event.messageId,
+                source: 'veobot',
+                interruptionType: 'manual_message',
+                actorUserId: event.actorUserId,
+                actorName: event.actorName,
+                interruptedAt: event.sentAt
+            });
+        }
     } catch (error) {
         warnOnce(error);
     }

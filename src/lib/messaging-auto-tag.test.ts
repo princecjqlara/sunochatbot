@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
     classifyMessengerSystemMessage,
+    findLatestMessengerLeadStageEvent,
     findLatestMessengerSystemSignal
 } from './messaging-auto-tag';
 
@@ -44,5 +45,32 @@ describe('classifyMessengerSystemMessage', () => {
             from: { id: 'customer-1' },
             created_time: '2026-09-26T10:00:00Z'
         }], 'page-1')).toBeNull();
+    });
+
+    it('returns audit metadata for the newest explicit lead-stage change', () => {
+        expect(findLatestMessengerLeadStageEvent([
+            {
+                id: 'stage-old',
+                message: 'Lead stage set to Qualified',
+                from: { id: 'page-1' },
+                created_time: '2026-09-28T10:00:00Z'
+            },
+            {
+                id: 'stage-new',
+                message: 'Lead stage set to Converted',
+                from: { id: 'page-1' },
+                created_time: '2026-09-29T10:00:00Z'
+            },
+            {
+                id: 'order-event',
+                message: 'You created an order for PHP699. View: fb-pma://payments/orderdetails/?invoice_id=12345',
+                from: { id: 'page-1' },
+                created_time: '2026-09-29T11:00:00Z'
+            }
+        ], 'page-1')).toEqual({
+            messageId: 'stage-new',
+            signal: 'converted',
+            createdTime: '2026-09-29T10:00:00Z'
+        });
     });
 });

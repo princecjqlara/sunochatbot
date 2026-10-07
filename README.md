@@ -1,4 +1,4 @@
-# VeoBot - Facebook Page Management
+# Sunobot - Facebook Page Management
 
 A Next.js application for managing Facebook Page contacts, tags, messaging campaigns, and an AI-powered Messenger chatbot.
 
@@ -83,11 +83,11 @@ TELEGRAM_MEDIA_ROUTES={"-1001234567890":"00000000-0000-4000-8000-000000000000"}
 
 ### Telegram group media bridge
 
-VeoBot can automatically import supported photos and videos from approved Telegram groups into a Page's chatbot media library and RAG knowledge.
+Sunobot can automatically import supported photos and videos from approved Telegram groups into a Page's chatbot media library and RAG knowledge.
 
 1. Create a bot with BotFather and add it to the source group. Make the bot an administrator or disable privacy mode so it receives group media messages.
 2. Set `TELEGRAM_BOT_TOKEN` and generate a random `TELEGRAM_WEBHOOK_SECRET` containing only letters, numbers, `_`, and `-`.
-3. Set `TELEGRAM_MEDIA_ROUTES` to a JSON object whose keys are Telegram chat IDs and values are VeoBot Page UUIDs. Only mapped groups are accepted.
+3. Set `TELEGRAM_MEDIA_ROUTES` to a JSON object whose keys are Telegram chat IDs and values are Sunobot Page UUIDs. Only mapped groups are accepted.
 4. Register the webhook after the public app URL is available:
 
 ```bash
@@ -116,7 +116,10 @@ Apply `supabase/migrations/202609240001_chatbot_drive_files.sql` and `2026092400
 Apply `supabase/migrations/202609240003_chatbot_media_source_paths.sql` to preserve uploaded folder/file paths for AI retrieval.
 Apply `supabase/migrations/202609240004_chatbot_drive_file_paths.sql` to preserve public Drive folder categories while indexing link-only media.
 Apply `supabase/migrations/202609250001_chatbot_live_trial.sql` to enable a safe one-contact Messenger trial mode and contact-specific reset controls.
-Apply `supabase/migrations/202609280001_chatbot_interruption_log.sql` to audit which VeoBot team member manually messaged a contact while the chatbot was still collecting details.
+Apply `supabase/migrations/202609280001_chatbot_interruption_log.sql` to audit which Sunobot team member manually messaged a contact while the chatbot was still collecting details.
+Apply `supabase/migrations/202609290001_lead_stage_interruption_log.sql` to include Business Suite lead-stage changes in that audit.
+Apply `supabase/migrations/202610050001_protect_internal_page_tables.sql` to restrict internal history and sync tables to server access.
+Apply `supabase/migrations/202610070001_chatbot_trial_history_reset.sql` to support trial resets that ignore earlier conversation history.
 High-volume installations can then run `database/migration_compact_contact_interactions.sql` and its finalize migration to replace unbounded raw interaction events with compatible hourly counters.
 
 For large campaigns, deploy the compact delivery queue in this exact order:
@@ -139,7 +142,7 @@ npm run dev
 
 1. Open **Dashboard → AI Chatbot** and select a Facebook Page.
 2. In **Knowledge base**, paste business information or load a `.txt`, `.md`, `.csv`, or `.json` file (up to 1 MB / 100,000 characters).
-3. Give it a title and click **Add to knowledge base**. VeoBot chunks and embeds the text automatically.
+3. Give it a title and click **Add to knowledge base**. Sunobot chunks and embeds the text automatically.
 4. Keep **Use knowledge base (RAG)** enabled, save the chatbot settings, and use **Test chatbot** to verify the answer and its matched sources.
 
 Knowledge and retrieval are isolated by Page. Deleting a source also removes its stored vector chunks.
@@ -147,17 +150,17 @@ Knowledge and retrieval are isolated by Page. Deleting a source also removes its
 ### Add chatbot photos and videos
 
 1. In **Dashboard → AI Chatbot**, select the Facebook Page that owns the media.
-2. Under **Photos and videos**, choose individual files or **Choose entire folder**. VeoBot preserves folder/file names, accepts up to 100 supported media files per batch and up to 50 MB per file, then adds every file to Page-scoped RAG.
-3. Click **Upload and auto-RAG**. VeoBot stores the file privately, analyzes its visual/spoken content with the configured multimodal model, and indexes the analysis in that Page's knowledge base.
+2. Under **Photos and videos**, choose individual files or **Choose entire folder**. Sunobot preserves folder/file names, accepts up to 100 supported media files per batch and up to 50 MB per file, then adds every file to Page-scoped RAG.
+3. Click **Upload and auto-RAG**. Sunobot stores the file privately, analyzes its visual/spoken content with the configured multimodal model, and indexes the analysis in that Page's knowledge base.
 4. When the retrieved media is directly relevant, the bot can send one linked image or video after its text reply. The model can only select media returned by page-scoped RAG.
 
-One VeoBot installation can operate all connected Pages. Each Page has separate instructions, on/off state, knowledge, media, contact state, and Page name in its AI context; use the Page selector to configure or disable them independently.
+One Sunobot installation can operate all connected Pages. Each Page has separate instructions, on/off state, knowledge, media, contact state, and Page name in its AI context; use the Page selector to configure or disable them independently.
 
 ### Add large Google Drive media folders
 
 1. Set the root folder and nested content to **Anyone with the link → Viewer**.
 2. In **Dashboard → AI Chatbot → Knowledge**, enter the folder name, shared folder link, customer-facing button text, and guidance describing the samples and when each kind should be shared.
-3. Click **Add folder to chatbot**, or **Sync files** for an existing folder. VeoBot recursively reads the public folder index and stores only filenames, folder categories, thumbnails, direct links and RAG embeddings. Video binaries remain in Google Drive.
+3. Click **Add folder to chatbot**, or **Sync files** for an existing folder. Sunobot recursively reads the public folder index and stores only filenames, folder categories, thumbnails, direct links and RAG embeddings. Video binaries remain in Google Drive.
 4. When a sample is relevant, the bot selects only the matching file. One result appears as a single Messenger card; multiple results appear as a swipeable carousel. The whole folder is never sent as a fallback.
 
 Public folders require no Google API or service-account credentials. For a private folder, configure the optional service-account variables and share the folder with that account as Viewer.
@@ -166,7 +169,7 @@ This approach supports files larger than Messenger's attachment ceiling because 
 
 ### Upload media folders without Google Drive
 
-Use **Dashboard → AI Chatbot → Knowledge → Photos and videos → Choose entire folder** for the recommended no-Google setup. Files are stored privately in the existing Supabase Storage project. Folder paths, filenames, shared guidance and optional visual analysis are indexed so the bot selects only relevant files. A single match is sent as one Messenger card; multiple matches are sent as a carousel. Card buttons use a stable VeoBot URL that creates a short-lived private Storage link when opened.
+Use **Dashboard → AI Chatbot → Knowledge → Photos and videos → Choose entire folder** for the recommended no-Google setup. Files are stored privately in the existing Supabase Storage project. Folder paths, filenames, shared guidance and optional visual analysis are indexed so the bot selects only relevant files. A single match is sent as one Messenger card; multiple matches are sent as a carousel. Card buttons use a stable Sunobot URL that creates a short-lived private Storage link when opened.
 
 Set `PUBLIC_APP_URL` to the public HTTPS application origin in production. It defaults to `NEXTAUTH_URL` when omitted.
 
@@ -175,16 +178,18 @@ Set `PUBLIC_APP_URL` to the public HTTPS application origin in production. It de
 The **AI Chatbot** page also supports a controlled lead-qualification flow:
 
 - Add a follow-up prompt that explains how the bot should qualify the customer.
-- List the details to collect, one per line. VeoBot remembers values already provided and asks for one missing item at a time.
+- List the details to collect, one per line. Sunobot remembers supplied values and supports individual questions or owner-configured fill-up forms.
 - Set a collection target from 1–100%. For example, 40% with five listed details stops collection after two are received, using the list order as priority.
 - Add explicit **Bot should** and **Bot should not** rules for tone, allowed actions, prohibited claims, discount limits, and handoff behavior.
-- Enable natural message bubbles to let VeoBot choose however many short Messenger messages the reply naturally needs, with no fixed bubble-count cap.
+- Enable natural message bubbles to split replies into short Messenger messages within the owner's configured length and bubble-count limits.
 - Choose automatic stop rules for completed details, opt-out requests, purchase refusals, Meta Qualified / Not Qualified / Converted stages, and Messenger order creation.
 - Enable automated no-reply follow-ups and configure aggressive first-day delays such as 10, 60, 240, 720, and 1,380 minutes. These sends use Messenger's standard `RESPONSE` window and are cancelled when the customer replies or the conversation stops.
-- Configure days 2–7 at the contact's learned best hour (or noon Philippine time when there is not enough history). VeoBot sends the AI-personalized message directly through the Messenger Human Agent flow.
+- Configure days 2–7 at the contact's learned best hour (or noon Philippine time when there is not enough history). Sunobot sends the AI-personalized message directly through the Messenger Human Agent flow.
 - Use **AI follow-up instructions** to describe how every follow-up should be written and when the AI should include retrieved media, such as previous work, product photos, testimonials, or promotional videos. Each job is generated from that contact's own conversation and Page-scoped RAG context.
 - Select an uploaded photo or video to attach to the first eligible first-day follow-up.
 - Bot state uses a rolling seven-day activity window from the customer's latest message. First-day follow-ups use `RESPONSE`; day 2–7 follow-ups are sent automatically with `HUMAN_AGENT` and are cancelled before the seven-day boundary.
+- In the one-contact trial controls, select **Ignore past conversation when resetting** for a fresh test. Replies, follow-ups and lead-stage history checks then use only messages sent since the reset; Messenger messages are preserved. Uncheck the option to allow older history again.
+- Song Pages can use `ALLOW_BRIEF_FORM: true` and `SONG_BRIEF_FORM: hiraya-seven-fields` in owner instructions for the numbered business-song form. Known fields are omitted without changing their original numbering; the form is split into small bubbles, and Additional requests must be included in the configured details list to be saved.
 
 Meta stage and order stops are detected by the existing messaging auto-tag cron worker. Keep `/api/cron/follow-up-automations` scheduled so those conversation-history signals are processed.
 
