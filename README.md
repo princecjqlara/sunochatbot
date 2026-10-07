@@ -225,34 +225,41 @@ src/
 
 1. Push your code to GitHub (already done)
 2. Go to [Vercel](https://vercel.com) and sign in with GitHub
-3. Click "New Project" and import your repository: `princecjqlara/veochatbot`
+3. Click "New Project" and import your repository: `princecjqlara/sunochatbot`
 4. Configure environment variables in Vercel dashboard:
-   - `NEXTAUTH_URL` - Your Vercel deployment URL (e.g., `https://your-app.vercel.app`)
+   - `NEXTAUTH_URL` - `https://sunochatbot.vercel.app`
+   - `PUBLIC_APP_URL` - `https://sunochatbot.vercel.app`
    - `NEXTAUTH_SECRET` - Generate a random secret
    - `FACEBOOK_CLIENT_ID` - Your Facebook App ID
    - `FACEBOOK_CLIENT_SECRET` - Your Facebook App Secret
    - `FACEBOOK_APP_SECRET` - Your Facebook App Secret
+   - `FACEBOOK_WEBHOOK_VERIFY_TOKEN` - Must exactly match the token entered in Meta's webhook settings
+   - `FACEBOOK_WEBHOOK_URL` - `https://sunochatbot.vercel.app/api/facebook/webhook`
    - `NEXT_PUBLIC_SUPABASE_URL` - Your Supabase project URL
    - `NEXT_PUBLIC_SUPABASE_ANON_KEY` - Your Supabase anon key
    - `SUPABASE_SERVICE_ROLE_KEY` - Your Supabase service role key
+   - `OPENROUTER_API_KEY` - Your OpenRouter API key
+   - `OPENROUTER_MODEL` - Your configured chat model
+
+   Select the **Production** environment for these variables. Changes require a new deployment; local `.env.local` values are not automatically configured on Vercel.
 
 5. Update Facebook App settings:
    - Add your Vercel URL to Facebook App redirect URIs:
-     - `https://your-app.vercel.app/api/auth/callback/facebook`
+     - `https://sunochatbot.vercel.app/api/auth/callback/facebook`
    - Update webhook URL to:
-     - `https://your-app.vercel.app/api/facebook/webhook`
+     - `https://sunochatbot.vercel.app/api/facebook/webhook`
 
 6. Deploy! Vercel will automatically build and deploy your app.
 
-### cron-jobs.org Setup
+### cron-job.org Setup
 
-Vercel Cron is not used. Configure cron jobs in [cron-jobs.org](https://cron-jobs.org) to call the deployed API routes:
+Vercel Cron is not used. Configure cron jobs in [cron-job.org](https://cron-job.org) to call the deployed API routes:
 
-- Contact/name sync, every 30 minutes: `https://your-app.vercel.app/api/cron/sync`
-- Scheduled campaigns, every minute: `https://your-app.vercel.app/api/cron/campaign-scheduled`
-- Loop campaigns, every minute: `https://your-app.vercel.app/api/cron/campaign-loop`
-- Follow-up automations, every minute: `https://your-app.vercel.app/api/cron/follow-up-automations`
-- Conversation export worker, every minute: `https://your-app.vercel.app/api/cron/exports`
+- Contact/name sync, every 30 minutes: `https://sunochatbot.vercel.app/api/cron/sync`
+- Scheduled campaigns, every minute: `https://sunochatbot.vercel.app/api/cron/campaign-scheduled`
+- Loop campaigns, every minute: `https://sunochatbot.vercel.app/api/cron/campaign-loop`
+- Follow-up automations, every minute: `https://sunochatbot.vercel.app/api/cron/follow-up-automations`
+- Conversation export worker, every minute: `https://sunochatbot.vercel.app/api/cron/exports`
 
 Use `GET` requests. These cron routes do not require a cron secret.
 
@@ -264,5 +271,5 @@ Private project
 
 ## Repository
 
-https://github.com/princecjqlara/veochatbot
+https://github.com/princecjqlara/sunochatbot
 

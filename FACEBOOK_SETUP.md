@@ -27,7 +27,7 @@ Follow these steps to set up your Facebook app integration.
 4. In **Settings** → **Facebook Login** → **Settings**:
    - **Valid OAuth Redirect URIs**: Add these URLs:
      ```
-     https://veochatbot.vercel.app/api/auth/callback/facebook
+     https://sunochatbot.vercel.app/api/auth/callback/facebook
      http://localhost:3000/api/auth/callback/facebook
      ```
    - Leave **Deauthorize Callback URL** and **Data Deletion Request URL** empty until dedicated handlers are added. The NextAuth callback above must not be reused for those fields.
@@ -52,7 +52,7 @@ Follow these steps to set up your Facebook app integration.
 3. Fill in:
    - **Callback URL**: 
      ```
-     https://veochatbot.vercel.app/api/facebook/webhook
+     https://sunochatbot.vercel.app/api/facebook/webhook
      ```
    - **Verify Token**: 
      - Use the exact value stored as `FACEBOOK_WEBHOOK_VERIFY_TOKEN` in Vercel.
@@ -86,7 +86,7 @@ FACEBOOK_APP_SECRET=your-app-secret-here
 
 1. Make sure your Next.js app is running: `npm run dev`
 2. Make sure ngrok is running and pointing to port 3000
-3. Visit your production app: `https://veochatbot.vercel.app`
+3. Visit your production app: `https://sunochatbot.vercel.app`
 4. Click "Sign in with Facebook"
 5. Grant permissions
 6. You should be redirected back and logged in!
@@ -99,7 +99,7 @@ FACEBOOK_APP_SECRET=your-app-secret-here
 - Ensure your app is running and ngrok is active
 
 ### OAuth Redirect Error
-- Verify the redirect URL in Facebook matches exactly: `https://veochatbot.vercel.app/api/auth/callback/facebook`
+- Verify the redirect URL in Facebook matches exactly: `https://sunochatbot.vercel.app/api/auth/callback/facebook`
 - Make sure there are no trailing slashes
 
 ### Permissions Not Granted
