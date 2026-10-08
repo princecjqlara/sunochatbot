@@ -51,6 +51,63 @@ function getReplyCharacterLimit(instructions: string, setting: string, fallback:
     return value ? Math.min(fallback, Math.max(100, Number(value))) : fallback;
 }
 
+function usesShortHumanReplies(instructions: string) {
+    return /^SHORT_HUMAN_REPLIES:\s*true\s*$/im.test(instructions);
+}
+
+function simpleThanksReply(inbound: string): string | null {
+    const text = comparableReply(inbound);
+    if (!/^(?:thank you(?: so much| very much)?|thanks(?: a lot)?|thank u|ty|salamat(?: po| talaga)?|maraming salamat(?: po)?)(?: po)?$/.test(text)) return null;
+    return /salamat|\bpo\b/.test(text) ? 'Walang anuman po!' : "You're welcome!";
+}
+
+function removeUnneededPricingQuestion(parts: string[], inbound: string): string[] {
+    if (!/\b(?:magkano|presyo|price|prices|pricing|cost|rates?|how much)\b/i.test(inbound) ||
+        /\b(?:order|proceed|start|papagawa|gawan|tuloy|fill|form|requirements)\b/i.test(inbound) ||
+        parts.some(isBriefFormMessage)) return parts;
+    return parts.map(part => {
+        const answer = part.replace(/[^.!?\n]*\?/g, question =>
+            /(?:PHP|\u20b1)\s*\d|\b\d[\d,.]*\s*pesos?\b/i.test(question) ? question : '').trim();
+        return answer || part;
+    });
+}
+
+function hasAllowedFillUpForm(config: ChatbotConfig, parts: string[]) {
+    const allowedLabels = new Set([...normalizeDetailsToCollect(config.details_to_collect),
+        ...(/^SONG_BRIEF_FORM:\s*hiraya-seven-fields\s*$/im.test(config.instructions)
+            ? ['Business Name', 'Specialty/Products', 'Tagline', 'English or Tagalog lyrics', 'Male or Female singer', 'Genre', 'Additional requests'] : [])]
+        .map(label => label.trim().toLowerCase()));
+    return /^ALLOW_BRIEF_FORM:\s*true\s*$/im.test(config.instructions) && parts.some(part =>
+        part.split('\n').some(line => {
+            const field = line.match(/^\s*(?:\d+\.\s*)?([^:\n?!]{1,70}):\s*(.*)$/);
+            return field && allowedLabels.has(field[1].trim().toLowerCase()) && (!field[2].trim() || /___/.test(field[2]));
+        }));
+}
+
+function getTurnReplyLimits(config: ChatbotConfig, parts: string[]) {
+    if (usesShortHumanReplies(config.instructions)) {
+        const form = hasAllowedFillUpForm(config, parts);
+        const limit = getReplyCharacterLimit(config.instructions, form ? 'MAX_FORM_CHARACTERS' : 'MAX_REPLY_CHARACTERS', form ? 700 : 180);
+        return { total: limit, bubble: limit };
+    }
+    return {
+        total: getReplyCharacterLimit(config.instructions, 'MAX_REPLY_CHARACTERS', Number.POSITIVE_INFINITY),
+        bubble: getReplyCharacterLimit(config.instructions, 'MAX_BUBBLE_CHARACTERS', Number.POSITIVE_INFINITY)
+    };
+}
+
+function shortHumanReplyGuidance(instructions: string) {
+    if (!usesShortHumanReplies(instructions)) return '';
+    return '\nSHORT HUMAN REPLIES THIS TURN:\n' +
+        'Send exactly ONE message bubble. Ordinary replies: 1-2 short sentences, aim 60-140 characters, hard limit 180 characters total. ' +
+        'Only a genuine fill-up form may be longer, up to 700 characters in ONE readable multiline bubble. Keep the complete missing fields; no extra sales paragraph or question after the form. ' +
+        'Answer the latest request directly. Match the customer language, mood and formality; natural Taglish when they use it. Sound calm, warm and specific, without forced slang or fake familiarity. ' +
+        'A question is optional: ask one only when an unknown detail is necessary to continue. Simple acknowledgments, thanks, reactions and answered questions need no automatic sales CTA. For a simple thanks, reply with a brief acknowledgment only; no sales nudge, form or invitation to send details. For price-only or factual questions, answer only that question unless the customer also asks to proceed. ' +
+        'Do not repeat their answers, greet again, recap, praise every detail, repeat a quote, push a bundle on each turn, or repeat the payment pitch. Preserve their chosen scope and corrections. ' +
+        'Use at most one emoji only when it fits; no emoji is fine. Do not invent facts, acceptance, recordings or promises. If support, hesitation or a complaint is the current need, address that before selling. ' +
+        'Never claim to be human. Keep extracting all actual details into JSON even when the customer-facing reply is short. These current reply limits override older bubble/length/CTA guidance.\n';
+}
+
 function isBriefFormMessage(content: string) {
     return /^\s*[1-7]\.\s+[^\n:?!]{1,70}:\s*[^\n]*$/m.test(content) ||
         (content.match(/^[^\n:?!]{1,70}:\s*[^\n]*$/gm) || []).length >= 2;
@@ -145,7 +202,7 @@ function splitBriefFormBubbles(content: string): string[] {
     return parts;
 }
 
-function formatOwnerSongForm(messages: string[], details: Record<string, string>): string[] {
+function formatOwnerSongForm(messages: string[], details: Record<string, string>, shortReplies = false): string[] {
     const fields = [
         ['Business Name', 'Business name'], ['Specialty/Products', 'Main products or services'],
         ['Tagline', 'Tagline or slogan'], ['English or Tagalog lyrics', 'Lyrics language'],
@@ -170,7 +227,7 @@ function formatOwnerSongForm(messages: string[], details: Record<string, string>
             : !details['Lyrics language'] ? 'English o Tagalog ang lyrics?'
                 : !details['Vocal preference'] ? 'Male o female vocals ang gusto ninyo?'
                     : 'May promo o pangalan bang gusto ninyong isama?';
-    return [...before, ['Pa-sagutan po para sa kanta', ...missing].join('\n'), safeQuestion];
+    return [...before, ['Pa-sagutan po para sa kanta', ...missing].join('\n'), ...(shortReplies ? [] : [safeQuestion])];
 }
 
 function applyOwnerNameUsage(parts: string[], input: {
@@ -638,6 +695,7 @@ function parseChatbotPlan(
     const detailsComplete = requiredDetailCount > 0 && collectedDetailCount >= requiredDetailCount;
 
     const allowBriefForm = /^ALLOW_BRIEF_FORM:\s*true\s*$/im.test(config.instructions);
+    const shortReplies = usesShortHumanReplies(config.instructions);
     const sevenFieldForm = /^SONG_BRIEF_FORM:\s*hiraya-seven-fields\s*$/im.test(config.instructions);
     let rawMessages = (Array.isArray(parsed?.messages)
         ? parsed.messages.filter((message): message is string => typeof message === 'string')
@@ -646,10 +704,10 @@ function parseChatbotPlan(
             : [])
         .map(value => sanitizeGeneratedMessage(value, allowBriefForm && isBriefFormMessage(value)))
         .filter(Boolean);
-    if (sevenFieldForm && rawMessages.some(isBriefFormMessage)) {
-        rawMessages = formatOwnerSongForm(rawMessages, collectedDetails);
+    if (sevenFieldForm && rawMessages.some(isBriefFormMessage) && (!shortReplies || hasAllowedFillUpForm(config, rawMessages))) {
+        rawMessages = formatOwnerSongForm(rawMessages, collectedDetails, shortReplies);
     }
-    if (allowBriefForm && rawMessages.some(isBriefFormMessage) && !rawMessages.join('\n').includes('?')) {
+    if (!shortReplies && allowBriefForm && rawMessages.some(isBriefFormMessage) && !rawMessages.join('\n').includes('?')) {
         const lastIndex = rawMessages.length - 1;
         if (/(?:isa-isa|one by one)/i.test(rawMessages[lastIndex].split('\n').at(-1) || '')) {
             rawMessages[lastIndex] = rawMessages[lastIndex].replace(/[.!]?\s*$/, '?');
@@ -660,11 +718,13 @@ function parseChatbotPlan(
     const messageContent = rawMessages.length > 0
         ? rawMessages.join('\n\n')
         : sanitizeGeneratedMessage(content);
-    const generatedMessages = rawMessages.length > 0 && config.split_messages
+    const generatedMessages = shortReplies
+        ? [rawMessages.length ? rawMessages.join(rawMessages.some(isBriefFormMessage) ? '\n\n' : ' ') : messageContent]
+        : rawMessages.length > 0 && config.split_messages
         ? rawMessages.flatMap((message) => allowBriefForm && isBriefFormMessage(message)
             ? sevenFieldForm ? splitBriefFormBubbles(message) : [message] : splitChatbotMessageBubbles(message, true))
         : splitChatbotMessageBubbles(messageContent, config.split_messages);
-    const messages = enforceReplyPartsAndQuestion(generatedMessages, config.max_message_parts);
+    const messages = enforceReplyPartsAndQuestion(generatedMessages, shortReplies ? 1 : config.max_message_parts);
     if (messages.length === 0) throw new Error('OpenRouter returned an empty reply');
 
     const rawStopReason = parsed?.stop_reason;
@@ -774,12 +834,17 @@ export function buildChatbotMessages(input: {
     const collectedDetailCount = details.length - missingDetails.length;
     const targetReached = requiredDetailCount > 0 && collectedDetailCount >= requiredDetailCount;
     const allowBriefForm = /^ALLOW_BRIEF_FORM:\s*true\s*$/im.test(input.instructions);
+    const shortReplies = usesShortHumanReplies(input.instructions);
     const formFirst = allowBriefForm && /^FORM-FIRST COLLECTION\b/im.test(input.instructions);
     const sevenFieldForm = /^SONG_BRIEF_FORM:\s*hiraya-seven-fields\s*$/im.test(input.instructions);
     const priorFormSent = (input.history || []).some(message => message.from?.id === input.pageId && isBriefFormMessage(message.message || ''));
     const formGuidance = formFirst && !targetReached && missingDetails.length > 0
         ? priorFormSent && !asksToResendForm(input.inboundMessage)
             ? '\nFORM COLLECTION THIS TURN: The requirements form has already been sent. Do not resend any part of it. Use the customer answers already provided, answer the latest request, and ask at most one relevant unknown detail.\n'
+            : shortReplies && sevenFieldForm
+            ? '\nFORM COLLECTION THIS TURN: On an actual requirements turn, send the unanswered fields in ONE complete multiline bubble. No separate introductory bubble or extra creative question. ' +
+                'Use these exact labels and original numbering:\nPa-sagutan po para sa kanta\n1. Business Name:\n2. Specialty/Products:\n3. Tagline:\n4. English or Tagalog lyrics:\n5. Male or Female singer:\n6. Genre:\n(sample: Pop)\n7. Additional requests:\n' +
+                'Omit known answers. Save actual submitted values using the configured detail labels. Honor explicit one-by-one preference. Answer direct questions first; greetings, thanks, reactions, support and opt-outs need no form. Do not resend an unanswered form unless explicitly requested.\n'
             : sevenFieldForm
             ? '\nFORM COLLECTION THIS TURN: Use the owner seven-field numbered song form, not Style/Lyrics/Deadline mini-forms. ' +
                 'On requirements turns, the form itself is the answer: no recap, lengthy introduction, explanation, extra menu or usage pitch. Aim under300 total characters. ' +
@@ -814,7 +879,7 @@ export function buildChatbotMessages(input: {
         : '';
     const responseFormat = '\n\nReturn only valid JSON with this shape: ' +
         '{"messages":["message bubble"],"collected_details":{"exact requested detail":"customer-provided value"},"stop_reason":null,"media_document_ids":[],"drive_file_document_ids":[],"link_document_id":null}. ' +
-        (input.splitMessages
+        (shortReplies ? 'Use exactly 1 message bubble, including a complete multiline fill-up form when needed. ' : input.splitMessages
             ? allowBriefForm
                 ? 'Use brief conversational bubbles and keep an entire multiline fill-up form in one bubble. Choose fewer fields and short labels to follow the owner per-bubble, bubble count and TOTAL character limits. '
                 : 'Prefer 3 to 6 brief message bubbles for a multi-sentence reply. Keep each bubble near 110 characters or less, split at natural sentence or clause boundaries, and do not pad a reply that is already short. '
@@ -874,12 +939,12 @@ export function buildChatbotMessages(input: {
         'Avoid generic filler, fake enthusiasm, corporate buzzwords, repeated summaries, essay-like explanations, excessive emojis, excessive punctuation, headings, and decorative Markdown. ' +
         'Do not use em dashes, en dashes, dash-style bullet lists, or headline-style labels ending in a colon. Use ordinary conversational sentences and punctuation instead. ' +
         (allowBriefForm ? 'Exception: owner-approved fill-up forms MUST use plain field labels ending in a colon, with separate lines and blank placeholders; these are allowed and are not decorative headings. ' : '') +
-        'Answer first, then give one useful next step or question. Vary wording naturally instead of reusing a response template. ' +
-        'Keep each message under 600 characters.';
+        'Answer first, then give one useful next step or question when necessary. Vary wording naturally instead of reusing a response template. ' +
+        (shortReplies ? 'Keep ordinary replies under 180 characters; only a fill-up form may use up to 700 characters.' : 'Keep each message under 600 characters.');
     const system = pageIdentity + 'You are replying to ' + contactName + ' in Facebook Messenger. ' + contactIdentity +
         knowledgeContext + salesFlowContext + '\n\n' + languageStyle +
         'Write naturally and avoid repetitive greetings. ' +
-        ownerInstructions + ownerKnowledgePolicy + customerRequestRule + immutableRules + responseFormat + formGuidance;
+        ownerInstructions + ownerKnowledgePolicy + customerRequestRule + immutableRules + responseFormat + formGuidance + shortHumanReplyGuidance(input.instructions);
 
     const history = (input.history || [])
         .filter((message) => !isOutdatedPricingReply(message, input.pageId, input.instructions))
@@ -920,6 +985,7 @@ export function buildChatbotMessages(input: {
                 ? 'A previous studio message already quoted a song count/total and the latest customer message is not a pricing or scope-change request. Continue the brief with a fresh creative suggestion or missing-detail question. Do not mention any PHP amount, repeat the quote, repeat kanta muna bago bayad, reset the scope to one song, or ask for price confirmation.\n'
                 : '') +
             formGuidance +
+            shortHumanReplyGuidance(input.instructions) +
             'A short greeting does not reset saved facts or an accepted offer. Never ask for a saved detail again. ' +
             'Never invent acceptance. Address the latest message, retain verified facts, and ask at most one next-step question. ' +
             'The non-overridable response rules and JSON response format above still apply.';
@@ -1035,14 +1101,13 @@ export async function generateChatbotResponse(input: {
         knowledge,
         hasExplicitPackageAcceptance(input.inboundMessage, input.history || [], input.pageId)
     );
-    const maxReplyCharacters = getReplyCharacterLimit(input.config.instructions, 'MAX_REPLY_CHARACTERS', Number.POSITIVE_INFINITY);
-    const maxBubbleCharacters = getReplyCharacterLimit(input.config.instructions, 'MAX_BUBBLE_CHARACTERS', Number.POSITIVE_INFINITY);
+    let { total: maxReplyCharacters, bubble: maxBubbleCharacters } = getTurnReplyLimits(input.config, plan.messages);
     if (plan.reply.length > maxReplyCharacters || plan.messages.some(message => message.length > maxBubbleCharacters)) {
         const conciseBody = await requestOpenRouterCompletion({
             apiKey, title: 'Sunobot Chatbot', model, maxTokens: 700, temperature: 0.25,
             messages: [...messages, {
                 role: 'system',
-                content: `Return the required JSON with a complete reply under ${maxReplyCharacters} characters TOTAL${Number.isFinite(maxBubbleCharacters) ? ` and each bubble at most ${maxBubbleCharacters} characters, at most ${input.config.max_message_parts || 3} bubbles` : ''}. Preserve verified accepted terms and known facts, answer the latest question, and ask at most one useful next-step question. Follow the owner form template; group its missing fields into tiny bubbles without dropping or renaming them. Remove filler and extra package menus; do not truncate a sentence or agreement question.`
+                content: `Return the required JSON with a complete reply under ${maxReplyCharacters} characters TOTAL${Number.isFinite(maxBubbleCharacters) ? ` and each bubble at most ${maxBubbleCharacters} characters` : ''}. Preserve these extracted customer answers: ${JSON.stringify(plan.collected_details)}. Answer the latest question and ask a question only when necessary. ${usesShortHumanReplies(input.config.instructions) ? 'Use exactly ONE bubble. Only the fill-up form may be longer; keep its missing fields together with no extra question or sales paragraph.' : 'Follow the owner form template; group its missing fields into tiny bubbles without dropping or renaming them.'} Remove filler and extra package menus; do not truncate a sentence or agreement question.`
             }]
         }).catch(() => null);
         tokenUsage = combineTokenUsage(tokenUsage, conciseBody ? normalizeTokenUsage(conciseBody) : undefined);
@@ -1052,6 +1117,7 @@ export async function generateChatbotResponse(input: {
             conciseContent, input.config, plan.collected_details, knowledge,
             hasExplicitPackageAcceptance(input.inboundMessage, input.history || [], input.pageId)
         );
+        ({ total: maxReplyCharacters, bubble: maxBubbleCharacters } = getTurnReplyLimits(input.config, plan.messages));
         if (!usableConciseContent || plan.reply.length > maxReplyCharacters || plan.messages.some(message => message.length > maxBubbleCharacters)) {
             generationWarning = 'AI could not meet the owner reply length limit; the configured fallback was used.';
             plan = parseChatbotPlan(input.config.fallback_reply || DEFAULT_CHATBOT_FALLBACK,
@@ -1083,6 +1149,9 @@ export async function generateChatbotResponse(input: {
         instructions: input.config.instructions, contactName: input.contactName,
         history: input.history, pageId: input.pageId
     });
+    if (usesShortHumanReplies(input.config.instructions)) {
+        plan.messages = removeUnneededPricingQuestion(plan.messages, input.inboundMessage);
+    }
     let replySuppressed = false;
     if (input.config.stop_when_details_collected && plan.details_complete && !plan.detected_stop_reason) {
         plan.messages = [getChatbotGoalClosingMessage(input.config.instructions, input.inboundMessage)];
@@ -1106,6 +1175,10 @@ export async function generateChatbotResponse(input: {
                     instructions: input.config.instructions, contactName: input.contactName,
                     history: input.history, pageId: input.pageId
                 });
+                if (usesShortHumanReplies(input.config.instructions)) {
+                    plan.messages = removeUnneededPricingQuestion(plan.messages, input.inboundMessage);
+                }
+                ({ total: maxReplyCharacters, bubble: maxBubbleCharacters } = getTurnReplyLimits(input.config, plan.messages));
             }
             if (input.config.stop_when_details_collected && plan.details_complete && !plan.detected_stop_reason) {
                 plan.messages = [getChatbotGoalClosingMessage(input.config.instructions, input.inboundMessage)];
@@ -1124,6 +1197,15 @@ export async function generateChatbotResponse(input: {
                 plan.link_document_id = undefined;
             }
         }
+    }
+    const thanksReply = usesShortHumanReplies(input.config.instructions) ? simpleThanksReply(input.inboundMessage) : null;
+    if (thanksReply && !plan.detected_stop_reason && !(input.config.stop_when_details_collected && plan.details_complete)) {
+        plan.messages = [thanksReply];
+        replySuppressed = false;
+        plan.media_document_ids = [];
+        plan.media_document_id = undefined;
+        plan.drive_file_document_ids = [];
+        plan.link_document_id = undefined;
     }
     plan.reply = plan.messages.join('\n\n');
     return {
@@ -1216,13 +1298,13 @@ export async function generateChatbotFollowUp(input: {
     const pageName = input.pageName?.trim() || 'this Facebook Page';
     const latestCustomerMessage = customerMessages.at(-1)?.content || '';
     const configuredFollowUpParts = Math.round(Number(input.config.max_message_parts));
-    const followUpMaxMessageParts = input.config.split_messages
+    const followUpMaxMessageParts = usesShortHumanReplies(input.config.instructions) ? 1 : input.config.split_messages
         ? Number.isFinite(configuredFollowUpParts) && configuredFollowUpParts > 0
             ? Math.min(FOLLOW_UP_MAX_PARTS, configuredFollowUpParts)
             : FOLLOW_UP_MAX_PARTS
         : 1;
     const splitFollowUpMessages = input.config.split_messages && followUpMaxMessageParts > 1;
-    const followUpMaxCharacters = getReplyCharacterLimit(input.config.instructions, 'MAX_FOLLOW_UP_CHARACTERS', FOLLOW_UP_MAX_CHARS);
+    const followUpMaxCharacters = getReplyCharacterLimit(input.config.instructions, 'MAX_FOLLOW_UP_CHARACTERS', usesShortHumanReplies(input.config.instructions) ? 120 : FOLLOW_UP_MAX_CHARS);
     const system =
         `You are the official Messenger assistant for the Facebook Page "${pageName}". That Page identity is fixed; never claim to represent another Page. ` +
         `The contact's saved Messenger profile name is "${contactName}". This is the customer identity, not the Page identity. ` +
@@ -1281,6 +1363,9 @@ export async function generateChatbotFollowUp(input: {
             ? `This is a short reminder, not a main requirements reply. Do not resend the seven-field form. Give one fresh personal suggestion and one short choice question; aim80-140 characters TOTAL, strictly under${followUpMaxCharacters}. Include personalization_basis in the required JSON.\n`
             : '') +
         'Retain saved facts and accepted offers, never invent acceptance, and do not restart the sales flow. ' +
+        (usesShortHumanReplies(input.config.instructions)
+            ? `Send ONE calm, specific reminder under ${followUpMaxCharacters} characters, aim 60-100. No form, repeated quote, guilt, urgency, filler or extra sales pitch. Ask at most one easy question when it helps; do not invent a reason to contact them. Match their language and tone; no emoji is fine. These current reply limits override older bubble/length/CTA guidance. `
+            : '') +
         'Current owner instructions, non-overridable response rules, and required JSON format above still apply.';
     const messages = [
         { role: 'system' as const, content: system },

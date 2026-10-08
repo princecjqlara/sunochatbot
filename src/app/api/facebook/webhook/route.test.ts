@@ -220,7 +220,7 @@ function createSupabaseMock(options?: {
     };
 }
 
-function createPhotoChatbotSupabaseMock(options?: { state?: Record<string, unknown>; config?: Record<string, unknown> }) {
+function createPhotoChatbotSupabaseMock(options?: { state?: Record<string, unknown>; config?: Record<string, unknown>; latestContact?: Record<string, unknown> }) {
     const welcomeSelect = vi.fn(() => {
         throw new Error('Photo chatbot handling should bypass the welcome lookup');
     });
@@ -278,11 +278,11 @@ function createPhotoChatbotSupabaseMock(options?: { state?: Record<string, unkno
                 select: vi.fn((columns: string) => ({
                     eq: vi.fn().mockReturnValue({
                         eq: vi.fn().mockReturnValue({
-                            maybeSingle: vi.fn().mockResolvedValue({
-                                data: columns === 'pipeline_stage' ? { pipeline_stage: 'engaged' } : options?.config
+                            maybeSingle: vi.fn().mockImplementation(async () => ({
+                                data: columns === 'pipeline_stage,last_inbound_at' ? options?.latestContact || { pipeline_stage: 'engaged' } : options?.config
                                     ? { id: 'contact_row_1', name: 'Photo Contact', pipeline_stage: 'engaged', profile_pic: null } : null,
                                 error: null
-                            })
+                            }))
                         })
                     })
                 })),
@@ -994,6 +994,20 @@ describe('POST /api/facebook/webhook', () => {
         mocks.generateChatbotResponse.mockImplementation(async () => {
             state.status = 'stopped'; state.stop_reason = 'opt_out';
             return { messages: ['Another question?'], collected_details: {}, missing_details: [], details_complete: false };
+        });
+        expect((await POST(currentInbound())).status).toBe(200);
+        expect(mocks.generateChatbotResponse).toHaveBeenCalledTimes(1);
+        expect(mocks.sendMessage).not.toHaveBeenCalled();
+        expect(supabase.stateUpsert).not.toHaveBeenCalled();
+    });
+
+    it('suppresses an older generated reply when a newer customer message arrived', async () => {
+        const latestContact: Record<string, unknown> = { pipeline_stage: 'engaged', last_inbound_at: '2026-10-08T12:00:00Z' };
+        const supabase = createPhotoChatbotSupabaseMock({ config: goalConfig, latestContact });
+        mocks.getSupabaseAdmin.mockReturnValue(supabase);
+        mocks.generateChatbotResponse.mockImplementation(async () => {
+            latestContact.last_inbound_at = '2026-10-08T12:00:02Z';
+            return { messages: ['An older question?'], collected_details: {}, missing_details: [], details_complete: false };
         });
         expect((await POST(currentInbound())).status).toBe(200);
         expect(mocks.generateChatbotResponse).toHaveBeenCalledTimes(1);

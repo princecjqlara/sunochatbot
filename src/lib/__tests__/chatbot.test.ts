@@ -66,6 +66,85 @@ afterEach(() => {
 describe('Sunobot chatbot', () => {
     const replyBody = (messages: string[], details: Record<string, string> = {}) => ({ ok: true, json: async () => ({ choices: [{ message: { content: JSON.stringify({ messages, collected_details: details }) } }] }) });
     const priorMessage = (text: string) => ({ id: 'prior', message: text, from: { id: 'page-facebook-id', name: 'Studio' }, created_time: '2026-10-08T08:00:00Z' });
+    const shortInstructions = 'SHORT_HUMAN_REPLIES: true\nMAX_REPLY_CHARACTERS: 180\nMAX_FORM_CHARACTERS: 700\nALLOW_BRIEF_FORM: true\nSONG_BRIEF_FORM: hiraya-seven-fields';
+
+    it('combines normal replies into one short bubble despite older split settings', async () => {
+        process.env.OPENROUTER_API_KEY = 'test-key';
+        vi.stubGlobal('fetch', vi.fn().mockResolvedValue(replyBody(['PHP399 ang isang kanta.', 'PHP699 naman ang dalawa.'])));
+        const response = await generateChatbotResponse({ config: { ...config, instructions: shortInstructions, split_messages: true, max_message_parts: 6 }, pageId: 'page-facebook-id', inboundMessage: 'Magkano?' });
+        expect(response.messages).toEqual(['PHP399 ang isang kanta. PHP699 naman ang dalawa.']);
+        expect(response.reply.length).toBeLessThanOrEqual(180);
+    });
+
+    it('keeps the full fill-up form in one bubble without an extra question', async () => {
+        process.env.OPENROUTER_API_KEY = 'test-key';
+        vi.stubGlobal('fetch', vi.fn().mockResolvedValue(replyBody(['1. Business Name:\n2. Specialty/Products:', 'Pop o acoustic ang gusto ninyo?'])));
+        const response = await generateChatbotResponse({ config: { ...config, instructions: shortInstructions, split_messages: true }, pageId: 'page-facebook-id', inboundMessage: 'Send the form.' });
+        expect(response.messages).toHaveLength(1);
+        expect(response.reply).toContain('1. Business Name:');
+        expect(response.reply).toContain('7. Additional requests:');
+        expect(response.reply).not.toContain('?');
+        expect(response.reply.length).toBeGreaterThan(180);
+        expect(response.reply.length).toBeLessThanOrEqual(700);
+    });
+
+    it('shortens an ordinary essay without losing an extracted customer answer', async () => {
+        process.env.OPENROUTER_API_KEY = 'test-key';
+        const fetchMock = vi.fn().mockResolvedValueOnce(replyBody(['A'.repeat(250)], { 'Business name': 'Sunrise Bakery' }))
+            .mockResolvedValueOnce(replyBody(['Tagalog na upbeat ang bagay sa bakery. May tagline kayo?']));
+        vi.stubGlobal('fetch', fetchMock);
+        const response = await generateChatbotResponse({ config: { ...config, instructions: shortInstructions, details_to_collect: ['Business name', 'Tagline or slogan'] }, pageId: 'page-facebook-id', inboundMessage: 'Sunrise Bakery kami.' });
+        expect(fetchMock).toHaveBeenCalledTimes(2);
+        expect(response.messages).toHaveLength(1);
+        expect(response.reply.length).toBeLessThanOrEqual(180);
+        expect(response.collected_details['Business name']).toBe('Sunrise Bakery');
+    });
+
+    it('does not grant the longer form allowance to a pricing menu', async () => {
+        process.env.OPENROUTER_API_KEY = 'test-key';
+        const fetchMock = vi.fn().mockResolvedValueOnce(replyBody(['Basic: PHP399 ' + 'description '.repeat(12) + '\nBundle: PHP699 ' + 'description '.repeat(12)]))
+            .mockResolvedValueOnce(replyBody(['PHP399 ang isa, PHP699 ang dalawang kanta.']));
+        vi.stubGlobal('fetch', fetchMock);
+        const response = await generateChatbotResponse({ config: { ...config, instructions: shortInstructions }, pageId: 'page-facebook-id', inboundMessage: 'Magkano?' });
+        expect(fetchMock).toHaveBeenCalledTimes(2);
+        expect(response.reply).toBe('PHP399 ang isa, PHP699 ang dalawang kanta.');
+    });
+
+    it('makes questions optional and prioritizes the current need over sales pressure', () => {
+        const messages = buildChatbotMessages({ instructions: shortInstructions, pageId: 'page-facebook-id', inboundMessage: 'Salamat!', history: [priorMessage('May tagline kayo?')], followUpPrompt: 'Always ask a question.' });
+        expect(messages[0].content).toContain('A question is optional');
+        expect(messages[0].content).toContain('exactly ONE message bubble');
+        expect(messages.filter(m=>m.role==='system').at(-1)!.content).toContain('Simple acknowledgments, thanks, reactions and answered questions need no automatic sales CTA');
+    });
+
+    it('answers a simple thanks without a sales nudge, form or further question', async () => {
+        process.env.OPENROUTER_API_KEY = 'test-key';
+        vi.stubGlobal('fetch', vi.fn().mockResolvedValue(replyBody(['Walang anuman! Send your business name when ready.'])));
+        const response = await generateChatbotResponse({ config: { ...config, instructions: shortInstructions }, pageId:'page-facebook-id', inboundMessage:'Salamat po! 🙏', history:[priorMessage('PHP399 ang isang kanta.')] });
+        expect(response.messages).toEqual(['Walang anuman po!']);
+    });
+
+    it('still answers a real question when it accompanies thanks', async () => {
+        process.env.OPENROUTER_API_KEY = 'test-key';
+        vi.stubGlobal('fetch', vi.fn().mockResolvedValue(replyBody(['PHP399 po ang isang kanta.'])));
+        const response = await generateChatbotResponse({ config: { ...config, instructions: shortInstructions }, pageId:'page-facebook-id', inboundMessage:'Salamat, magkano isang kanta?' });
+        expect(response.reply).toBe('PHP399 po ang isang kanta.');
+    });
+
+    it('answers a pricing-only question without pushing another detail request', async () => {
+        process.env.OPENROUTER_API_KEY = 'test-key';
+        vi.stubGlobal('fetch', vi.fn().mockResolvedValue(replyBody(['PHP399 po ang isang kanta. Kanta muna bago bayad. Anong business po ninyo?'])));
+        const response = await generateChatbotResponse({ config: { ...config, instructions: shortInstructions }, pageId:'page-facebook-id', inboundMessage:'Magkano isang kanta?' });
+        expect(response.reply).toBe('PHP399 po ang isang kanta. Kanta muna bago bayad.');
+    });
+
+    it('keeps a scheduled follow-up in one bubble under 120 characters', async () => {
+        process.env.OPENROUTER_API_KEY = 'test-key';
+        vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok:true, json:async()=>({choices:[{message:{content:JSON.stringify({messages:['Para sa bakery jingle, puwedeng upbeat.', 'Anong produkto ang bida?'],personalization_basis:'Bakery jingle request'})}}]}) }));
+        const response = await generateChatbotFollowUp({ config: { ...config, instructions:shortInstructions, split_messages:true, max_message_parts:6 }, pageId:'page-facebook-id', sequenceNumber:1, scheduleLabel:'first-hour', history:[{id:'customer',message:'Bakery jingle sana.',from:{id:'customer-id',name:'Customer'},created_time:'2026-10-08T10:00:00Z'}] });
+        expect(response.messages).toHaveLength(1);
+        expect(response.message.length).toBeLessThanOrEqual(120);
+    });
 
     it('keeps earlier customer answers beyond the last twenty bubbles in chronological context', () => {
         const history = Array.from({ length: 25 }, (_, i) => ({ id: `m${i}`, message: i === 0 ? 'Our business is Sunrise Bakery.' : `Later message ${i}`, from: { id: 'customer-id', name: 'Customer' }, created_time: new Date(Date.UTC(2026, 9, 8, 8, i)).toISOString() })).reverse();

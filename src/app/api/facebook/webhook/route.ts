@@ -1092,13 +1092,14 @@ export async function POST(request: NextRequest) {
                                             // completed brief before saving/sending this older turn.
                                             const latestState = await getChatbotContactState(supabase, page.id, contact.id);
                                             const { data: latestContact, error: latestContactError } = await supabase.from('contacts')
-                                                .select('pipeline_stage').eq('id', contact.id).eq('page_id', page.id).maybeSingle();
+                                                .select('pipeline_stage,last_inbound_at').eq('id', contact.id).eq('page_id', page.id).maybeSingle();
                                             if (latestContactError) throw latestContactError;
                                             if (latestState?.status === 'stopped' || isPipelineClosedForAutomation(latestContact?.pipeline_stage) ||
+                                                (latestContact?.last_inbound_at && Date.parse(latestContact.last_inbound_at) > interactionTime.getTime()) ||
                                                 (latestState?.last_inbound_at && Date.parse(latestState.last_inbound_at) > interactionTime.getTime()) ||
                                                 (latestState?.history_start_at && Date.parse(latestState.history_start_at) > interactionTime.getTime()) ||
                                                 (chatbotConfig.stop_when_details_collected && hasReachedChatbotDetailTarget(chatbotConfig, latestState?.collected_details))) {
-                                                throw new Error('Reply suppressed because the contact stopped or reached the goal during generation');
+                                                throw new Error('Reply suppressed because a newer customer message, stop, or completed goal superseded this turn');
                                             }
                                             chatbotState = latestState || chatbotState;
                                             collectedDetails = { ...(chatbotState?.collected_details || {}), ...collectedDetails };
