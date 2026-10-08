@@ -7,6 +7,7 @@ import {
 import {
     getMissingChatbotDetails,
     getRequiredChatbotDetailCount,
+    hasReachedChatbotDetailTarget,
     normalizeChatbotDetailTargetPercent,
     normalizeDetailsToCollect,
     type ChatbotStopReason
@@ -53,6 +54,81 @@ function getReplyCharacterLimit(instructions: string, setting: string, fallback:
 function isBriefFormMessage(content: string) {
     return /^\s*[1-7]\.\s+[^\n:?!]{1,70}:\s*[^\n]*$/m.test(content) ||
         (content.match(/^[^\n:?!]{1,70}:\s*[^\n]*$/gm) || []).length >= 2;
+}
+
+function asksToRepeat(inbound: string) {
+    return /\b(?:repeat|resend|again|restate|remind|ulit|ulitin|pakiulit|pasend|pa-send|magkano|presyo|price|how much)\b/i.test(inbound);
+}
+
+function asksToResendForm(inbound: string) {
+    return /\bform\b/i.test(inbound) && /\b(?:send|resend|again|repeat|ulit|ulitin|pasend|pa-send|paki)\b/i.test(inbound);
+}
+
+function comparableReply(text: string) {
+    return text.toLowerCase().replace(/[^\p{L}\p{N}]+/gu, ' ').trim();
+}
+
+function repeatsPageMessage(text: string, prior: string[]) {
+    const current = comparableReply(text);
+    if (!current) return false;
+    return prior.some(previous => {
+        const normalized = comparableReply(previous);
+        if (normalized === current) return true;
+        if (current.length < 35 || normalized.length < 35) return false;
+        const a = new Set(current.split(' '));
+        const b = new Set(normalized.split(' '));
+        const common = [...a].filter(word => b.has(word)).length;
+        return common / new Set([...a, ...b]).size >= 0.9;
+    });
+}
+
+function knownDetailQuestion(parts: string[], details: Record<string, string>) {
+    const aliases: Record<string, RegExp> = {
+        'business name': /(?:business|brand|negosyo|store).{0,24}(?:name|pangalan)|pangalan.{0,30}(?:business|brand|negosyo|store)|\b(?:ano|anong|what).{0,15}(?:business|negosyo)\s*(?:(?:po|ninyo|mo|ito|ang)\s*)*\?/i,
+        'customer name': /\byour name\b|pangalan (?:mo|ninyo)/i,
+        'business type': /\b(?:business type|type of business|uri ng negosyo|anong (?:klaseng )?negosyo)\b/i,
+        'main products or services': /\b(?:what|which|ano|anong|alin).{0,35}\b(?:products?|services?|produkto|serbisyo)\b/i,
+        'target audience': /\b(?:target audience|target market|sino.*(?:target|customer)|who.*(?:target|customer))\b/i,
+        'lyrics language': /\b(?:english|tagalog|taglish|language|wika)\b/i,
+        'vocal preference': /\b(?:male|female|vocals?|singer|boses)\b/i,
+        'preferred mood/style': /\b(?:genre|style|mood|pop|acoustic)\b/i,
+        'tagline or slogan': /\b(?:tagline|slogan)\b/i,
+        'song duration': /\b(?:duration|length|minutes?|seconds?|haba|minuto|segundo)\b/i,
+        'location or branch': /\b(?:location|address|branch|lokasyon|saan.*(?:store|negosyo))\b/i,
+        'deadline or occasion date': /\b(?:deadline|occasion|date|kailan)\b/i,
+        'song concept or campaign idea': /\b(?:song concept|campaign idea|konsepto|concept for (?:the |your )?song)\b/i,
+        'existing lyrics or script': /\b(?:existing lyrics|lyrics (?:na|kayong|ba)|script|sariling lyrics)\b/i,
+        'song purpose': /\b(?:song purpose|purpose of (?:the |your )?song|para saan.*(?:song|kanta|jingle))\b/i,
+        'main message': /\b(?:main message|key message|pangunahing mensahe|mensaheng)\b/i,
+        'business strengths': /\b(?:business strengths|strengths|unique selling|what makes.*(?:different|unique)|naiiba|pinagkaiba)\b/i,
+        'signature product/service': /\b(?:signature product|signature service|best seller|bestseller|pinakamadalas bilhin|pinakapatok)\b/i,
+        'agreed package': /\b(?:which package|what package|anong package|aling package)\b/i,
+        'additional requests': /\b(?:additional requests|special requests|ibang request|dagdag na request)\b/i
+    };
+    const questions = parts.flatMap(part => part.match(/[^.!?\n]*\?/g) || []);
+    return questions.some(question => /\b(?:what|which|how|ano|anong|alin|saan|kailan|male|female|english|tagalog|pop|acoustic|gaano|ilan|may|gusto|ba|can|do|is)\b/i.test(question) &&
+        Object.entries(details).some(([key,value]) => value?.trim() && aliases[key.trim().toLowerCase()]?.test(question)));
+}
+
+function replyQualityIssue(parts: string[], history: FacebookMessage[], pageId: string, inbound: string, details: Record<string, string> = {}) {
+    const prior = history.filter(m => m.from?.id === pageId && m.message?.trim()).map(m => m.message);
+    if (!asksToResendForm(inbound) && parts.some(isBriefFormMessage) && prior.some(isBriefFormMessage)) {
+        return 'The requirements form was already sent. Do not resend it; address the latest answer and ask only one relevant unknown detail.';
+    }
+    if (!asksToRepeat(inbound) && parts.some((part, index) => repeatsPageMessage(part, [...prior, ...parts.slice(0, index)]))) {
+        return 'A message bubble repeats a previous Page reply. Answer the latest request with fresh wording and do not repeat an unanswered question or a form.';
+    }
+    if (knownDetailQuestion(parts, details)) {
+        return 'A question asks for a detail the customer already supplied. Keep the saved answer, address the latest request, and ask only for a genuinely missing detail.';
+    }
+    return null;
+}
+
+export function getChatbotGoalClosingMessage(instructions: string, inboundMessage: string): string {
+    const filipino = /Taglish|Filipino|Tagalog/i.test(instructions) || /\b(?:po|opo|ako|kami|namin|kanta|gusto|salamat|sige|kahit|lang|naman)\b/i.test(inboundMessage);
+    return filipino
+        ? 'May sapat na kaming detalye para sa susunod na hakbang.'
+        : 'We have enough details for the next step.';
 }
 
 function splitBriefFormBubbles(content: string): string[] {
@@ -224,6 +300,7 @@ export type ChatbotResponse = {
     detected_stop_reason?: Extract<ChatbotStopReason, 'opt_out' | 'refusal'>;
     retrieval_warning?: string;
     generation_warning?: string;
+    reply_suppressed?: boolean;
     token_usage?: ChatbotTokenUsage;
 };
 
@@ -699,8 +776,11 @@ export function buildChatbotMessages(input: {
     const allowBriefForm = /^ALLOW_BRIEF_FORM:\s*true\s*$/im.test(input.instructions);
     const formFirst = allowBriefForm && /^FORM-FIRST COLLECTION\b/im.test(input.instructions);
     const sevenFieldForm = /^SONG_BRIEF_FORM:\s*hiraya-seven-fields\s*$/im.test(input.instructions);
+    const priorFormSent = (input.history || []).some(message => message.from?.id === input.pageId && isBriefFormMessage(message.message || ''));
     const formGuidance = formFirst && !targetReached && missingDetails.length > 0
-        ? sevenFieldForm
+        ? priorFormSent && !asksToResendForm(input.inboundMessage)
+            ? '\nFORM COLLECTION THIS TURN: The requirements form has already been sent. Do not resend any part of it. Use the customer answers already provided, answer the latest request, and ask at most one relevant unknown detail.\n'
+            : sevenFieldForm
             ? '\nFORM COLLECTION THIS TURN: Use the owner seven-field numbered song form, not Style/Lyrics/Deadline mini-forms. ' +
                 'On requirements turns, the form itself is the answer: no recap, lengthy introduction, explanation, extra menu or usage pitch. Aim under300 total characters. ' +
                 'When business/product/purpose are known and no studio quote was already given, state the approved bundle count/total in one short bubble before the form. Retain prior quotes without repeating them. ' +
@@ -804,7 +884,8 @@ export function buildChatbotMessages(input: {
     const history = (input.history || [])
         .filter((message) => !isOutdatedPricingReply(message, input.pageId, input.instructions))
         .filter((message) => typeof message.message === 'string' && message.message.trim().length > 0)
-        .slice(0, 20)
+        .sort((a, b) => (Date.parse(b.created_time || '') - Date.parse(a.created_time || '')) || 0)
+        .slice(0, 100)
         .reverse()
         .map((message) => ({
             role: message.from?.id === input.pageId ? 'assistant' as const : 'user' as const,
@@ -963,18 +1044,18 @@ export async function generateChatbotResponse(input: {
                 role: 'system',
                 content: `Return the required JSON with a complete reply under ${maxReplyCharacters} characters TOTAL${Number.isFinite(maxBubbleCharacters) ? ` and each bubble at most ${maxBubbleCharacters} characters, at most ${input.config.max_message_parts || 3} bubbles` : ''}. Preserve verified accepted terms and known facts, answer the latest question, and ask at most one useful next-step question. Follow the owner form template; group its missing fields into tiny bubbles without dropping or renaming them. Remove filler and extra package menus; do not truncate a sentence or agreement question.`
             }]
-        });
-        tokenUsage = combineTokenUsage(tokenUsage, normalizeTokenUsage(conciseBody));
-        const conciseContent = extractOpenRouterText(conciseBody);
+        }).catch(() => null);
+        tokenUsage = combineTokenUsage(tokenUsage, conciseBody ? normalizeTokenUsage(conciseBody) : undefined);
+        const conciseContent = conciseBody ? extractOpenRouterText(conciseBody) : '';
         const usableConciseContent = hasUsableChatbotContent(conciseContent);
         if (usableConciseContent) plan = parseChatbotPlan(
-            conciseContent, input.config, collectedDetails, knowledge,
+            conciseContent, input.config, plan.collected_details, knowledge,
             hasExplicitPackageAcceptance(input.inboundMessage, input.history || [], input.pageId)
         );
         if (!usableConciseContent || plan.reply.length > maxReplyCharacters || plan.messages.some(message => message.length > maxBubbleCharacters)) {
             generationWarning = 'AI could not meet the owner reply length limit; the configured fallback was used.';
             plan = parseChatbotPlan(input.config.fallback_reply || DEFAULT_CHATBOT_FALLBACK,
-                input.config, collectedDetails, knowledge);
+                input.config, plan.collected_details, knowledge);
         }
     }
     const languageKey = normalizeDetailsToCollect(input.config.details_to_collect)
@@ -1002,9 +1083,52 @@ export async function generateChatbotResponse(input: {
         instructions: input.config.instructions, contactName: input.contactName,
         history: input.history, pageId: input.pageId
     });
+    let replySuppressed = false;
+    if (input.config.stop_when_details_collected && plan.details_complete && !plan.detected_stop_reason) {
+        plan.messages = [getChatbotGoalClosingMessage(input.config.instructions, input.inboundMessage)];
+        plan.media_document_ids = [];
+        plan.media_document_id = undefined;
+        plan.drive_file_document_ids = [];
+        plan.link_document_id = undefined;
+    } else if (!plan.detected_stop_reason) {
+        let issue = replyQualityIssue(plan.messages, input.history || [], input.pageId, input.inboundMessage, plan.collected_details);
+        if (issue) {
+            const correctedBody = await requestOpenRouterCompletion({
+                apiKey, title: 'Sunobot Chatbot', model, maxTokens: 700, temperature: 0.25,
+                messages: [...messages, { role: 'system', content: `${issue} Preserve these verified collected answers: ${JSON.stringify(plan.collected_details)}. Return the required JSON with a fresh concise reply within the owner length limits. If the new answers reach the collection target, confirm the next step without a form or question.` }]
+            }).catch(() => null);
+            tokenUsage = combineTokenUsage(tokenUsage, correctedBody ? normalizeTokenUsage(correctedBody) : undefined);
+            const correctedContent = correctedBody ? extractOpenRouterText(correctedBody) : '';
+            if (hasUsableChatbotContent(correctedContent)) {
+                plan = parseChatbotPlan(correctedContent, input.config, plan.collected_details, knowledge,
+                    hasExplicitPackageAcceptance(input.inboundMessage, input.history || [], input.pageId));
+                plan.messages = applyOwnerNameUsage(plan.messages, {
+                    instructions: input.config.instructions, contactName: input.contactName,
+                    history: input.history, pageId: input.pageId
+                });
+            }
+            if (input.config.stop_when_details_collected && plan.details_complete && !plan.detected_stop_reason) {
+                plan.messages = [getChatbotGoalClosingMessage(input.config.instructions, input.inboundMessage)];
+            } else {
+                issue = replyQualityIssue(plan.messages, input.history || [], input.pageId, input.inboundMessage, plan.collected_details);
+                if (issue || plan.messages.join('\n\n').length > maxReplyCharacters || plan.messages.some(m => m.length > maxBubbleCharacters)) {
+                    plan.messages = [];
+                    replySuppressed = true;
+                    generationWarning = 'Repetitive or invalid reply suppressed after a correction attempt; collected details were retained.';
+                }
+            }
+            if (replySuppressed || (input.config.stop_when_details_collected && plan.details_complete)) {
+                plan.media_document_ids = [];
+                plan.media_document_id = undefined;
+                plan.drive_file_document_ids = [];
+                plan.link_document_id = undefined;
+            }
+        }
+    }
     plan.reply = plan.messages.join('\n\n');
     return {
         ...plan,
+        ...(replySuppressed ? { reply_suppressed: true } : {}),
         knowledge,
         ...(retrievalWarning ? { retrieval_warning: retrievalWarning } : {}),
         ...(generationWarning ? { generation_warning: generationWarning } : {}),
@@ -1029,13 +1153,17 @@ export async function generateChatbotFollowUp(input: {
     sequenceNumber: number;
     scheduleLabel: string;
 }): Promise<ChatbotFollowUpResponse> {
+    if (hasReachedChatbotDetailTarget(input.config, input.collectedDetails)) {
+        throw new Error('Cannot follow up after the detail collection target is reached');
+    }
     const apiKey = process.env.OPENROUTER_API_KEY;
     if (!apiKey) throw new Error('OPENROUTER_API_KEY is not configured');
 
     const history = (input.history || [])
         .filter((message) => !isOutdatedPricingReply(message, input.pageId, input.config.instructions))
         .filter((message) => typeof message.message === 'string' && message.message.trim())
-        .slice(0, 30)
+        .sort((a, b) => (Date.parse(b.created_time || '') - Date.parse(a.created_time || '')) || 0)
+        .slice(0, 100)
         .reverse()
         .map((message) => ({
             role: message.from?.id === input.pageId ? 'assistant' as const : 'user' as const,
@@ -1087,12 +1215,6 @@ export async function generateChatbotFollowUp(input: {
     const contactName = input.contactName?.trim() || 'the customer';
     const pageName = input.pageName?.trim() || 'this Facebook Page';
     const latestCustomerMessage = customerMessages.at(-1)?.content || '';
-    const priorPageMessages = new Set(
-        history
-            .filter((message) => message.role === 'assistant')
-            .map((message) => message.content.toLowerCase().replace(/[^\p{L}\p{N}]+/gu, ' ').trim())
-            .filter(Boolean)
-    );
     const configuredFollowUpParts = Math.round(Number(input.config.max_message_parts));
     const followUpMaxMessageParts = input.config.split_messages
         ? Number.isFinite(configuredFollowUpParts) && configuredFollowUpParts > 0
@@ -1230,10 +1352,8 @@ export async function generateChatbotFollowUp(input: {
             if (requestedAnyMedia && !mediaDecisionReason) {
                 throw new Error('media selected without a conversation-specific reason');
             }
-            const comparableMessage = message.toLowerCase().replace(/[^\p{L}\p{N}]+/gu, ' ').trim();
-            if (comparableMessage && priorPageMessages.has(comparableMessage)) {
-                throw new Error('follow-up repeated a previous Page message');
-            }
+            const issue = replyQualityIssue(messages, input.history || [], input.pageId, '', collectedDetails);
+            if (issue) throw new Error(issue);
             const requestedDocumentIds = [...new Set(
                 (Array.isArray(parsed.media_document_ids)
                     ? parsed.media_document_ids

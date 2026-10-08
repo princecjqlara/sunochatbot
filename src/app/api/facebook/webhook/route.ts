@@ -8,7 +8,9 @@ import { handleFollowUpWorkflowContactReply, stopWorkflowAutomationsFromPageMess
 import { recordChatbotInterruptionIfNeeded, recordOutboundMessageEvent } from '@/lib/outbound-message-events';
 import {
     generateChatbotResponse,
+    getChatbotGoalClosingMessage,
     getChatbotKnowledgePageId,
+    includeKnownContactName,
     splitChatbotMessageBubbles,
     type ChatbotConfig
 } from '@/lib/chatbot';
@@ -28,6 +30,7 @@ import {
     getChatbotContactState,
     getChatbotStateStopReason,
     getMissingChatbotDetails,
+    hasReachedChatbotDetailTarget,
     isChatbotContactAllowed,
     saveChatbotContactState,
     type ChatbotContactState,
@@ -895,6 +898,10 @@ export async function POST(request: NextRequest) {
                                                 stopOnOptOut: chatbotConfig.stop_on_opt_out,
                                                 stopOnRefusal: chatbotConfig.stop_on_refusal
                                             });
+                                        if (!stateStopReason && chatbotConfig.stop_when_details_collected &&
+                                            hasReachedChatbotDetailTarget(chatbotConfig, chatbotState?.collected_details)) {
+                                            stateStopReason = 'details_collected';
+                                        }
 
                                         if (
                                             stateStopReason &&
@@ -981,13 +988,15 @@ export async function POST(request: NextRequest) {
                                                     chatbotConfig.split_messages
                                                 )
                                                 : [];
-                                            let collectedDetails = chatbotState?.collected_details || {};
+                                            let collectedDetails = includeKnownContactName(chatbotConfig.details_to_collect,
+                                                chatbotState?.collected_details, (contact as { name?: string | null }).name);
                                             let missingDetails = getMissingChatbotDetails(
                                                 chatbotConfig.details_to_collect,
                                                 collectedDetails
                                             );
                                             let generatedStopReason: ChatbotStopReason | null = null;
                                             let detailsComplete = false;
+                                            let replySuppressed = false;
                                             let generatedMediaDocumentIds: string[] = [];
                                             let generatedDriveFileDocumentIds: string[] = [];
                                             let generatedLinkDocumentId: string | undefined;
@@ -1028,9 +1037,10 @@ export async function POST(request: NextRequest) {
                                                     collectedDetails
                                                 });
                                                 replyMessages = generated.messages;
-                                                collectedDetails = generated.collected_details;
+                                                replySuppressed = Boolean(generated.reply_suppressed);
+                                                collectedDetails = { ...collectedDetails, ...generated.collected_details };
                                                 missingDetails = generated.missing_details;
-                                                detailsComplete = generated.details_complete;
+                                                detailsComplete = hasReachedChatbotDetailTarget(chatbotConfig, collectedDetails);
                                                 generatedMediaDocumentIds = generated.media_document_ids?.length
                                                     ? generated.media_document_ids
                                                     : generated.media_document_id
@@ -1049,10 +1059,12 @@ export async function POST(request: NextRequest) {
                                                 ) {
                                                     generatedStopReason = 'refusal';
                                                 } else if (
-                                                    generated.details_complete &&
+                                                    detailsComplete &&
                                                     chatbotConfig.stop_when_details_collected
                                                 ) {
                                                     generatedStopReason = 'details_collected';
+                                                    replyMessages = [getChatbotGoalClosingMessage(chatbotConfig.instructions, inboundMessageText)];
+                                                    replySuppressed = false;
                                                 }
                                             } catch (generationError) {
                                                 logWarn('AI reply generation failed; using chatbot fallback', {
@@ -1060,14 +1072,53 @@ export async function POST(request: NextRequest) {
                                                     senderId,
                                                     error: (generationError as Error).message
                                                 });
+                                                const normalize = (value: string) => value.toLowerCase().replace(/[^\p{L}\p{N}]+/gu, ' ').trim();
+                                                const priorReplies = (resolvedConversation?.messages?.data || [])
+                                                    .filter(message => message.from?.id === pageId)
+                                                    .map(message => normalize(message.message || ''));
+                                                replyMessages = replyMessages.filter(message => !priorReplies.includes(normalize(message)));
+                                                replySuppressed = replyMessages.length === 0;
                                             }
 
                                             if (generatedStopReason === 'opt_out' || generatedStopReason === 'refusal') {
                                                 replyMessages = [];
                                             }
 
-                                            if (replyMessages.length === 0 && !generatedStopReason) {
+                                            if (replyMessages.length === 0 && !generatedStopReason && !replySuppressed) {
                                                 throw new Error('Chatbot generated no reply and no fallback is configured');
+                                            }
+
+                                            // Generation can take several seconds. Recheck a stop or newly
+                                            // completed brief before saving/sending this older turn.
+                                            const latestState = await getChatbotContactState(supabase, page.id, contact.id);
+                                            const { data: latestContact, error: latestContactError } = await supabase.from('contacts')
+                                                .select('pipeline_stage').eq('id', contact.id).eq('page_id', page.id).maybeSingle();
+                                            if (latestContactError) throw latestContactError;
+                                            if (latestState?.status === 'stopped' || isPipelineClosedForAutomation(latestContact?.pipeline_stage) ||
+                                                (latestState?.last_inbound_at && Date.parse(latestState.last_inbound_at) > interactionTime.getTime()) ||
+                                                (latestState?.history_start_at && Date.parse(latestState.history_start_at) > interactionTime.getTime()) ||
+                                                (chatbotConfig.stop_when_details_collected && hasReachedChatbotDetailTarget(chatbotConfig, latestState?.collected_details))) {
+                                                throw new Error('Reply suppressed because the contact stopped or reached the goal during generation');
+                                            }
+                                            chatbotState = latestState || chatbotState;
+                                            collectedDetails = { ...(chatbotState?.collected_details || {}), ...collectedDetails };
+                                            missingDetails = getMissingChatbotDetails(chatbotConfig.details_to_collect, collectedDetails);
+                                            detailsComplete = hasReachedChatbotDetailTarget(chatbotConfig, collectedDetails);
+                                            if (!generatedStopReason && detailsComplete && chatbotConfig.stop_when_details_collected) {
+                                                generatedStopReason = 'details_collected';
+                                                replyMessages = [getChatbotGoalClosingMessage(chatbotConfig.instructions, inboundMessageText)];
+                                                replySuppressed = false;
+                                            }
+                                            // Save answers and the durable stop before sending so delivery
+                                            // failures cannot lose answers or restart the collection flow.
+                                            await saveChatbotContactState(supabase, {
+                                                pageId: page.id, contactId: contact.id, existingState: chatbotState,
+                                                collectedDetails, missingDetails, inboundAt: interactionAt,
+                                                stopReason: generatedStopReason
+                                            });
+                                            if (generatedStopReason || detailsComplete) {
+                                                await cancelPendingChatbotFollowUps({ supabase, pageId: page.id,
+                                                    contactId: contact.id, reason: 'Contact reached the collection goal or stopped' });
                                             }
 
                                             let lastOutboundMessageId: string | undefined;
@@ -1226,16 +1277,12 @@ export async function POST(request: NextRequest) {
                                                 }
                                             }
 
-                                            await saveChatbotContactState(supabase, {
-                                                pageId: page.id,
-                                                contactId: contact.id,
-                                                existingState: chatbotState,
-                                                collectedDetails,
-                                                missingDetails,
-                                                inboundAt: interactionAt,
-                                                botRepliedAt: replyMessages.length > 0 || sentMedia ? new Date().toISOString() : undefined,
-                                                stopReason: generatedStopReason
-                                            });
+                                            if (lastOutboundMessageId) {
+                                                const { error: replyTimeError } = await supabase.from('chatbot_contact_states')
+                                                    .update({ last_bot_reply_at: new Date().toISOString() })
+                                                    .eq('page_id', page.id).eq('contact_id', contact.id);
+                                                if (replyTimeError) throw replyTimeError;
+                                            }
 
                                             const chatbotPipelineStage = pipelineStageForChatbotProgress({
                                                 stopReason: generatedStopReason,
@@ -1299,8 +1346,9 @@ export async function POST(request: NextRequest) {
                                             }
 
                                             await finishChatbotReply(supabase, inboundMessageId, {
-                                                status: 'sent',
-                                                outboundMessageId: lastOutboundMessageId
+                                                status: replySuppressed ? 'failed' : 'sent',
+                                                outboundMessageId: lastOutboundMessageId,
+                                                ...(replySuppressed ? { error: 'Repetitive reply suppressed; collected answers retained' } : {})
                                             }).catch((finishError) => {
                                                 logWarn('Chatbot reply sent but status update failed', {
                                                     pageId,
@@ -1309,7 +1357,7 @@ export async function POST(request: NextRequest) {
                                                 });
                                             });
 
-                                            logInfo('Chatbot reply sent', {
+                                            logInfo(replySuppressed ? 'Repetitive chatbot reply suppressed' : 'Chatbot reply sent', {
                                                 pageId,
                                                 senderId,
                                                 inboundMessageId,

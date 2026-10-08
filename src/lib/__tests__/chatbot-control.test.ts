@@ -4,6 +4,7 @@ import {
     classifyChatbotStopIntent,
     filterChatbotConversationHistory,
     getRequiredChatbotDetailCount,
+    hasReachedChatbotDetailTarget,
     getChatbotStateStopReason,
     getMissingChatbotDetails,
     isChatbotContactAllowed,
@@ -13,6 +14,13 @@ import {
 } from '@/lib/chatbot-control';
 
 describe('chatbot conversation controls', () => {
+    it('requires six canonical answers at 26 percent and ignores unrelated or empty fields', () => {
+        const config = { details_to_collect: Array.from({ length: 20 }, (_, i) => `Field ${i}`), details_completion_percent: 26 };
+        const answers = Object.fromEntries(Array.from({ length: 5 }, (_, i) => [`Field ${i}`, 'answered']));
+        expect(hasReachedChatbotDetailTarget(config, { ...answers, Unknown: 'not required', 'Field 5': ' ' })).toBe(false);
+        expect(hasReachedChatbotDetailTarget(config, { ...answers, 'field 5': 'answered' })).toBe(true);
+        expect(hasReachedChatbotDetailTarget({ details_to_collect: [] }, answers)).toBe(false);
+    });
     it('uses only post-reset messages, including the boundary, and retains ordering', () => {
         const cutoff = '2026-10-07T02:00:00.000Z';
         const history = [

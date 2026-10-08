@@ -137,6 +137,15 @@ export function getRequiredChatbotDetailCount(totalDetails: number, targetPercen
     return Math.max(1, Math.ceil(totalDetails * normalizeChatbotDetailTargetPercent(targetPercent) / 100));
 }
 
+export function hasReachedChatbotDetailTarget(
+    config: { details_to_collect?: unknown; details_completion_percent?: unknown },
+    collectedDetails: Record<string, string> | null | undefined
+): boolean {
+    const details = normalizeDetailsToCollect(config.details_to_collect);
+    const required = getRequiredChatbotDetailCount(details.length, config.details_completion_percent);
+    return required > 0 && details.length - getMissingChatbotDetails(details, collectedDetails || {}).length >= required;
+}
+
 function normalizeCollectedDetails(value: unknown): Record<string, string> {
     if (!value || typeof value !== 'object' || Array.isArray(value)) return {};
     return Object.fromEntries(

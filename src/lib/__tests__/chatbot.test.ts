@@ -64,6 +64,103 @@ afterEach(() => {
 });
 
 describe('Sunobot chatbot', () => {
+    const replyBody = (messages: string[], details: Record<string, string> = {}) => ({ ok: true, json: async () => ({ choices: [{ message: { content: JSON.stringify({ messages, collected_details: details }) } }] }) });
+    const priorMessage = (text: string) => ({ id: 'prior', message: text, from: { id: 'page-facebook-id', name: 'Studio' }, created_time: '2026-10-08T08:00:00Z' });
+
+    it('keeps earlier customer answers beyond the last twenty bubbles in chronological context', () => {
+        const history = Array.from({ length: 25 }, (_, i) => ({ id: `m${i}`, message: i === 0 ? 'Our business is Sunrise Bakery.' : `Later message ${i}`, from: { id: 'customer-id', name: 'Customer' }, created_time: new Date(Date.UTC(2026, 9, 8, 8, i)).toISOString() })).reverse();
+        const messages = buildChatbotMessages({ instructions: '', pageId: 'page-facebook-id', inboundMessage: 'Female vocals please.', history });
+        expect(messages.some(m => m.content === 'Our business is Sunrise Bakery.')).toBe(true);
+        expect(messages.at(-1)?.content).toBe('Female vocals please.');
+    });
+
+    it('closes the goal-reaching turn without another form or question', async () => {
+        process.env.OPENROUTER_API_KEY = 'test-key';
+        const fields = Array.from({ length: 20 }, (_, i) => `Field ${i}`);
+        const answers = Object.fromEntries(fields.slice(0, 6).map(k => [k, 'provided']));
+        vi.stubGlobal('fetch', vi.fn().mockResolvedValue(replyBody(['1. Business Name:\n2. Specialty/Products:', 'Which singer would you like?'], answers)));
+        const response = await generateChatbotResponse({ config: { ...config, details_to_collect: fields, details_completion_percent: 26 }, pageId: 'page-facebook-id', inboundMessage: 'These are our details.' });
+        expect(response.details_complete).toBe(true);
+        expect(response.messages).toEqual(['We have enough details for the next step.']);
+        expect(response.reply).not.toContain('?');
+        expect(response.collected_details).toEqual(answers);
+    });
+
+    it('regenerates an already answered question and retains newly extracted answers', async () => {
+        process.env.OPENROUTER_API_KEY = 'test-key';
+        const fetchMock = vi.fn().mockResolvedValueOnce(replyBody(['English o Tagalog ang lyrics?'], { 'Business name': 'Sunrise Bakery' }))
+            .mockResolvedValueOnce(replyBody(['May deadline ba kayo?']));
+        vi.stubGlobal('fetch', fetchMock);
+        const response = await generateChatbotResponse({ config: { ...config, stop_when_details_collected: false, details_to_collect: ['Business name', 'Lyrics language', 'Deadline or occasion date'] }, pageId: 'page-facebook-id', inboundMessage: 'Sunrise Bakery kami.', collectedDetails: { 'Lyrics language': 'Tagalog' } });
+        expect(fetchMock).toHaveBeenCalledTimes(2);
+        expect(response.reply).toBe('May deadline ba kayo?');
+        expect(response.collected_details).toEqual({ 'Lyrics language': 'Tagalog', 'Business name': 'Sunrise Bakery' });
+    });
+
+    it.each([
+        ['Business type', 'What type of business do you have?'],
+        ['Song concept or campaign idea', 'What song concept would you like?'],
+        ['Existing lyrics or script', 'May script ba kayo?'],
+        ['Song purpose', 'Para saan ang kanta?'],
+        ['Main message', 'What main message should the song convey?'],
+        ['Business strengths', 'What makes your business unique?'],
+        ['Signature product/service', 'Ano ang pinakamadalas bilhin?'],
+        ['Agreed package', 'Which package would you like?'],
+        ['Additional requests', 'Do you have additional requests?']
+    ])('does not repeat the supplied %s question', async (field, question) => {
+        process.env.OPENROUTER_API_KEY = 'test-key';
+        const fetchMock = vi.fn().mockResolvedValueOnce(replyBody([question]))
+            .mockResolvedValueOnce(replyBody(['May deadline ba kayo?']));
+        vi.stubGlobal('fetch', fetchMock);
+        const response = await generateChatbotResponse({ config: { ...config, details_to_collect: [field, 'Deadline or occasion date'] }, pageId: 'page-facebook-id', inboundMessage: 'Please continue.', collectedDetails: { [field]: 'Previously provided' } });
+        expect(fetchMock).toHaveBeenCalledTimes(2);
+        expect(response.reply).toBe('May deadline ba kayo?');
+        expect(response.collected_details[field]).toBe('Previously provided');
+    });
+
+    it('suppresses a repeated requirements form if the correction still repeats it', async () => {
+        process.env.OPENROUTER_API_KEY = 'test-key';
+        const form = '1. Business Name:\n2. Specialty/Products:';
+        const fetchMock = vi.fn().mockResolvedValue(replyBody([form]));
+        vi.stubGlobal('fetch', fetchMock);
+        const response = await generateChatbotResponse({ config: { ...config, instructions: 'ALLOW_BRIEF_FORM: true', details_to_collect: ['Business name', 'Main products or services'] }, pageId: 'page-facebook-id', inboundMessage: 'How does it work?', history: [priorMessage(form)] });
+        expect(fetchMock).toHaveBeenCalledTimes(2);
+        expect(response.messages).toEqual([]);
+        expect(response.reply_suppressed).toBe(true);
+    });
+
+    it('keeps answers from an overlong response even when the length correction omits them', async () => {
+        process.env.OPENROUTER_API_KEY = 'test-key';
+        vi.stubGlobal('fetch', vi.fn().mockResolvedValueOnce(replyBody(['A'.repeat(450)], { 'Business name': 'Sunrise Bakery' }))
+            .mockResolvedValueOnce(replyBody(['Ano pong tagline?'])));
+        const response = await generateChatbotResponse({ config: { ...config, instructions: 'MAX_REPLY_CHARACTERS: 400', details_to_collect: ['Business name', 'Tagline or slogan'] }, pageId: 'page-facebook-id', inboundMessage: 'Sunrise Bakery kami.' });
+        expect(response.collected_details['Business name']).toBe('Sunrise Bakery');
+        expect(response.reply).toBe('Ano pong tagline?');
+    });
+
+    it('retains extracted answers when the length correction request fails', async () => {
+        process.env.OPENROUTER_API_KEY = 'test-key';
+        vi.stubGlobal('fetch', vi.fn().mockResolvedValueOnce(replyBody(['A'.repeat(450)], { 'Business name': 'Sunrise Bakery' }))
+            .mockRejectedValueOnce(new Error('Provider temporarily unavailable')));
+        const response = await generateChatbotResponse({ config: { ...config, instructions: 'MAX_REPLY_CHARACTERS: 400', details_to_collect: ['Business name', 'Tagline or slogan'] }, pageId: 'page-facebook-id', inboundMessage: 'Sunrise Bakery kami.' });
+        expect(response.collected_details['Business name']).toBe('Sunrise Bakery');
+        expect(response.reply).toBe(config.fallback_reply);
+    });
+
+    it('rejects a repeated follow-up bubble even when its other bubble is fresh', async () => {
+        process.env.OPENROUTER_API_KEY = 'test-key';
+        const fetchMock = vi.fn().mockResolvedValue({ ok: true, json: async () => ({ choices: [{ message: { content: JSON.stringify({ messages: ['A fresh idea for your bakery.', 'English o Tagalog ang lyrics?'], personalization_basis: 'Customer bakery song' }) } }] }) });
+        vi.stubGlobal('fetch', fetchMock);
+        await expect(generateChatbotFollowUp({ config: { ...config, split_messages: true, max_message_parts: 2 }, pageId: 'page-facebook-id', sequenceNumber: 2, scheduleLabel: 'first-day', history: [priorMessage('English o Tagalog ang lyrics?'), { id: 'customer', message: 'I need a bakery song.', from: { id: 'customer-id', name: 'Customer' }, created_time: '2026-10-08T07:59:00Z' }] })).rejects.toThrow('no generic fallback was sent');
+        expect(fetchMock).toHaveBeenCalledTimes(2);
+    });
+
+    it('does not generate follow-ups for saved answers that already meet the target', async () => {
+        const fetchMock = vi.fn();
+        vi.stubGlobal('fetch', fetchMock);
+        await expect(generateChatbotFollowUp({ config: { ...config, details_to_collect: ['Business name', 'Tagline or slogan'], details_completion_percent: 26 }, pageId: 'page-facebook-id', collectedDetails: { 'Business name': 'Sunrise Bakery' }, sequenceNumber: 1, scheduleLabel: 'first-day' })).rejects.toThrow('target is reached');
+        expect(fetchMock).not.toHaveBeenCalled();
+    });
     it('splits long replies into short natural Messenger bubbles without dropping text', () => {
         const reply = 'Our standard package includes a consultation, a customized service plan, and aftercare guidance based on your needs. We can also adjust the schedule around your preferred date, subject to availability. Which date and service are you considering so I can guide you to the best option?';
         const messages = splitChatbotMessageBubbles(reply, true);
@@ -747,7 +844,7 @@ describe('Sunobot chatbot', () => {
             choices: [{ message: { content: JSON.stringify({ messages: ['Sige, Cj Lara! Upbeat o mellow ang gusto mo?'], collected_details: {} }) } }]
         }) }));
         const response = await generateChatbotResponse({
-            config: { ...config, instructions: 'SPARSE_FIRST_NAME: true', details_to_collect: ['Customer name'] },
+            config: { ...config, instructions: 'SPARSE_FIRST_NAME: true', details_to_collect: ['Customer name', 'Preferred mood/style'] },
             contactName: 'Cj Lara', pageId: 'page-facebook-id', inboundMessage: 'Business song please.',
             history: [{ id: 'previous', message: 'Cj, para sa bakery song.', from: { id: 'page-facebook-id', name: 'Hiraya Studios' }, created_time: '2026-10-06T10:00:00Z' }]
         });
@@ -782,7 +879,7 @@ describe('Sunobot chatbot', () => {
         }));
 
         const response = await generateChatbotResponse({
-            config: { ...config, split_messages: true, max_message_parts: 2, details_to_collect: ['Business name', 'Agreed package'] },
+            config: { ...config, split_messages: true, max_message_parts: 2, details_to_collect: ['Business name', 'Agreed package', 'Tagline or slogan'] },
             pageId: 'page-facebook-id',
             inboundMessage: 'Agree ako sa PHP 399 for 1 song. Sunrise Bakery kami.'
         });

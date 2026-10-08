@@ -220,7 +220,7 @@ function createSupabaseMock(options?: {
     };
 }
 
-function createPhotoChatbotSupabaseMock(options?: { state?: Record<string, unknown> }) {
+function createPhotoChatbotSupabaseMock(options?: { state?: Record<string, unknown>; config?: Record<string, unknown> }) {
     const welcomeSelect = vi.fn(() => {
         throw new Error('Photo chatbot handling should bypass the welcome lookup');
     });
@@ -255,7 +255,8 @@ function createPhotoChatbotSupabaseMock(options?: { state?: Record<string, unkno
         stop_on_qualified: true,
         stop_on_not_qualified: true,
         stop_on_converted: true,
-        stop_on_order_created: true
+        stop_on_order_created: true,
+        ...options?.config
     };
 
     const stateUpsert = vi.fn().mockResolvedValue({ error: null });
@@ -278,7 +279,8 @@ function createPhotoChatbotSupabaseMock(options?: { state?: Record<string, unkno
                     eq: vi.fn().mockReturnValue({
                         eq: vi.fn().mockReturnValue({
                             maybeSingle: vi.fn().mockResolvedValue({
-                                data: columns === 'pipeline_stage' ? { pipeline_stage: 'engaged' } : null,
+                                data: columns === 'pipeline_stage' ? { pipeline_stage: 'engaged' } : options?.config
+                                    ? { id: 'contact_row_1', name: 'Photo Contact', pipeline_stage: 'engaged', profile_pic: null } : null,
                                 error: null
                             })
                         })
@@ -326,7 +328,8 @@ function createPhotoChatbotSupabaseMock(options?: { state?: Record<string, unkno
                         })
                     })
                 }),
-                upsert: stateUpsert
+                upsert: stateUpsert,
+                update: vi.fn().mockReturnValue({ eq: vi.fn().mockReturnValue({ eq: vi.fn().mockResolvedValue({ error: null }) }) })
             };
         }
         if (table === 'chatbot_reply_events') {
@@ -937,6 +940,65 @@ describe('POST /api/facebook/webhook', () => {
             { timeoutMs: 2500 }
         );
         expect(supabase.contactsUpsert).toHaveBeenCalledTimes(1);
+    });
+
+    const detailFields = Array.from({ length: 20 }, (_, i) => `Field ${i}`);
+    const goalConfig = { details_to_collect: detailFields, details_completion_percent: 26, stop_when_details_collected: true };
+    const currentInbound = () => createWebhookRequest({ object: 'page', entry: [{ id: 'fb_page_1', messaging: [{
+        sender: { id: 'contact_psid_1' }, recipient: { id: 'fb_page_1' },
+        timestamp: Date.parse('2026-10-08T12:00:00Z'), message: { mid: 'mid.goal', text: 'Our new details.' }
+    }] }] });
+    const activeState = (details: Record<string, string>) => ({ page_id: 'page_row_1', contact_id: 'contact_row_1',
+        status: 'active', started_at: '2026-10-08T01:00:00Z', window_expires_at: '2026-10-15T01:00:00Z',
+        collected_details: details, missing_details: [], stop_reason: null, stopped_at: null,
+        last_inbound_at: null, last_bot_reply_at: null });
+
+    it('saves the goal stop before delivery and sends only one closing instead of another question', async () => {
+        const answers = Object.fromEntries(detailFields.slice(0, 6).map(k => [k, 'provided']));
+        const supabase = createPhotoChatbotSupabaseMock({ config: goalConfig });
+        mocks.getSupabaseAdmin.mockReturnValue(supabase);
+        mocks.generateChatbotResponse.mockResolvedValue({ messages: ['Which singer do you want?'], collected_details: answers, missing_details: detailFields.slice(6), details_complete: true });
+        mocks.sendMessage.mockImplementation(async () => {
+            expect(supabase.stateUpsert).toHaveBeenCalledWith(expect.objectContaining({ collected_details: answers, status: 'stopped', stop_reason: 'details_collected' }), { onConflict: 'page_id,contact_id' });
+            return { message_id: 'mid.closing' };
+        });
+        expect((await POST(currentInbound())).status).toBe(200);
+        expect(mocks.sendMessage).toHaveBeenCalledTimes(1);
+        expect(mocks.sendMessage.mock.calls[0][3]).toBe('We have enough details for the next step.');
+    });
+
+    it('stops before AI generation when saved answers already meet the lowered target', async () => {
+        const answers = Object.fromEntries(detailFields.slice(0, 6).map(k => [k, 'provided']));
+        const supabase = createPhotoChatbotSupabaseMock({ config: goalConfig, state: activeState(answers) });
+        mocks.getSupabaseAdmin.mockReturnValue(supabase);
+        expect((await POST(currentInbound())).status).toBe(200);
+        expect(mocks.generateChatbotResponse).not.toHaveBeenCalled();
+        expect(mocks.sendMessage).not.toHaveBeenCalled();
+        expect(supabase.stateUpsert).toHaveBeenCalledWith(expect.objectContaining({ stop_reason: 'details_collected', status: 'stopped' }), { onConflict: 'page_id,contact_id' });
+    });
+
+    it('retains extracted answers and the stop even if the closing delivery fails', async () => {
+        const answers = Object.fromEntries(detailFields.slice(0, 6).map(k => [k, 'provided']));
+        const supabase = createPhotoChatbotSupabaseMock({ config: goalConfig });
+        mocks.getSupabaseAdmin.mockReturnValue(supabase);
+        mocks.generateChatbotResponse.mockResolvedValue({ messages: ['Another question?'], collected_details: answers, missing_details: [], details_complete: true });
+        mocks.sendMessage.mockRejectedValue(new Error('Delivery failed'));
+        expect((await POST(currentInbound())).status).toBe(200);
+        expect(supabase.stateUpsert).toHaveBeenCalledWith(expect.objectContaining({ collected_details: answers, status: 'stopped' }), { onConflict: 'page_id,contact_id' });
+    });
+
+    it('does not reopen a conversation stopped while a reply was being generated', async () => {
+        const state: Record<string, unknown> = activeState({});
+        const supabase = createPhotoChatbotSupabaseMock({ state, config: goalConfig });
+        mocks.getSupabaseAdmin.mockReturnValue(supabase);
+        mocks.generateChatbotResponse.mockImplementation(async () => {
+            state.status = 'stopped'; state.stop_reason = 'opt_out';
+            return { messages: ['Another question?'], collected_details: {}, missing_details: [], details_complete: false };
+        });
+        expect((await POST(currentInbound())).status).toBe(200);
+        expect(mocks.generateChatbotResponse).toHaveBeenCalledTimes(1);
+        expect(mocks.sendMessage).not.toHaveBeenCalled();
+        expect(supabase.stateUpsert).not.toHaveBeenCalled();
     });
 
     it('analyzes and replies to an image-only first message instead of sending only a welcome', async () => {

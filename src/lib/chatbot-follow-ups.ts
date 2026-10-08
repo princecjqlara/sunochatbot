@@ -10,7 +10,7 @@ import { getPhilippinesDateParts, getPhilippinesScheduledAtIso } from '@/lib/phi
 import { replaceTemplateVariables } from '@/lib/placeholders';
 import { getSupabaseAdmin } from '@/lib/supabase';
 import { generateChatbotFollowUp, getChatbotKnowledgePageId, type ChatbotConfig } from '@/lib/chatbot';
-import { filterChatbotConversationHistory, isChatbotContactAllowed } from '@/lib/chatbot-control';
+import { filterChatbotConversationHistory, hasReachedChatbotDetailTarget, isChatbotContactAllowed } from '@/lib/chatbot-control';
 import { getReadyChatbotDriveFilesForDocuments, getReadyChatbotDriveFolderForDocument, type ChatbotDriveFile, type ChatbotDriveFolder } from '@/lib/chatbot-drive-folders';
 import { isPipelineClosedForAutomation, type ContactPipelineStage } from '@/lib/contact-pipeline';
 
@@ -274,6 +274,7 @@ export async function processDueChatbotFollowUps(input: {
                 !isChatbotFollowUpWithinLimit(config as ChatbotConfig, job.schedule_type, job.sequence_index) ||
                 !isChatbotContactAllowed(config, job.contact_id) ||
                 state?.status === 'stopped' || isPipelineClosedForAutomation(contact?.pipeline_stage) ||
+                hasReachedChatbotDetailTarget(config, state?.collected_details) ||
                 (state?.history_start_at && anchorTime < Date.parse(state.history_start_at)) ||
                 latestInboundTime > anchorTime ||
                 (!messagingType && job.schedule_type !== 'manual_human_agent')) {
@@ -360,6 +361,24 @@ export async function processDueChatbotFollowUps(input: {
             }
 
             const selectedMedia = selectedMediaItems[0] || null;
+
+            // The customer may answer or qualify while personalization is running.
+            const [currentContactResult, currentStateResult] = await Promise.all([
+                supabase.from('contacts').select('pipeline_stage,last_inbound_at').eq('id', job.contact_id).eq('page_id', job.page_id).maybeSingle(),
+                supabase.from('chatbot_contact_states').select('status,collected_details,history_start_at').eq('page_id', job.page_id).eq('contact_id', job.contact_id).maybeSingle()
+            ]);
+            if (currentContactResult.error || currentStateResult.error) throw new Error('Could not recheck follow-up eligibility');
+            const currentContact = currentContactResult.data;
+            const currentState = currentStateResult.data;
+            if (currentState?.status === 'stopped' || isPipelineClosedForAutomation(currentContact?.pipeline_stage) ||
+                hasReachedChatbotDetailTarget(config, currentState?.collected_details) ||
+                Date.parse(currentContact?.last_inbound_at || '') > anchorTime ||
+                (currentState?.history_start_at && Date.parse(currentState.history_start_at) > anchorTime)) {
+                await markJob(supabase, job.id, { status: 'cancelled', cancelled_at: now.toISOString(),
+                    claimed_at: null, error_message: 'Follow-up stopped or collection goal reached during personalization' });
+                result.cancelled += 1;
+                continue;
+            }
 
             if (job.schedule_type === 'manual_human_agent') {
                 await markJob(supabase, job.id, {

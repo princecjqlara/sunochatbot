@@ -178,7 +178,7 @@ describe('chatbot follow-up scheduling', () => {
         expect(from).not.toHaveBeenCalled();
     });
 
-    it.each([null, '2026-09-21T01:00:00.000Z'])('uses allowed history for a due day 2-7 job (cutoff = %s)', async historyStartAt => {
+    it.each([[null, false], ['2026-09-21T01:00:00.000Z', false], [null, true]])('rechecks a due follow-up after generation (cutoff = %s, qualified during generation = %s)', async (historyStartAt, qualifiedDuringGeneration) => {
         vi.clearAllMocks();
         const conversationHistory = [{
             id: 'message-1',
@@ -201,6 +201,7 @@ describe('chatbot follow-up scheduling', () => {
             .mockResolvedValueOnce({ message_id: 'mid-2' });
         mocks.recordOutboundMessageEvent.mockResolvedValue(undefined);
         const updates: Array<Record<string, unknown>> = [];
+        let contactReads = 0;
         const dueJob = {
             id: 'job-1',
             page_id: 'page-1',
@@ -236,7 +237,7 @@ describe('chatbot follow-up scheduling', () => {
                     maybeSingle: vi.fn(async () => {
                         if (table === 'chatbot_follow_up_jobs') return { data: { id: dueJob.id }, error: null };
                         if (table === 'pages') return { data: { id: 'page-1', name: 'Test Page', fb_page_id: 'fb-page-1', access_token: 'token' }, error: null };
-                        if (table === 'contacts') return { data: { id: 'contact-1', page_id: 'page-1', psid: 'psid-1', name: 'Alex', last_interaction_at: dueJob.anchor_inbound_at, last_inbound_at: dueJob.anchor_inbound_at, pipeline_stage: 'engaged' }, error: null };
+                        if (table === 'contacts') return { data: { id: 'contact-1', page_id: 'page-1', psid: 'psid-1', name: 'Alex', last_interaction_at: dueJob.anchor_inbound_at, last_inbound_at: dueJob.anchor_inbound_at, pipeline_stage: ++contactReads > 1 && qualifiedDuringGeneration ? 'qualified' : 'engaged' }, error: null };
                         if (table === 'chatbot_configs') return { data: { enabled: true, follow_up_enabled: true }, error: null };
                         return { data: { status: 'active', collected_details: { Service: 'Premium haircut' }, missing_details: ['Mobile number'], history_start_at: historyStartAt }, error: null };
                     })
@@ -250,6 +251,12 @@ describe('chatbot follow-up scheduling', () => {
             now: new Date('2026-09-22T01:00:00.000Z')
         });
 
+        if (qualifiedDuringGeneration) {
+            expect(result).toMatchObject({ checked: 1, sent: 0, cancelled: 1 });
+            expect(mocks.sendMessage).not.toHaveBeenCalled();
+            expect(updates).toContainEqual(expect.objectContaining({ status: 'cancelled' }));
+            return;
+        }
         expect(result).toMatchObject({ checked: 1, sent: 1, readyManual: 0 });
         expect(mocks.sendMessage).toHaveBeenNthCalledWith(
             1,
