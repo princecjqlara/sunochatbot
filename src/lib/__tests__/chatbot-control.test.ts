@@ -100,6 +100,23 @@ describe('chatbot conversation controls', () => {
         expect(classifyChatbotStopIntent('Not interested in this package, prefer not buying.', { stopOnOptOut: true, stopOnRefusal: true })).toBe('refusal');
     });
 
+    it.each([
+        'Wag na po isingit yung oras at petsa yun na kasi ang pangaraw araw na gagamitin',
+        'Huwag na po isama ang pangalan ko sa lyrics.',
+        'Wag na banggitin ang address.'
+    ])('keeps song content omissions active: %s', text => {
+        expect(classifyChatbotStopIntent(text, { stopOnOptOut: true, stopOnRefusal: true })).toBeNull();
+    });
+
+    it('preserves cancellations and opt-outs alongside content omission requests', () => {
+        expect(classifyChatbotStopIntent('Wag na po isama ang pangalan ko. Di ko na itutuloy.', { stopOnOptOut: true, stopOnRefusal: true })).toBe('refusal');
+        expect(classifyChatbotStopIntent('Wag na po isingit ang date, not interested anymore.', { stopOnOptOut: true, stopOnRefusal: true })).toBe('refusal');
+        expect(classifyChatbotStopIntent('Wag na isama ang pangalan. No thanks.', { stopOnOptOut: true, stopOnRefusal: true })).toBe('refusal');
+        expect(classifyChatbotStopIntent('Wag na isama ang pangalan ko. Stop messaging me.', { stopOnOptOut: true, stopOnRefusal: true })).toBe('opt_out');
+        expect(classifyChatbotStopIntent('Wag na po', { stopOnOptOut: true, stopOnRefusal: true })).toBe('refusal');
+        expect(classifyChatbotStopIntent('Wag nlng po di q na po itutuloy.', { stopOnOptOut: true, stopOnRefusal: true })).toBe('refusal');
+    });
+
     it('stops an active bot state when its fixed seven-day lifecycle expires', () => {
         const startedAt = new Date('2026-09-01T00:00:00Z');
         const state: ChatbotContactState = {

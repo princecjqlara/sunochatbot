@@ -65,7 +65,10 @@ const OPT_OUT_PATTERNS = [
     /\bhuwag (?:mo )?(?:akong )?(?:i-message|imessage|kontakin|kausapin)\b/i
 ];
 
+const TAGALOG_PURCHASE_REFUSAL = /\b(?:hindi|di)\b.{0,20}\b(?:itutuloy|tutuloy|magpapagawa|magpagawa|ppgawa)\b/i;
+
 const REFUSAL_PATTERNS = [
+    TAGALOG_PURCHASE_REFUSAL,
     /\bnot interested\b/i,
     /\bno thanks?\b/i,
     /\bno thank you\b/i,
@@ -106,7 +109,11 @@ export function classifyChatbotStopIntent(
     }
     const rejectsAnOption = /\b(?:ayoko|pass|wag na|huwag na|don't want|do not want)\b.{0,100}\b(?:boses|vocals?|style|genre|lyrics|mood|version|package|bundle|dalawa|tatlo|two songs|three songs)\b/i.test(value);
     const requestsAnAlternative = /\b(?:gusto|prefer|instead|rather|palitan|change|switch|isa(?:ng)?|one|female|male)\b/i.test(value);
-    const clearlyDeclinesPurchase = /not interested|not buying|(?:don't|do not) want to buy|(?:hindi|di) ako interesado|ayoko.{0,20}(?:bumili|magpagawa|umorder)/i.test(value);
+    const clearlyDeclinesPurchase = TAGALOG_PURCHASE_REFUSAL.test(value) || /not interested|not buying|(?:don't|do not) want to buy|(?:hindi|di) ako interesado|ayoko.{0,20}(?:bumili|magpagawa|umorder)/i.test(value);
+    // Leaving something out of the song is a brief edit, not a cancelled order.
+    const contentOmission = /\b(?:wag|huwag)(?:\s+na)?(?:\s+(?:po|lang|muna))*\s+(?:isingit|isama|ilagay|banggitin|gamitin|include|mention)\b/i;
+    const otherRefusal = REFUSAL_PATTERNS.some(pattern => pattern.test(value.replace(contentOmission, '')));
+    if (contentOmission.test(value) && !clearlyDeclinesPurchase && !otherRefusal) return null;
     if (rejectsAnOption && requestsAnAlternative && !clearlyDeclinesPurchase) return null;
     if (options.stopOnRefusal && REFUSAL_PATTERNS.some((pattern) => pattern.test(value))) {
         return 'refusal';
