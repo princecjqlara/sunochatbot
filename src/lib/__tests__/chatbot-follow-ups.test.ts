@@ -38,6 +38,17 @@ import {
 import type { ChatbotConfig } from '@/lib/chatbot';
 
 describe('chatbot follow-up scheduling', () => {
+    it('cancels existing reminders and creates none when a customer asks to get back later', async () => {
+        const chain: any = { update: vi.fn(() => chain), eq: vi.fn(() => chain),
+            in: vi.fn(async () => ({ error: null })), upsert: vi.fn() };
+        await expect(scheduleChatbotFollowUps({ supabase: { from: () => chain }, pageId: 'page-1',
+            contact: { id: 'contact-1', page_id: 'page-1', psid: 'psid-1' },
+            config: { follow_up_enabled: true, follow_up_quick_delays_minutes: [30,360,1320] } as ChatbotConfig,
+            anchorInboundAt: '2026-10-09T12:00:00Z', inboundMessage: 'Balikan ko po kayo mamaya',
+            now: new Date('2026-10-09T12:00:00Z') })).resolves.toBe(0);
+        expect(chain.update).toHaveBeenCalledWith(expect.objectContaining({ status: 'cancelled', error_message: 'Customer asked to pause reminders' }));
+        expect(chain.upsert).not.toHaveBeenCalled();
+    });
     it('requires at least one readable customer message before personalization', () => {
         expect(hasReadableCustomerConversationHistory([], 'page-1')).toBe(false);
         expect(hasReadableCustomerConversationHistory([
@@ -60,7 +71,12 @@ describe('chatbot follow-up scheduling', () => {
             new Date('2026-09-21T02:00:00.000Z'),
             2,
             9
-        )).toBe('2026-09-22T01:00:00.000Z');
+        )).toBe('2026-09-23T01:00:00.000Z');
+    });
+
+    it('uses the customer inbound hour when no learned best hour is available', () => {
+        expect(getBestTimeFollowUpDueAt(new Date('2026-10-09T14:37:00Z'), 2, null)).toBe('2026-10-11T14:00:00.000Z');
+        expect(getBestTimeFollowUpDueAt(new Date('2026-10-09T14:37:00Z'), 7, 99)).toBe('2026-10-16T14:00:00.000Z');
     });
 
     it('uses HUMAN_AGENT only before the guarded seven-day boundary', () => {
@@ -115,7 +131,7 @@ describe('chatbot follow-up scheduling', () => {
             'response', 'response', 'human_agent', 'human_agent'
         ]);
         expect(inserted[0].due_at).toBe('2026-09-21T02:10:00.000Z');
-        expect(inserted[2].due_at).toBe('2026-09-22T01:00:00.000Z');
+        expect(inserted[2].due_at).toBe('2026-09-23T01:00:00.000Z');
         expect(inserted.every((job) => job.message_text === 'AI-generated from conversation at send time')).toBe(true);
         expect(inserted.some((job) => job.message_text === 'First check-in' || job.message_text === 'Update about your request')).toBe(false);
     });
@@ -138,6 +154,26 @@ describe('chatbot follow-up scheduling', () => {
         expect(chain.upsert.mock.calls[0][0]).toHaveLength(3);
         expect(isChatbotFollowUpWithinLimit(config, 'human_agent', 0)).toBe(true);
         expect(isChatbotFollowUpWithinLimit(config, 'human_agent', 1)).toBe(false);
+    });
+
+    it('keeps separate first-day and later-day budgets and queues later days for staff', async () => {
+        const chain: any = { update: vi.fn(() => chain), eq: vi.fn(() => chain),
+            in: vi.fn(async () => ({ error: null })), upsert: vi.fn(async () => ({ error: null })) };
+        const config = { instructions: 'MAX_UNANSWERED_FOLLOW_UPS: 3\nMAX_FIRST_DAY_FOLLOW_UPS: 4\nMAX_LATER_DAY_FOLLOW_UPS: 6\nFOLLOW_UP_LATER_DAYS_MODE: staff-review',
+            follow_up_enabled: true, follow_up_quick_delays_minutes: [30,180,480,1380],
+            follow_up_best_time_days: [2,3,4,5,6,7] } as ChatbotConfig;
+        await expect(scheduleChatbotFollowUps({ supabase: { from: () => chain }, pageId: 'page-1',
+            contact: { id: 'contact-1', page_id: 'page-1', psid: 'psid-1', best_contact_hour: 12 }, config,
+            anchorInboundAt: '2026-10-09T14:00:00Z', now: new Date('2026-10-09T14:00:00Z') })).resolves.toBe(10);
+        const rows = chain.upsert.mock.calls[0][0];
+        expect(rows.filter((job: any) => job.schedule_type === 'response')).toHaveLength(4);
+        expect(rows.filter((job: any) => job.schedule_type === 'manual_human_agent')).toHaveLength(6);
+        expect(rows[4].due_at).toBe('2026-10-11T04:00:00.000Z');
+        expect(rows[9].due_at).toBe('2026-10-16T04:00:00.000Z');
+        expect(isChatbotFollowUpWithinLimit(config, 'manual_human_agent', 5)).toBe(true);
+        expect(isChatbotFollowUpWithinLimit(config, 'manual_human_agent', 6)).toBe(false);
+        expect(isChatbotFollowUpWithinLimit(config, 'response', 4)).toBe(false);
+        expect(isChatbotFollowUpWithinLimit(config, 'human_agent', 0)).toBe(false);
     });
 
     it('rejects stale queued jobs removed from the owner schedule', () => {
@@ -181,12 +217,14 @@ describe('chatbot follow-up scheduling', () => {
     it.each([
         { historyStartAt: null, change: 'none' },
         { historyStartAt: '2026-09-21T01:00:00.000Z', change: 'none' },
-        ...['qualified', 'bot_disabled', 'followups_disabled', 'trial_changed', 'job_cancelled', 'lease_changed', 'read_error'].map(change => ({ historyStartAt: null, change }))
+        { historyStartAt: null, change: 'staff_review' },
+        { historyStartAt: null, change: 'expired_staff_review' },
+        ...['qualified', 'bot_disabled', 'followups_disabled', 'trial_changed', 'job_cancelled', 'lease_changed', 'read_error', 'pause_requested'].map(change => ({ historyStartAt: null, change }))
     ])('rechecks a due follow-up after generation: $change, cutoff $historyStartAt', async ({ historyStartAt, change }) => {
         vi.clearAllMocks();
         const conversationHistory = [{
             id: 'message-1',
-            message: 'Interested ako sa premium haircut next Friday.',
+            message: change === 'pause_requested' ? 'Hindi na po muna' : 'Interested ako sa premium haircut next Friday.',
             from: { id: 'psid-1', name: 'Alex' },
             created_time: '2026-09-21T02:00:00.000Z'
         }];
@@ -212,7 +250,7 @@ describe('chatbot follow-up scheduling', () => {
             page_id: 'page-1',
             contact_id: 'contact-1',
             anchor_inbound_at: '2026-09-21T02:00:00.000Z',
-            schedule_type: 'human_agent',
+            schedule_type: change.includes('staff_review') ? 'manual_human_agent' : 'human_agent',
             sequence_index: 0,
             due_at: '2026-09-22T01:00:00.000Z',
             message_text: 'Staff follow-up draft',
@@ -235,6 +273,7 @@ describe('chatbot follow-up scheduling', () => {
                         return chain;
                     }),
                     eq: vi.fn(() => chain),
+                    in: vi.fn(async () => ({ error: null })),
                     lt: vi.fn(() => chain),
                     lte: vi.fn(() => chain),
                     order: vi.fn(() => chain),
@@ -259,7 +298,7 @@ describe('chatbot follow-up scheduling', () => {
 
         const result = await processDueChatbotFollowUps({
             supabase,
-            now: new Date('2026-09-22T01:00:00.000Z')
+            now: new Date(change === 'expired_staff_review' ? '2026-09-28T02:00:00.000Z' : '2026-09-22T01:00:00.000Z')
         });
 
         if (change === 'read_error') {
@@ -269,9 +308,17 @@ describe('chatbot follow-up scheduling', () => {
             expect(updates).toContainEqual(expect.objectContaining({ status: 'pending', attempt_count: 1 }));
             return;
         }
+        if (change === 'staff_review') {
+            expect(result).toMatchObject({ checked: 1, sent: 0, readyManual: 1 });
+            expect(mocks.sendMessage).not.toHaveBeenCalled();
+            expect(updates).toContainEqual(expect.objectContaining({ status: 'ready_manual',
+                message_text: 'Personalized Human Agent follow-up\n\nWould Friday work?' }));
+            return;
+        }
         if (change !== 'none') {
             expect(result).toMatchObject({ checked: 1, sent: 0, cancelled: 1 });
             expect(mocks.sendMessage).not.toHaveBeenCalled();
+            if (change === 'pause_requested') expect(mocks.generateChatbotFollowUp).not.toHaveBeenCalled();
             if (change !== 'job_cancelled' && change !== 'lease_changed') expect(updates).toContainEqual(expect.objectContaining({ status: 'cancelled' }));
             return;
         }

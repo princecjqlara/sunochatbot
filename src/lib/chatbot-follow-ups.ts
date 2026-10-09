@@ -6,11 +6,11 @@ import {
     type ChatbotMediaAsset
 } from '@/lib/chatbot-media';
 import { recordOutboundMessageEvent } from '@/lib/outbound-message-events';
-import { getPhilippinesDateParts, getPhilippinesScheduledAtIso } from '@/lib/philippines-time';
+import { getPhilippinesDateParts, getPhilippinesHour, getPhilippinesScheduledAtIso } from '@/lib/philippines-time';
 import { replaceTemplateVariables } from '@/lib/placeholders';
 import { getSupabaseAdmin } from '@/lib/supabase';
 import { generateChatbotFollowUp, getChatbotKnowledgePageId, type ChatbotConfig } from '@/lib/chatbot';
-import { filterChatbotConversationHistory, hasReachedChatbotDetailTarget, isChatbotContactAllowed } from '@/lib/chatbot-control';
+import { filterChatbotConversationHistory, hasReachedChatbotDetailTarget, isChatbotContactAllowed, isChatbotFollowUpPauseRequest } from '@/lib/chatbot-control';
 import { getReadyChatbotDriveFilesForDocuments, getReadyChatbotDriveFolderForDocument, type ChatbotDriveFile, type ChatbotDriveFolder } from '@/lib/chatbot-drive-folders';
 import { isPipelineClosedForAutomation, type ContactPipelineStage } from '@/lib/contact-pipeline';
 
@@ -30,7 +30,15 @@ export function isChatbotFollowUpWithinLimit(
     scheduleType: FollowUpJob['schedule_type'],
     sequenceIndex: number
 ) {
+    if (scheduleType === 'human_agent' && /^FOLLOW_UP_LATER_DAYS_MODE:\s*staff-review\s*$/im.test(config.instructions || '')) return false;
     const limit = getUnansweredFollowUpLimit(config);
+    const phaseLimit = config.instructions?.match(new RegExp(`^${scheduleType === 'response' ? 'MAX_FIRST_DAY_FOLLOW_UPS' : 'MAX_LATER_DAY_FOLLOW_UPS'}:\\s*(\\d+)\\s*$`, 'im'))?.[1];
+    if (phaseLimit !== undefined) {
+        const count = scheduleType === 'response'
+            ? normalizeQuickFollowUpDelays(config.follow_up_quick_delays_minutes).length
+            : normalizeBestTimeFollowUpDays(config.follow_up_best_time_days).length;
+        return Number.isInteger(sequenceIndex) && sequenceIndex >= 0 && sequenceIndex < Math.min(count, Number(phaseLimit));
+    }
     if (limit === undefined || scheduleType === 'manual_human_agent') return true;
     const quickCount = normalizeQuickFollowUpDelays(config.follow_up_quick_delays_minutes).length;
     const bestTimeCount = normalizeBestTimeFollowUpDays(config.follow_up_best_time_days).length;
@@ -117,16 +125,19 @@ export function getAutomatedFollowUpMessagingType(
 }
 
 export function getBestTimeFollowUpDueAt(anchor: Date, dayNumber: number, bestHour: number | null | undefined): string {
-    const base = getPhilippinesDateParts(anchor);
-    const target = new Date(Date.UTC(base.year, base.month, base.day + Math.max(1, dayNumber - 1)));
+    const windowStart = anchor.getTime() + Math.max(1, dayNumber - 1) * RESPONSE_WINDOW_MS;
+    const base = getPhilippinesDateParts(new Date(windowStart));
+    const target = new Date(Date.UTC(base.year, base.month, base.day));
     const hour = Number.isInteger(bestHour) && Number(bestHour) >= 0 && Number(bestHour) <= 23
         ? Number(bestHour)
-        : 12;
-    return getPhilippinesScheduledAtIso(hour, {
+        : getPhilippinesHour(anchor);
+    const candidate = getPhilippinesScheduledAtIso(hour, {
         year: target.getUTCFullYear(),
         month: target.getUTCMonth(),
         day: target.getUTCDate()
     });
+    const candidateTime = Date.parse(candidate);
+    return new Date(candidateTime < windowStart ? candidateTime + RESPONSE_WINDOW_MS : candidateTime).toISOString();
 }
 
 export async function cancelPendingChatbotFollowUps(input: {
@@ -158,12 +169,18 @@ export async function scheduleChatbotFollowUps(input: {
     contact: ScheduleContact;
     config: ChatbotConfig;
     anchorInboundAt: string;
+    inboundMessage?: string;
     now?: Date;
 }): Promise<number> {
     if (!input.config.follow_up_enabled) return 0;
     if (isPipelineClosedForAutomation(input.contact.pipeline_stage)) return 0;
 
     const now = input.now || new Date();
+    if (isChatbotFollowUpPauseRequest(input.inboundMessage || '')) {
+        await cancelPendingChatbotFollowUps({ supabase: input.supabase, pageId: input.pageId,
+            contactId: input.contact.id, reason: 'Customer asked to pause reminders', now });
+        return 0;
+    }
     const anchor = new Date(input.anchorInboundAt);
     if (!Number.isFinite(anchor.getTime())) return 0;
     await cancelPendingChatbotFollowUps({
@@ -190,7 +207,7 @@ export async function scheduleChatbotFollowUps(input: {
             page_id: input.pageId,
             contact_id: input.contact.id,
             anchor_inbound_at: input.anchorInboundAt,
-            schedule_type: 'human_agent',
+            schedule_type: /^FOLLOW_UP_LATER_DAYS_MODE:\s*staff-review\s*$/im.test(input.config.instructions || '') ? 'manual_human_agent' : 'human_agent',
             sequence_index: index,
             due_at: getBestTimeFollowUpDueAt(anchor, day, input.contact.best_contact_hour),
             message_text: 'AI-generated from conversation at send time',
@@ -198,7 +215,8 @@ export async function scheduleChatbotFollowUps(input: {
         }));
     const jobs = [...quickJobs, ...bestTimeJobs]
         .filter((job) => isChatbotFollowUpWithinLimit(input.config, job.schedule_type as FollowUpJob['schedule_type'], job.sequence_index))
-        .filter((job) => new Date(job.due_at).getTime() > now.getTime());
+        .filter((job) => new Date(job.due_at).getTime() > now.getTime())
+        .filter((job) => new Date(job.due_at).getTime() < anchor.getTime() + HUMAN_AGENT_WINDOW_MS - RESPONSE_SAFETY_MS);
     if (jobs.length === 0) return 0;
     const { error } = await input.supabase.from('chatbot_follow_up_jobs').upsert(jobs, {
         onConflict: 'contact_id,anchor_inbound_at,schedule_type,sequence_index'
@@ -285,6 +303,8 @@ export async function processDueChatbotFollowUps(input: {
                 hasReachedChatbotDetailTarget(config, state?.collected_details) ||
                 (state?.history_start_at && anchorTime < Date.parse(state.history_start_at)) ||
                 latestInboundTime > anchorTime ||
+                !Number.isFinite(anchorTime) || now.getTime() < anchorTime ||
+                now.getTime() - anchorTime >= HUMAN_AGENT_WINDOW_MS - RESPONSE_SAFETY_MS ||
                 (!messagingType && job.schedule_type !== 'manual_human_agent')) {
                 await markClaimedJob({
                     status: 'cancelled',
@@ -317,6 +337,15 @@ export async function processDueChatbotFollowUps(input: {
             if (!hasCustomerMessage) {
                 throw new Error('Messenger conversation history is unavailable; personalized follow-up was not sent');
             }
+            const latestCustomerMessage = [...conversationHistory]
+                .filter(message => message.from?.id !== page.fb_page_id && message.message?.trim())
+                .sort((a, b) => Date.parse(b.created_time || '') - Date.parse(a.created_time || ''))[0];
+            if (isChatbotFollowUpPauseRequest(latestCustomerMessage?.message || '')) {
+                await cancelPendingChatbotFollowUps({ supabase, pageId: job.page_id,
+                    contactId: job.contact_id, reason: 'Customer asked to pause reminders', now });
+                result.cancelled += 1;
+                continue;
+            }
             try {
                 const knowledgePageId = getChatbotKnowledgePageId(config as ChatbotConfig);
                 const generated = await generateChatbotFollowUp({
@@ -327,8 +356,11 @@ export async function processDueChatbotFollowUps(input: {
                     history: conversationHistory,
                     collectedDetails: state?.collected_details || {},
                     missingDetails: state?.missing_details || [],
-                    sequenceNumber: job.sequence_index + 1,
-                    scheduleLabel: job.schedule_type === 'response' ? 'first 24 hours' : 'best-time day 2-7'
+                    sequenceNumber: job.sequence_index + 1 + (job.schedule_type === 'response' ? 0 : normalizeQuickFollowUpDelays(config.follow_up_quick_delays_minutes).length),
+                    isFinalReminder: job.schedule_type === 'response'
+                        ? normalizeBestTimeFollowUpDays(config.follow_up_best_time_days).length === 0 && job.sequence_index === normalizeQuickFollowUpDelays(config.follow_up_quick_delays_minutes).length - 1
+                        : job.sequence_index === normalizeBestTimeFollowUpDays(config.follow_up_best_time_days).length - 1,
+                    scheduleLabel: job.schedule_type === 'response' ? 'first 24 hours' : `day ${normalizeBestTimeFollowUpDays(config.follow_up_best_time_days)[job.sequence_index] || '2-7'} staff follow-up`
                 });
                 if (generated.generation_warning) {
                     throw new Error('AI could not create a validated personalized follow-up');
@@ -402,6 +434,13 @@ export async function processDueChatbotFollowUps(input: {
             }
 
             if (job.schedule_type === 'manual_human_agent') {
+                const { error: supersedeError } = await supabase.from('chatbot_follow_up_jobs').update({
+                    status: 'cancelled', cancelled_at: now.toISOString(),
+                    error_message: 'Replaced by a newer staff-review draft', updated_at: now.toISOString()
+                }).eq('contact_id', job.contact_id).eq('page_id', job.page_id)
+                    .eq('anchor_inbound_at', job.anchor_inbound_at).eq('schedule_type', 'manual_human_agent')
+                    .eq('status', 'ready_manual').lt('sequence_index', job.sequence_index);
+                if (supersedeError) throw new Error('Could not replace the earlier staff draft');
                 await markClaimedJob({
                     status: 'ready_manual',
                     message_text: personalizedMessage,

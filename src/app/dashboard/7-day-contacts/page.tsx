@@ -502,7 +502,7 @@ export default function SevenDayContactsPage() {
                             <div key={draft.id} className="p-4 flex flex-col md:flex-row md:items-center gap-3">
                                 <div className="min-w-0 flex-1">
                                     <p className="font-semibold text-sm">{draft.contact.name || 'Unnamed contact'}</p>
-                                    <p className="text-xs text-gray-600">Due at the contact&apos;s best time: {new Date(draft.due_at).toLocaleString()}</p>
+                                    <p className="text-xs text-gray-600">Due at the contact&apos;s best time: {new Date(draft.due_at).toLocaleString('en-PH', { timeZone: 'Asia/Manila' })} PHT</p>
                                     <p className="text-sm mt-2 whitespace-pre-wrap">{draft.message_text}</p>
                                     {draft.media && <p className="text-xs font-semibold mt-2">Attached by RAG: {draft.media.title} ({draft.media.media_type})</p>}
                                 </div>

@@ -1849,7 +1849,7 @@ export default function ChatbotPage() {
                         <div className="mt-4 border border-black bg-[#f8f8f8] p-3 flex items-start gap-2">
                             <Clock3 className="w-4 h-4 mt-0.5 flex-shrink-0" />
                             <p className="text-xs font-mono">
-                                Bot state uses a rolling seven-day activity window from the customer&apos;s latest message. Day 2–7 follow-ups require Meta Human Agent access for the connected app.
+                                Bot state uses a rolling seven-day activity window from the customer&apos;s latest message. Days 2–7 can queue drafts for staff review. Staff replies require Meta Human Agent access.
                             </p>
                         </div>
 
@@ -1919,7 +1919,7 @@ export default function ChatbotPage() {
                                         className="input-wireframe w-full mt-2 text-sm"
                                         placeholder="2, 3, 5, 7"
                                     />
-                                    <span className="block text-[10px] text-gray-500 mt-1">Days 2–7 send automatically with HUMAN_AGENT at the contact&apos;s best Philippine-time hour.</span>
+                                    <span className="block text-[10px] text-gray-500 mt-1">{/^FOLLOW_UP_LATER_DAYS_MODE:\s*staff-review\s*$/im.test(config.instructions) ? 'Days 2–7 queue drafts for staff review at the best Philippine-time hour.' : 'Days 2–7 use the configured Human Agent workflow at the best Philippine-time hour.'}</span>
                                 </label>
                             </div>
 
@@ -1934,7 +1934,7 @@ export default function ChatbotPage() {
                             </div>
 
                             <p className="mt-3 border border-amber-500 bg-amber-50 p-2 text-[11px] text-amber-900 font-mono">
-                                First-day sends use RESPONSE. On days 2–7, Sunobot sends the AI-personalized follow-up automatically with HUMAN_AGENT. Meta must approve Human Agent access for the connected app.
+                                First-day reminders send automatically within 24 hours. When staff review is enabled, later-day drafts appear in 7-Day Contacts for staff to review and send. HUMAN_AGENT is intended for human replies.
                             </p>
                         </div>
 

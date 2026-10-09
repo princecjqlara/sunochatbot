@@ -453,7 +453,10 @@ export async function POST(
                 history: testHistory,
                 collectedDetails,
                 missingDetails: getMissingChatbotDetails(config.details_to_collect, collectedDetails),
-                sequenceNumber,
+                sequenceNumber: sequenceNumber + (followUpType === 'human_agent' ? config.follow_up_quick_delays_minutes.length : 0),
+                isFinalReminder: followUpType === 'human_agent'
+                    ? sequenceNumber === config.follow_up_best_time_days.length
+                    : config.follow_up_best_time_days.length === 0 && sequenceNumber === config.follow_up_quick_delays_minutes.length,
                 scheduleLabel: followUpType === 'human_agent' ? 'best-time day 2-7' : 'first 24 hours'
             });
             const followUpMediaIds = followUp.media_document_ids?.length

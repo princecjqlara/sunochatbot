@@ -2,7 +2,6 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseAdmin } from '@/lib/supabase';
 import { verifyWebhookSignature, sendMessage, sendMessengerGenericCarousel, getConversationForPsid, getUserProfile } from '@/lib/facebook';
 import { isExpectedFacebookProfileLookupError } from '@/lib/facebook-errors';
-import { getPhilippinesDayOfWeek, getPhilippinesHour } from '@/lib/philippines-time';
 import { replaceTemplateVariables } from '@/lib/placeholders';
 import { handleFollowUpWorkflowContactReply, stopWorkflowAutomationsFromPageMessage } from '@/lib/workflow-automations';
 import { recordChatbotInterruptionIfNeeded, recordOutboundMessageEvent } from '@/lib/outbound-message-events';
@@ -23,6 +22,7 @@ import {
 } from '@/lib/chatbot-media';
 import { getReadyChatbotDriveFilesForDocuments, getReadyChatbotDriveFolderForDocument } from '@/lib/chatbot-drive-folders';
 import { cancelPendingChatbotFollowUps, scheduleChatbotFollowUps } from '@/lib/chatbot-follow-ups';
+import { recordContactBestTime } from '@/lib/contact-best-time';
 import { claimChatbotReply, finishChatbotReply } from '@/lib/chatbot-replies';
 import {
     classifyChatbotStopIntent,
@@ -720,6 +720,15 @@ export async function POST(request: NextRequest) {
 
                         // Record interaction for best time to contact analysis
                         if (contact) {
+                            try {
+                                const bestHour = await recordContactBestTime({ supabase, pageId: page.id,
+                                    contactId: contact.id, interactionTime });
+                                contact.best_contact_hour = bestHour;
+                            } catch (bestTimeError) {
+                                logWarn('Could not refresh contact best time before scheduling', {
+                                    pageId, contactId: contact.id, error: (bestTimeError as Error).message
+                                });
+                            }
                             // Attachments are replies too. The workflow handler
                             // does not require text, so schedule/reset on every
                             // inbound message rather than text-only messages.
@@ -1322,6 +1331,7 @@ export async function POST(request: NextRequest) {
                                                         },
                                                         config: chatbotConfig,
                                                         anchorInboundAt: interactionAt,
+                                                        inboundMessage: inboundMessageText,
                                                         now: interactionTime
                                                     });
                                                     if (scheduledFollowUps > 0) {
@@ -1380,95 +1390,7 @@ export async function POST(request: NextRequest) {
                                 }
                             }
 
-                            const hourOfDay = getPhilippinesHour(interactionTime);
-                            const dayOfWeek = getPhilippinesDayOfWeek(interactionTime);
 
-                            const { error: insertInteractionError } = await supabase
-                                .from('contact_interactions')
-                                .insert({
-                                    contact_id: contact.id,
-                                    page_id: page.id,
-                                    interaction_at: interactionAt,
-                                    hour_of_day: hourOfDay,
-                                    day_of_week: dayOfWeek,
-                                    is_from_contact: true
-                                });
-
-                            if (insertInteractionError) {
-                                logWarn('Failed to save contact interaction', {
-                                    pageId,
-                                    senderId,
-                                    contactId: contact.id,
-                                    error: insertInteractionError.message
-                                });
-                            }
-
-                            // Automatically recalculate best time to contact
-                            const { data: interactions, error: interactionsError } = await supabase
-                                .from('contact_interactions')
-                                .select('hour_of_day')
-                                .eq('contact_id', contact.id)
-                                .eq('is_from_contact', true);
-
-                            if (interactionsError) {
-                                logWarn('Failed to fetch interaction history for best-time calculation', {
-                                    pageId,
-                                    senderId,
-                                    contactId: contact.id,
-                                    error: interactionsError.message
-                                });
-                                continue;
-                            }
-
-                            const interactionCount = interactions?.length || 0;
-                            const hourDistribution: Record<number, number> = {};
-
-                            for (const interaction of interactions || []) {
-                                const hour = interaction.hour_of_day;
-                                hourDistribution[hour] = (hourDistribution[hour] || 0) + 1;
-                            }
-
-                            // Find most common hour
-                            let bestHour: number | null = null;
-                            let maxCount = 0;
-                            for (const [hour, count] of Object.entries(hourDistribution)) {
-                                if (count > maxCount) {
-                                    maxCount = count;
-                                    bestHour = parseInt(hour);
-                                }
-                            }
-
-                            // Determine confidence level
-                            let confidence: string;
-                            if (interactionCount >= 5) {
-                                confidence = 'high';
-                            } else if (interactionCount >= 2) {
-                                confidence = 'medium';
-                            } else if (interactionCount === 1) {
-                                confidence = 'inferred';
-                                // For single interaction, use neighbor inference (simplified - use this hour)
-                                bestHour = hourOfDay;
-                            } else {
-                                confidence = 'none';
-                            }
-
-                            // Update contact with best time data
-                            const { error: bestTimeUpdateError } = await supabase
-                                .from('contacts')
-                                .update({
-                                    best_contact_hour: bestHour,
-                                    best_contact_confidence: confidence
-                                })
-                                .eq('id', contact.id);
-
-                            if (bestTimeUpdateError) {
-                                logWarn('Failed to update best-time fields for contact', {
-                                    pageId,
-                                    senderId,
-                                    contactId: contact.id,
-                                    error: bestTimeUpdateError.message
-                                });
-                            }
                         }
                         } catch (eventError) {
                             skippedEvents += 1;

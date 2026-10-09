@@ -8,12 +8,21 @@ import {
     getChatbotStateStopReason,
     getMissingChatbotDetails,
     isChatbotContactAllowed,
+    isChatbotFollowUpPauseRequest,
     normalizeDetailsToCollect,
     saveChatbotContactState,
     type ChatbotContactState
 } from '@/lib/chatbot-control';
 
 describe('chatbot conversation controls', () => {
+    it.each(['Hindi na po muna', 'Wag na muna po', 'Not now, thanks', 'Maybe later',
+        'Balikan ko po kayo mamaya', "I'll get back to you", 'Ako na po mag-message'])('pauses reminders for an explicit deferral: %s', message => {
+        expect(isChatbotFollowUpPauseRequest(message)).toBe(true);
+    });
+    it.each(['Isa muna ang kanta', 'Ayoko ng male vocals, female na lang',
+        'Huwag na isama ang alak sa lyrics', 'Female singer muna', 'Magkano po?', 'Pop or acoustic?'])('keeps normal song requests eligible: %s', message => {
+        expect(isChatbotFollowUpPauseRequest(message)).toBe(false);
+    });
     it('requires six canonical answers at 26 percent and ignores unrelated or empty fields', () => {
         const config = { details_to_collect: Array.from({ length: 20 }, (_, i) => `Field ${i}`), details_completion_percent: 26 };
         const answers = Object.fromEntries(Array.from({ length: 5 }, (_, i) => [`Field ${i}`, 'answered']));

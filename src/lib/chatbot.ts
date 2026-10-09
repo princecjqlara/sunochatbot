@@ -9,6 +9,7 @@ import {
     getRequiredChatbotDetailCount,
     hasReachedChatbotDetailTarget,
     isChatbotBriefEditRequest,
+    isChatbotFollowUpPauseRequest,
     normalizeChatbotDetailTargetPercent,
     normalizeDetailsToCollect,
     type ChatbotStopReason
@@ -149,11 +150,11 @@ function knownDetailQuestion(parts: string[], details: Record<string, string>) {
         'target audience': /\b(?:target audience|target market|sino.*(?:target|customer)|who.*(?:target|customer))\b/i,
         'lyrics language': /\b(?:english|tagalog|taglish|language|wika)\b/i,
         'vocal preference': /\b(?:male|female|vocals?|singer|boses)\b/i,
-        'preferred mood/style': /\b(?:genre|style|mood|pop|acoustic)\b/i,
+        'preferred mood/style': /\b(?:genre|style|mood|vibe|upbeat|chill|pop|acoustic)\b/i,
         'tagline or slogan': /\b(?:tagline|slogan)\b/i,
         'song duration': /\b(?:duration|length|minutes?|seconds?|haba|minuto|segundo)\b/i,
         'location or branch': /\b(?:location|address|branch|lokasyon|saan.*(?:store|negosyo))\b/i,
-        'deadline or occasion date': /\b(?:deadline|occasion|date|kailan)\b/i,
+        'deadline or occasion date': /\b(?:deadline|occasion|okasyon|date|kailan)\b/i,
         'song concept or campaign idea': /\b(?:song concept|campaign idea|konsepto|concept for (?:the |your )?song)\b/i,
         'existing lyrics or script': /\b(?:existing lyrics|lyrics (?:na|kayong|ba)|script|sariling lyrics)\b/i,
         'song purpose': /\b(?:song purpose|purpose of (?:the |your )?song|para saan.*(?:song|kanta|jingle))\b/i,
@@ -178,6 +179,23 @@ function replyQualityIssue(parts: string[], history: FacebookMessage[], pageId: 
     }
     if (knownDetailQuestion(parts, details)) {
         return 'A question asks for a detail the customer already supplied. Keep the saved answer, address the latest request, and ask only for a genuinely missing detail.';
+    }
+    return null;
+}
+
+function repeatedUnansweredFollowUpQuestion(parts: string[], history: FacebookMessage[], pageId: string, fields: string[]): string | null {
+    const chronological = [...history].sort((a, b) => Date.parse(a.created_time || '') - Date.parse(b.created_time || ''));
+    let lastCustomerIndex = -1;
+    for (const [index, message] of chronological.entries()) {
+        if (message.from?.id !== pageId && message.message?.trim()) lastCustomerIndex = index;
+    }
+    const unanswered = chronological.slice(lastCustomerIndex + 1)
+        .filter(message => message.from?.id === pageId).map(message => message.message || '');
+    for (const field of normalizeDetailsToCollect(fields)) {
+        const marker = { [field]: 'previously asked' };
+        if (knownDetailQuestion(unanswered, marker) && knownDetailQuestion(parts, marker)) {
+            return `The customer has not answered the previous question about ${field}. Do not ask it again; offer a different useful suggestion without that question`;
+        }
     }
     return null;
 }
@@ -1238,6 +1256,7 @@ export async function generateChatbotFollowUp(input: {
     collectedDetails?: Record<string, string>;
     missingDetails?: string[];
     sequenceNumber: number;
+    isFinalReminder?: boolean;
     scheduleLabel: string;
 }): Promise<ChatbotFollowUpResponse> {
     if (hasReachedChatbotDetailTarget(input.config, input.collectedDetails)) {
@@ -1302,6 +1321,9 @@ export async function generateChatbotFollowUp(input: {
     const contactName = input.contactName?.trim() || 'the customer';
     const pageName = input.pageName?.trim() || 'this Facebook Page';
     const latestCustomerMessage = customerMessages.at(-1)?.content || '';
+    if (isChatbotFollowUpPauseRequest(latestCustomerMessage)) {
+        throw new Error('Customer asked to pause reminders; wait for their next message');
+    }
     const configuredFollowUpParts = Math.round(Number(input.config.max_message_parts));
     const followUpMaxMessageParts = usesShortHumanReplies(input.config.instructions) ? 1 : input.config.split_messages
         ? Number.isFinite(configuredFollowUpParts) && configuredFollowUpParts > 0
@@ -1310,6 +1332,22 @@ export async function generateChatbotFollowUp(input: {
         : 1;
     const splitFollowUpMessages = input.config.split_messages && followUpMaxMessageParts > 1;
     const followUpMaxCharacters = getReplyCharacterLimit(input.config.instructions, 'MAX_FOLLOW_UP_CHARACTERS', usesShortHumanReplies(input.config.instructions) ? 120 : FOLLOW_UP_MAX_CHARS);
+    const isFinalReminder = input.isFinalReminder ?? input.sequenceNumber >= Math.max(3,
+        (input.config.follow_up_quick_delays_minutes?.length || 0) + (input.config.follow_up_best_time_days?.length || 0));
+    const persuasionGuidance = /^VALUE_FIRST_FOLLOW_UPS:\s*true\s*$/im.test(input.config.instructions)
+        ? '\nVALUE-FIRST FOLLOW-UP THIS TURN:\n' +
+            (input.sequenceNumber === 1
+                ? 'First reminder: make replying easier with one relevant text concept or concrete use for their song. If their business/purpose is unknown, explain one verified benefit tied to their inquiry and invite one easy next step. '
+                : input.sequenceNumber === 2
+                    ? 'Second reminder: use a different helpful angle. Address their actual budget, trust, style or timing objection using verified facts; if no objection is known, suggest a concrete use, without inventing a problem. '
+                    : isFinalReminder
+                        ? 'Final reminder: leave a warm, specific invitation to resume when ready. No question, new upsell, form, deadline or pressure. '
+                        : 'Continuing reminder: use a fresh, concrete angle grounded in the original inquiry. Keep continuity across the first day and later days; do not announce this is the final reminder. Avoid repeating a benefit, concept or unanswered question. No new promotion or invented urgency. ') +
+            'Provide useful value before any optional question. Never re-ask an unanswered question, closely paraphrase a prior reminder, or use silence as agreement. ' +
+            'Do not merely ask for business name, topic, package, or permission again. A text concept is a suggestion, not a claim that audio or production exists. ' +
+            'Use the customer\'s chosen scope, language and exact current blocker. Pricing only when relevant; no routine bundle pitch. ' +
+            'If the customer says not now or that they will get back to us, reminders must pause.\n'
+        : '';
     const system =
         `You are the official Messenger assistant for the Facebook Page "${pageName}". That Page identity is fixed; never claim to represent another Page. ` +
         `The contact's saved Messenger profile name is "${contactName}". This is the customer identity, not the Page identity. ` +
@@ -1365,12 +1403,13 @@ export async function generateChatbotFollowUp(input: {
         `Verified saved customer details: ${JSON.stringify(collectedDetails)}.\n` +
         `Still missing: ${missingDetails.join(', ') || 'none'}.\n` +
         (/^SONG_BRIEF_FORM:\s*hiraya-seven-fields\s*$/im.test(input.config.instructions)
-            ? `This is a short reminder, not a main requirements reply. Do not resend the seven-field form. Give one fresh personal suggestion and one short choice question; aim80-140 characters TOTAL, strictly under${followUpMaxCharacters}. Include personalization_basis in the required JSON.\n`
+            ? `This is a short reminder, not a main requirements reply. Do not resend the seven-field form. Give one fresh personal suggestion; ask at most one easy question only if it helps. Keep strictly under${followUpMaxCharacters} characters. Include personalization_basis in the required JSON.\n`
             : '') +
         'Retain saved facts and accepted offers, never invent acceptance, and do not restart the sales flow. ' +
         (usesShortHumanReplies(input.config.instructions)
             ? `Send ONE calm, specific reminder under ${followUpMaxCharacters} characters, aim 60-100. No form, repeated quote, guilt, urgency, filler or extra sales pitch. Ask at most one easy question when it helps; do not invent a reason to contact them. Match their language and tone; no emoji is fine. These current reply limits override older bubble/length/CTA guidance. `
             : '') +
+        persuasionGuidance +
         'Current owner instructions, non-overridable response rules, and required JSON format above still apply.';
     const messages = [
         { role: 'system' as const, content: system },
@@ -1380,6 +1419,7 @@ export async function generateChatbotFollowUp(input: {
     ];
     let tokenUsage: ChatbotTokenUsage | undefined;
     let invalidReason = 'empty';
+    let validationIssue = '';
 
     for (let attempt = 1; attempt <= 2; attempt += 1) {
         const body = await requestOpenRouterCompletion({
@@ -1392,7 +1432,7 @@ export async function generateChatbotFollowUp(input: {
                 ? messages
                 : [...messages, {
                     role: 'system' as const,
-                    content: `Return the required JSON now with one concise non-empty personalized message and a non-empty personalization_basis grounded in the customer conversation. Keep the complete message under ${followUpMaxCharacters} characters, retain the current accepted package and known details, and ask at most one next-step question. Do not output reasoning outside the JSON.`
+                    content: `${validationIssue ? `Correct this problem: ${validationIssue}. ` : ''}Return the required JSON now with one concise non-empty personalized message and a non-empty personalization_basis grounded in the customer conversation. Keep the complete message under ${followUpMaxCharacters} characters, retain the current accepted package and known details, and ask at most one next-step question. ${persuasionGuidance}${validationIssue.includes('character limit') ? `Your previous message was too long. Rewrite substantially shorter: aim ${Math.round(followUpMaxCharacters * 0.45)}-${Math.min(80, Math.round(followUpMaxCharacters * 0.65))} characters in ONE short sentence. Choose only one useful idea, remove the question and all extra explanation. The ${followUpMaxCharacters}-character limit includes spaces and punctuation. ` : ''}${/question/i.test(validationIssue) ? 'Do not ask ANY question in this retry. Offer one useful, fresh statement grounded in the original inquiry. Do not switch to another previously unanswered question. ' : ''}Do not output reasoning outside the JSON.`
                 }]
         });
         tokenUsage = combineTokenUsage(tokenUsage, normalizeTokenUsage(body));
@@ -1444,6 +1484,17 @@ export async function generateChatbotFollowUp(input: {
             }
             const issue = replyQualityIssue(messages, input.history || [], input.pageId, '', collectedDetails);
             if (issue) throw new Error(issue);
+            if (persuasionGuidance && isFinalReminder && message.includes('?')) {
+                throw new Error('Final reminder must leave an invitation without another question');
+            }
+            if (persuasionGuidance) {
+                const repeatedQuestion = repeatedUnansweredFollowUpQuestion(messages, input.history || [], input.pageId, input.config.details_to_collect);
+                if (repeatedQuestion) throw new Error(repeatedQuestion);
+            }
+            if (/kanta muna bago bayad/i.test(input.config.instructions) &&
+                /\b(?:bayad|magbayad)\s+(?:po\s+)?muna\s+bago\s+(?:(?:namin|kami|po)\s+)*(?:simulan|gawin|gumawa)|\b(?:pay|payment)\s+before\s+(?:we\s+)?(?:start|begin|make|create|record)|\b(?:pay|payment)\s+first\b/i.test(message.replace(/\b(?:no need to|do not need to|don't need to|never|hindi kailangan(?:g)?|di kailangan(?:g)?)\s+(?:po\s+)?(?:magbayad|bayad|pay|payment)\s+(?:po\s+)?(?:muna|first)(?:\s+bago\s+(?:(?:namin|kami|po)\s+)*(?:simulan|gawin|gumawa))?/gi, ''))) {
+                throw new Error('Payment policy is kanta muna bago bayad; never require payment before starting the song');
+            }
             const requestedDocumentIds = [...new Set(
                 (Array.isArray(parsed.media_document_ids)
                     ? parsed.media_document_ids
@@ -1505,9 +1556,10 @@ export async function generateChatbotFollowUp(input: {
                 ...(retrievalWarning ? { retrieval_warning: retrievalWarning } : {}),
                 ...(tokenUsage ? { token_usage: tokenUsage } : {})
             };
-        } catch {
+        } catch (error) {
+            validationIssue = (error as Error).message;
             invalidReason = 'invalid JSON';
-            console.warn('[CHATBOT_INVALID_FOLLOW_UP]', { attempt, model: body.model || model });
+            console.warn('[CHATBOT_INVALID_FOLLOW_UP]', { attempt, model: body.model || model, reason: validationIssue });
         }
     }
 

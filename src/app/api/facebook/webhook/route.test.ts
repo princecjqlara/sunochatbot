@@ -220,7 +220,7 @@ function createSupabaseMock(options?: {
     };
 }
 
-function createPhotoChatbotSupabaseMock(options?: { state?: Record<string, unknown>; config?: Record<string, unknown>; latestContact?: Record<string, unknown> }) {
+function createPhotoChatbotSupabaseMock(options?: { state?: Record<string, unknown>; config?: Record<string, unknown>; latestContact?: Record<string, unknown>; bestContactHour?: number }) {
     const welcomeSelect = vi.fn(() => {
         throw new Error('Photo chatbot handling should bypass the welcome lookup');
     });
@@ -261,6 +261,7 @@ function createPhotoChatbotSupabaseMock(options?: { state?: Record<string, unkno
     };
 
     const stateUpsert = vi.fn().mockResolvedValue({ error: null });
+    const followUpUpsert = vi.fn().mockResolvedValue({ error: null });
     const contactUpdate = vi.fn().mockReturnValue({
         eq: vi.fn().mockReturnValue({ eq: vi.fn().mockResolvedValue({ error: null }) })
     });
@@ -293,7 +294,7 @@ function createPhotoChatbotSupabaseMock(options?: { state?: Record<string, unkno
                 upsert: vi.fn().mockReturnValue({
                     select: vi.fn().mockReturnValue({
                         single: vi.fn().mockResolvedValue({
-                            data: { id: 'contact_row_1', name: 'Photo Contact', pipeline_stage: 'engaged' },
+                            data: { id: 'contact_row_1', name: 'Photo Contact', pipeline_stage: 'engaged', best_contact_hour: options?.bestContactHour },
                             error: null
                         })
                     })
@@ -312,6 +313,7 @@ function createPhotoChatbotSupabaseMock(options?: { state?: Record<string, unkno
         }
         if (table === 'chatbot_follow_up_jobs') {
             return {
+                upsert: followUpUpsert,
                 update: vi.fn().mockReturnValue({
                     eq: vi.fn().mockReturnValue({
                         eq: vi.fn().mockReturnValue({
@@ -357,7 +359,7 @@ function createPhotoChatbotSupabaseMock(options?: { state?: Record<string, unkno
         throw new Error(`Unexpected table: ${table}`);
     });
 
-    return { from, welcomeSelect, stateUpsert, contactUpdate, chatbotConfig };
+    return { from, welcomeSelect, stateUpsert, contactUpdate, chatbotConfig, followUpUpsert };
 }
 
 function createSupabaseMockWithFirstInteractionColumnFailure() {
@@ -954,6 +956,21 @@ describe('POST /api/facebook/webhook', () => {
         status: 'active', started_at: '2026-10-08T01:00:00Z', window_expires_at: '2026-10-15T01:00:00Z',
         collected_details: details, missing_details: [], stop_reason: null, stopped_at: null,
         last_inbound_at: null, last_bot_reply_at: null });
+
+    it('schedules later-day reminders using the refreshed best hour instead of the stale contact hour', async () => {
+        const supabase = createPhotoChatbotSupabaseMock({ bestContactHour: 7, config: {
+            follow_up_enabled: true, follow_up_quick_delays_minutes: [30], follow_up_best_time_days: [2,3,4,5,6,7],
+            instructions: 'FOLLOW_UP_LATER_DAYS_MODE: staff-review', details_to_collect: []
+        } });
+        mocks.getSupabaseAdmin.mockReturnValue(supabase);
+        mocks.generateChatbotResponse.mockResolvedValue({ messages: ['We can help with your song.'], collected_details: {}, missing_details: [], details_complete: false });
+        expect((await POST(currentInbound())).status).toBe(200);
+        const jobs = supabase.followUpUpsert.mock.calls[0][0];
+        expect(jobs.filter((job: any) => job.schedule_type === 'manual_human_agent')).toHaveLength(6);
+        expect(jobs[1].due_at).toBe('2026-10-09T14:00:00.000Z'); // 10 PM Philippine time, freshly learned.
+        expect(supabase.contactUpdate).toHaveBeenCalledWith(expect.objectContaining({ best_contact_hour: 22 }));
+        expect(supabase.contactUpdate.mock.invocationCallOrder[0]).toBeLessThan(supabase.followUpUpsert.mock.invocationCallOrder[0]);
+    });
 
     it('saves the goal stop before delivery and sends only one closing instead of another question', async () => {
         const answers = Object.fromEntries(detailFields.slice(0, 6).map(k => [k, 'provided']));

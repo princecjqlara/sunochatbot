@@ -99,6 +99,16 @@ export function normalizeDetailsToCollect(value: unknown): string[] {
     return details;
 }
 
+/** Pause scheduled reminders until another customer message, without closing the lead. */
+export function isChatbotFollowUpPauseRequest(messageText: string): boolean {
+    const value = messageText.trim();
+    if (!value || isChatbotBriefEditRequest(value)) return false;
+    return /\b(?:not now|not ready(?: yet)?|maybe later|another time|no thanks?|not interested)\b/i.test(value) ||
+        /\b(?:hindi|di|wag|huwag)\s+na\s+(?:po\s+)?muna\b/i.test(value) ||
+        /\b(?:balikan|babalikan)\s+ko\s+(?:po\s+)?(?:kayo|kayong|na lang kayo)\b/i.test(value) ||
+        /\b(?:i(?:'ll| will)\s+(?:get back to|contact|message)\s+you|ako\s+(?:na\s+)?(?:po\s+)?(?:ang\s+)?(?:magme-message|mag-message|magmessage|magmemessage))\b/i.test(value);
+}
+
 export function classifyChatbotStopIntent(
     messageText: string,
     options: { stopOnOptOut: boolean; stopOnRefusal: boolean }

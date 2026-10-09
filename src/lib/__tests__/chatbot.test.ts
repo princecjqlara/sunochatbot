@@ -64,6 +64,76 @@ afterEach(() => {
 });
 
 describe('Sunobot chatbot', () => {
+    it('retries an overlong reminder with a substantially shorter target', async () => {
+        process.env.OPENROUTER_API_KEY = 'test-key';
+        const body = (message: string) => ({ ok: true, json: async () => ({ choices: [{ message: { content: JSON.stringify({ message, personalization_basis: 'Bakery pandesal inquiry' }) } }] }) });
+        const fetchMock = vi.fn().mockResolvedValueOnce(body('A morning bakery jingle can help customers remember your fresh pandesal and give your shop a familiar sound when you share videos on Facebook.'))
+            .mockResolvedValueOnce(body('A bakery jingle can highlight your fresh pandesal.'));
+        vi.stubGlobal('fetch', fetchMock);
+        await expect(generateChatbotFollowUp({ config: { ...config, instructions: 'SHORT_HUMAN_REPLIES: true\nVALUE_FIRST_FOLLOW_UPS: true' },
+            pageId: 'page-facebook-id', sequenceNumber: 2, scheduleLabel: 'first 24 hours',
+            history: [{ id: 'm', message: 'Interested in a pandesal bakery jingle', from: { id: 'customer', name: 'Preview' }, created_time: '2026-10-09T12:00:00Z' }] })).resolves.toHaveProperty('message', 'A bakery jingle can highlight your fresh pandesal.');
+        expect(fetchMock).toHaveBeenCalledTimes(2);
+        expect(JSON.parse(fetchMock.mock.calls[1][1].body).messages.at(-1).content).toContain('Rewrite substantially shorter');
+    });
+    it('does not end the seven-day sequence at the third first-day reminder', async () => {
+        process.env.OPENROUTER_API_KEY = 'test-key';
+        const message = 'A bakery jingle can highlight your pandesal. English or Tagalog lyrics?';
+        const fetchMock = vi.fn().mockResolvedValue({ ok: true, json: async () => ({ choices: [{ message: { content: JSON.stringify({ message, personalization_basis: 'Bakery pandesal inquiry' }) } }] }) });
+        vi.stubGlobal('fetch', fetchMock);
+        await expect(generateChatbotFollowUp({ config: { ...config, instructions: 'SHORT_HUMAN_REPLIES: true\nVALUE_FIRST_FOLLOW_UPS: true', follow_up_quick_delays_minutes: [30,180,480,1380], follow_up_best_time_days: [2,3,4,5,6,7] },
+            pageId: 'page-facebook-id', sequenceNumber: 3, scheduleLabel: 'first 24 hours',
+            history: [{ id: 'm', message: 'Interested in a pandesal bakery jingle', from: { id: 'customer', name: 'Preview' }, created_time: '2026-10-09T12:00:00Z' }] })).resolves.toHaveProperty('message', message);
+        expect(fetchMock).toHaveBeenCalledTimes(1);
+        expect(JSON.parse(fetchMock.mock.calls[0][1].body).messages.map((m: { content: string }) => m.content).join('\n')).toContain('Continuing reminder:');
+    });
+    it.each(['No need to pay first. We can discuss your song.', 'Hindi kailangan magbayad muna bago namin simulan.'])('allows accurate payment reassurance: %s', async message => {
+        process.env.OPENROUTER_API_KEY='test-key';
+        const fetchMock=vi.fn().mockResolvedValue({ok:true,json:async()=>({choices:[{message:{content:JSON.stringify({message,personalization_basis:'Song inquiry'})}}]})});
+        vi.stubGlobal('fetch',fetchMock);
+        await expect(generateChatbotFollowUp({config:{...config,instructions:'SHORT_HUMAN_REPLIES: true\nkanta muna bago bayad'},pageId:'page-facebook-id',sequenceNumber:2,scheduleLabel:'first-day',history:[{id:'m',message:'Isa lang kailangan ko',from:{id:'customer',name:'Preview'},created_time:'2026-10-09T12:00:00Z'}]})).resolves.toHaveProperty('message',message);
+        expect(fetchMock).toHaveBeenCalledTimes(1);
+    });
+    it('corrects a follow-up that reverses the approved song-before-payment policy', async () => {
+        process.env.OPENROUTER_API_KEY='test-key';
+        const body=(message:string)=>({ok:true,json:async()=>({choices:[{message:{content:JSON.stringify({message,personalization_basis:'Single song inquiry'})}}]})});
+        const fetchMock=vi.fn().mockResolvedValueOnce(body('Bayad muna bago namin simulan ang kanta.')).mockResolvedValueOnce(body('Kanta muna bago bayad po. Pwede nating iangkop sa negosyo ninyo.'));
+        vi.stubGlobal('fetch',fetchMock);
+        const response=await generateChatbotFollowUp({config:{...config,instructions:'SHORT_HUMAN_REPLIES: true\nkanta muna bago bayad'},pageId:'page-facebook-id',sequenceNumber:2,scheduleLabel:'first-day',history:[{id:'m',message:'Isa lang kailangan ko',from:{id:'customer',name:'Preview'},created_time:'2026-10-09T12:00:00Z'}]});
+        expect(response.message).toContain('Kanta muna bago bayad');
+        expect(fetchMock).toHaveBeenCalledTimes(2);
+    });
+    it('corrects a reminder that rephrases an unanswered tagline question', async () => {
+        process.env.OPENROUTER_API_KEY='test-key';
+        const body=(message:string)=>({ok:true,json:async()=>({choices:[{message:{content:JSON.stringify({message,personalization_basis:'Bakery pandesal'})}}]})});
+        const fetchMock=vi.fn().mockResolvedValueOnce(body('A morning jingle could work. Ano po ang tagline ninyo?')).mockResolvedValueOnce(body('Pwede nating gawing pang-FB reel ang pandesal jingle ninyo.'));
+        vi.stubGlobal('fetch',fetchMock);
+        const response=await generateChatbotFollowUp({config:{...config,instructions:'SHORT_HUMAN_REPLIES: true\nVALUE_FIRST_FOLLOW_UPS: true',details_to_collect:['Tagline or slogan']},pageId:'page-facebook-id',sequenceNumber:1,scheduleLabel:'first-day',history:[{id:'m',message:'Pandesal bakery',from:{id:'customer',name:'Preview'},created_time:'2026-10-09T12:00:00Z'},{id:'p',message:'May tagline po ba kayo?',from:{id:'page-facebook-id',name:'Page'},created_time:'2026-10-09T12:01:00Z'}]});
+        expect(response.message).not.toContain('?');
+        expect(fetchMock).toHaveBeenCalledTimes(2);
+        expect(JSON.parse(fetchMock.mock.calls[1][1].body).messages.at(-1).content).toContain('not answered the previous question about Tagline or slogan');
+    });
+    it('refuses follow-ups after a customer says not now, while allowing later renewed interest', async () => {
+        process.env.OPENROUTER_API_KEY = 'test-key';
+        const fetchMock=vi.fn().mockResolvedValue({ok:true,json:async()=>({choices:[{message:{content:JSON.stringify({message:'A bakery jingle can highlight your pandesal.',personalization_basis:'Bakery inquiry'})}}]})});
+        vi.stubGlobal('fetch',fetchMock);
+        const pause={id:'pause',message:'Hindi na po muna',from:{id:'customer',name:'Preview Customer'},created_time:'2026-10-09T12:00:00Z'};
+        const input={config,pageId:'page-facebook-id',sequenceNumber:1,scheduleLabel:'first-day',history:[pause]};
+        await expect(generateChatbotFollowUp(input)).rejects.toThrow('pause reminders');
+        expect(fetchMock).not.toHaveBeenCalled();
+        await expect(generateChatbotFollowUp({...input,history:[pause,{...pause,id:'resume',message:'Interested na sa bakery jingle',created_time:'2026-10-09T13:00:00Z'}]})).resolves.toHaveProperty('message');
+    });
+    it('corrects a final reminder that pressures the customer with another question', async () => {
+        process.env.OPENROUTER_API_KEY='test-key';
+        const body=(message:string)=>({ok:true,json:async()=>({choices:[{message:{content:JSON.stringify({message,personalization_basis:'Bakery jingle'})}}]})});
+        const fetchMock=vi.fn().mockResolvedValueOnce(body('Ready to order your bakery jingle?')).mockResolvedValueOnce(body('Message us when you want to continue your bakery jingle.'));
+        vi.stubGlobal('fetch',fetchMock);
+        const response=await generateChatbotFollowUp({config:{...config,instructions:'SHORT_HUMAN_REPLIES: true\nVALUE_FIRST_FOLLOW_UPS: true'},pageId:'page-facebook-id',sequenceNumber:3,scheduleLabel:'first-day',history:[{id:'m',message:'Interested in a bakery jingle',from:{id:'customer',name:'Preview Customer'},created_time:'2026-10-09T12:00:00Z'}]});
+        expect(response.message).not.toContain('?');
+        expect(fetchMock).toHaveBeenCalledTimes(2);
+        const retry=JSON.parse(fetchMock.mock.calls[1][1].body).messages.at(-1).content;
+        expect(retry).toContain('Final reminder must leave an invitation');
+    });
     const replyBody = (messages: string[], details: Record<string, string> = {}) => ({ ok: true, json: async () => ({ choices: [{ message: { content: JSON.stringify({ messages, collected_details: details }) } }] }) });
     const priorMessage = (text: string) => ({ id: 'prior', message: text, from: { id: 'page-facebook-id', name: 'Studio' }, created_time: '2026-10-08T08:00:00Z' });
     const shortInstructions = 'SHORT_HUMAN_REPLIES: true\nMAX_REPLY_CHARACTERS: 180\nMAX_FORM_CHARACTERS: 700\nALLOW_BRIEF_FORM: true\nSONG_BRIEF_FORM: hiraya-seven-fields';
