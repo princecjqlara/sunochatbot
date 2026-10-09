@@ -165,6 +165,16 @@ describe('Sunobot chatbot', () => {
         expect(response.collected_details).toEqual(answers);
     });
 
+    it.each(['refusal', 'opt_out'])('ignores an AI %s label on a verified lyric edit', async stopReason => {
+        process.env.OPENROUTER_API_KEY = 'test-key';
+        vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: true, json: async () => ({ choices: [{ message: { content: JSON.stringify({
+            messages: ['Sige po, aalisin ang date sa lyrics.'], collected_details: {}, stop_reason: stopReason
+        }) } }] }) }));
+        const response = await generateChatbotResponse({ config, pageId: 'page-facebook-id', inboundMessage: 'Wag na po isingit yung oras at petsa sa lyrics.' });
+        expect(response.detected_stop_reason).toBeUndefined();
+        expect(response.messages).toEqual(['Sige po, aalisin ang date sa lyrics.']);
+    });
+
     it('regenerates an already answered question and retains newly extracted answers', async () => {
         process.env.OPENROUTER_API_KEY = 'test-key';
         const fetchMock = vi.fn().mockResolvedValueOnce(replyBody(['English o Tagalog ang lyrics?'], { 'Business name': 'Sunrise Bakery' }))

@@ -8,6 +8,7 @@ import {
     getMissingChatbotDetails,
     getRequiredChatbotDetailCount,
     hasReachedChatbotDetailTarget,
+    isChatbotBriefEditRequest,
     normalizeChatbotDetailTargetPercent,
     normalizeDetailsToCollect,
     type ChatbotStopReason
@@ -272,6 +273,7 @@ const FOLLOW_UP_MAX_PARTS = 2;
 
 export type ChatbotConfig = {
     page_id: string;
+    updated_at?: string;
     knowledge_source_page_id?: string | null;
     enabled: boolean;
     trial_mode_enabled?: boolean;
@@ -656,7 +658,8 @@ function parseChatbotPlan(
     config: ChatbotConfig,
     existingDetails: Record<string, string>,
     knowledge: ChatbotKnowledgeMatch[],
-    allowPackageAcceptance: boolean = false
+    allowPackageAcceptance: boolean = false,
+    inboundMessage: string = ''
 ): Pick<ChatbotResponse, 'reply' | 'messages' | 'collected_details' | 'missing_details' | 'details_complete' | 'detected_stop_reason' | 'media_document_ids' | 'media_document_id' | 'drive_file_document_ids' | 'link_document_id'> {
     let parsed: Record<string, unknown> | null = null;
     const jsonCandidate = content.trim()
@@ -728,7 +731,7 @@ function parseChatbotPlan(
     if (messages.length === 0) throw new Error('OpenRouter returned an empty reply');
 
     const rawStopReason = parsed?.stop_reason;
-    const detectedStopReason = rawStopReason === 'opt_out' || rawStopReason === 'refusal'
+    const detectedStopReason = !isChatbotBriefEditRequest(inboundMessage) && (rawStopReason === 'opt_out' || rawStopReason === 'refusal')
         ? rawStopReason
         : undefined;
     const requestedMediaDocumentIds = [...new Set(
@@ -1099,7 +1102,8 @@ export async function generateChatbotResponse(input: {
         input.config,
         collectedDetails,
         knowledge,
-        hasExplicitPackageAcceptance(input.inboundMessage, input.history || [], input.pageId)
+        hasExplicitPackageAcceptance(input.inboundMessage, input.history || [], input.pageId),
+        input.inboundMessage
     );
     let { total: maxReplyCharacters, bubble: maxBubbleCharacters } = getTurnReplyLimits(input.config, plan.messages);
     if (plan.reply.length > maxReplyCharacters || plan.messages.some(message => message.length > maxBubbleCharacters)) {
@@ -1115,7 +1119,8 @@ export async function generateChatbotResponse(input: {
         const usableConciseContent = hasUsableChatbotContent(conciseContent);
         if (usableConciseContent) plan = parseChatbotPlan(
             conciseContent, input.config, plan.collected_details, knowledge,
-            hasExplicitPackageAcceptance(input.inboundMessage, input.history || [], input.pageId)
+            hasExplicitPackageAcceptance(input.inboundMessage, input.history || [], input.pageId),
+            input.inboundMessage
         );
         ({ total: maxReplyCharacters, bubble: maxBubbleCharacters } = getTurnReplyLimits(input.config, plan.messages));
         if (!usableConciseContent || plan.reply.length > maxReplyCharacters || plan.messages.some(message => message.length > maxBubbleCharacters)) {
@@ -1170,7 +1175,7 @@ export async function generateChatbotResponse(input: {
             const correctedContent = correctedBody ? extractOpenRouterText(correctedBody) : '';
             if (hasUsableChatbotContent(correctedContent)) {
                 plan = parseChatbotPlan(correctedContent, input.config, plan.collected_details, knowledge,
-                    hasExplicitPackageAcceptance(input.inboundMessage, input.history || [], input.pageId));
+                    hasExplicitPackageAcceptance(input.inboundMessage, input.history || [], input.pageId), input.inboundMessage);
                 plan.messages = applyOwnerNameUsage(plan.messages, {
                     instructions: input.config.instructions, contactName: input.contactName,
                     history: input.history, pageId: input.pageId

@@ -228,7 +228,8 @@ function createPhotoChatbotSupabaseMock(options?: { state?: Record<string, unkno
         page_id: 'page_row_1',
         enabled: true,
         trial_mode_enabled: false,
-        trial_contact_id: null,
+        trial_contact_id: null as string | null,
+        updated_at: '2026-10-08T00:00:00Z',
         instructions: 'Help the customer.',
         fallback_reply: 'A teammate will reply soon.',
         model: 'test-model',
@@ -260,6 +261,9 @@ function createPhotoChatbotSupabaseMock(options?: { state?: Record<string, unkno
     };
 
     const stateUpsert = vi.fn().mockResolvedValue({ error: null });
+    const contactUpdate = vi.fn().mockReturnValue({
+        eq: vi.fn().mockReturnValue({ eq: vi.fn().mockResolvedValue({ error: null }) })
+    });
     const from = vi.fn((table: string) => {
         if (table === 'pages') {
             return {
@@ -294,16 +298,14 @@ function createPhotoChatbotSupabaseMock(options?: { state?: Record<string, unkno
                         })
                     })
                 }),
-                update: vi.fn().mockReturnValue({
-                    eq: vi.fn().mockReturnValue({ eq: vi.fn().mockResolvedValue({ error: null }) })
-                })
+                update: contactUpdate
             };
         }
         if (table === 'chatbot_configs') {
             return {
                 select: vi.fn().mockReturnValue({
                     eq: vi.fn().mockReturnValue({
-                        maybeSingle: vi.fn().mockResolvedValue({ data: chatbotConfig, error: null })
+                        maybeSingle: vi.fn().mockImplementation(async () => ({ data: { ...chatbotConfig }, error: null }))
                     })
                 })
             };
@@ -355,7 +357,7 @@ function createPhotoChatbotSupabaseMock(options?: { state?: Record<string, unkno
         throw new Error(`Unexpected table: ${table}`);
     });
 
-    return { from, welcomeSelect, stateUpsert };
+    return { from, welcomeSelect, stateUpsert, contactUpdate, chatbotConfig };
 }
 
 function createSupabaseMockWithFirstInteractionColumnFailure() {
@@ -985,6 +987,42 @@ describe('POST /api/facebook/webhook', () => {
         mocks.sendMessage.mockRejectedValue(new Error('Delivery failed'));
         expect((await POST(currentInbound())).status).toBe(200);
         expect(supabase.stateUpsert).toHaveBeenCalledWith(expect.objectContaining({ collected_details: answers, status: 'stopped' }), { onConflict: 'page_id,contact_id' });
+        expect(supabase.contactUpdate).toHaveBeenCalledWith(expect.objectContaining({ pipeline_stage: 'qualified', pipeline_stage_source: 'chatbot' }));
+    });
+
+    it.each([
+        { count: 3, stopped: false }, { count: 6, stopped: false },
+        { count: 3, stopped: true }, { count: 6, stopped: true }
+    ])('retains $count saved answers after inactivity (expiry stop = $stopped)', async ({ count, stopped }) => {
+        const answers = Object.fromEntries(detailFields.slice(0, count).map(k => [k, 'previously supplied']));
+        const supabase = createPhotoChatbotSupabaseMock({ config: goalConfig, state: {
+            ...activeState(answers), started_at: '2026-09-20T01:00:00Z', window_expires_at: '2026-09-27T01:00:00Z',
+            status: stopped ? 'stopped' : 'active', stop_reason: stopped ? 'window_expired' : null
+        } });
+        mocks.getSupabaseAdmin.mockReturnValue(supabase);
+        mocks.generateChatbotResponse.mockResolvedValue({ messages: ['What is your deadline?'], collected_details: {}, missing_details: [], details_complete: false });
+        expect((await POST(currentInbound())).status).toBe(200);
+        expect(supabase.stateUpsert).toHaveBeenCalledWith(expect.objectContaining({ collected_details: answers }), { onConflict: 'page_id,contact_id' });
+        if (count === 6) {
+            expect(mocks.generateChatbotResponse).not.toHaveBeenCalled();
+            expect(mocks.sendMessage).not.toHaveBeenCalled();
+        } else {
+            expect(mocks.generateChatbotResponse).toHaveBeenCalledWith(expect.objectContaining({ collectedDetails: answers }));
+        }
+    });
+
+    it.each(['disabled', 'trial_changed', 'rules_changed'])('suppresses a generated reply when bot settings change: %s', async change => {
+        const supabase = createPhotoChatbotSupabaseMock({ config: goalConfig });
+        mocks.getSupabaseAdmin.mockReturnValue(supabase);
+        mocks.generateChatbotResponse.mockImplementation(async () => {
+            if (change === 'disabled') supabase.chatbotConfig.enabled = false;
+            else if (change === 'trial_changed') { supabase.chatbotConfig.trial_mode_enabled = true; supabase.chatbotConfig.trial_contact_id = 'someone-else'; }
+            else supabase.chatbotConfig.updated_at = '2026-10-08T12:00:02Z';
+            return { messages: ['Another question?'], collected_details: {}, missing_details: [], details_complete: false };
+        });
+        expect((await POST(currentInbound())).status).toBe(200);
+        expect(mocks.sendMessage).not.toHaveBeenCalled();
+        expect(supabase.stateUpsert).not.toHaveBeenCalled();
     });
 
     it('does not reopen a conversation stopped while a reply was being generated', async () => {

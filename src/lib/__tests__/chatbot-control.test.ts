@@ -88,6 +88,19 @@ describe('chatbot conversation controls', () => {
     });
 
     it.each([
+        'Non-stop upbeat pop ang gusto kong genre.',
+        'Stop using male vocals, change to female.',
+        "Don't stop messaging me, I still want the song.",
+        'Please pass the lyrics to your producer.'
+    ])('does not mistake song edits or continued interest for an opt-out: %s', text => {
+        expect(classifyChatbotStopIntent(text, { stopOnOptOut: true, stopOnRefusal: true })).toBeNull();
+    });
+
+    it.each(['STOP', 'Stop po!', 'Please stop messaging me.', 'Stop sending messages please.'])('still respects an explicit opt-out: %s', text => {
+        expect(classifyChatbotStopIntent(text, { stopOnOptOut: true, stopOnRefusal: true })).toBe('opt_out');
+    });
+
+    it.each([
         'Ayoko ng male vocals, gusto ko female.',
         'Pass muna sa two songs package, isang kanta lang gusto ko.',
         "I don't want that style, prefer upbeat instead."
@@ -98,6 +111,7 @@ describe('chatbot conversation controls', () => {
     it('keeps explicit opt-outs and purchase refusals durable even when a style is mentioned', () => {
         expect(classifyChatbotStopIntent('Stop messaging, ayoko ng male vocals, prefer female.', { stopOnOptOut: true, stopOnRefusal: true })).toBe('opt_out');
         expect(classifyChatbotStopIntent('Not interested in this package, prefer not buying.', { stopOnOptOut: true, stopOnRefusal: true })).toBe('refusal');
+        expect(classifyChatbotStopIntent('Ayoko ng male vocals, prefer female. No thanks, cancel.', { stopOnOptOut: true, stopOnRefusal: true })).toBe('refusal');
     });
 
     it.each([

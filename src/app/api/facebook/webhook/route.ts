@@ -247,7 +247,7 @@ export async function POST(request: NextRequest) {
                     try {
                         const { data: storedChatbotConfig, error: chatbotConfigError } = await supabase
                             .from('chatbot_configs')
-                            .select('page_id, knowledge_source_page_id, enabled, trial_mode_enabled, trial_contact_id, instructions, fallback_reply, model, rag_enabled, follow_up_prompt, details_to_collect, details_completion_percent, bot_dos, bot_donts, follow_up_enabled, follow_up_quick_delays_minutes, follow_up_best_time_days, follow_up_messages, follow_up_ai_instructions, follow_up_utility_template_name, follow_up_utility_template_language, follow_up_utility_text, follow_up_media_asset_id, split_messages, max_message_parts, stop_when_details_collected, stop_on_opt_out, stop_on_refusal, stop_on_qualified, stop_on_not_qualified, stop_on_converted, stop_on_order_created')
+                            .select('page_id, updated_at, knowledge_source_page_id, enabled, trial_mode_enabled, trial_contact_id, instructions, fallback_reply, model, rag_enabled, follow_up_prompt, details_to_collect, details_completion_percent, bot_dos, bot_donts, follow_up_enabled, follow_up_quick_delays_minutes, follow_up_best_time_days, follow_up_messages, follow_up_ai_instructions, follow_up_utility_template_name, follow_up_utility_template_language, follow_up_utility_text, follow_up_media_asset_id, split_messages, max_message_parts, stop_when_details_collected, stop_on_opt_out, stop_on_refusal, stop_on_qualified, stop_on_not_qualified, stop_on_converted, stop_on_order_created')
                             .eq('page_id', page.id)
                             .maybeSingle();
 
@@ -880,16 +880,13 @@ export async function POST(request: NextRequest) {
                                         if (storedStopReason === 'window_expired') {
                                             // A fresh customer message opens a new seven-day activity window.
                                             // Other stop reasons remain durable until manually reset.
-                                            chatbotState = chatbotState?.history_start_at ? {
+                                            chatbotState = chatbotState ? {
                                                 ...chatbotState,
                                                 status: 'active',
                                                 started_at: interactionAt,
-                                                collected_details: {},
-                                                missing_details: [],
                                                 stop_reason: null,
                                                 stopped_at: null,
-                                                last_inbound_at: null,
-                                                last_bot_reply_at: null
+                                                last_inbound_at: interactionAt
                                             } : null;
                                         } else if (!stateStopReason) {
                                             stateStopReason = storedStopReason;
@@ -1090,7 +1087,18 @@ export async function POST(request: NextRequest) {
 
                                             // Generation can take several seconds. Recheck a stop or newly
                                             // completed brief before saving/sending this older turn.
-                                            const latestState = await getChatbotContactState(supabase, page.id, contact.id);
+                                            let latestState = await getChatbotContactState(supabase, page.id, contact.id);
+                                            const { data: latestConfig, error: latestConfigError } = await supabase.from('chatbot_configs')
+                                                .select('*').eq('page_id', page.id).maybeSingle();
+                                            if (latestConfigError) throw latestConfigError;
+                                            if (!latestConfig?.enabled || !isChatbotContactAllowed(latestConfig, contact.id) ||
+                                                (latestConfig.updated_at && chatbotConfig.updated_at && latestConfig.updated_at !== chatbotConfig.updated_at)) {
+                                                throw new Error('Reply suppressed because chatbot settings changed during generation');
+                                            }
+                                            if (latestState && getChatbotStateStopReason(latestState, interactionTime) === 'window_expired') {
+                                                latestState = { ...latestState, status: 'active', stop_reason: null,
+                                                    stopped_at: null, started_at: interactionAt };
+                                            }
                                             const { data: latestContact, error: latestContactError } = await supabase.from('contacts')
                                                 .select('pipeline_stage,last_inbound_at').eq('id', contact.id).eq('page_id', page.id).maybeSingle();
                                             if (latestContactError) throw latestContactError;
@@ -1116,6 +1124,15 @@ export async function POST(request: NextRequest) {
                                                 pageId: page.id, contactId: contact.id, existingState: chatbotState,
                                                 collectedDetails, missingDetails, inboundAt: interactionAt,
                                                 stopReason: generatedStopReason
+                                            });
+                                            const chatbotPipelineStage = pipelineStageForChatbotProgress({
+                                                stopReason: generatedStopReason, detailsComplete, collectedDetails
+                                            });
+                                            // Qualification describes the saved answers, even if Messenger
+                                            // cannot deliver the closing acknowledgement.
+                                            await updateContactPipelineStage(supabase, {
+                                                pageId: page.id, contactId: contact.id,
+                                                stage: chatbotPipelineStage, source: 'chatbot'
                                             });
                                             if (generatedStopReason || detailsComplete) {
                                                 await cancelPendingChatbotFollowUps({ supabase, pageId: page.id,
@@ -1283,27 +1300,6 @@ export async function POST(request: NextRequest) {
                                                     .update({ last_bot_reply_at: new Date().toISOString() })
                                                     .eq('page_id', page.id).eq('contact_id', contact.id);
                                                 if (replyTimeError) throw replyTimeError;
-                                            }
-
-                                            const chatbotPipelineStage = pipelineStageForChatbotProgress({
-                                                stopReason: generatedStopReason,
-                                                detailsComplete,
-                                                collectedDetails
-                                            });
-                                            try {
-                                                await updateContactPipelineStage(supabase, {
-                                                    pageId: page.id,
-                                                    contactId: contact.id,
-                                                    stage: chatbotPipelineStage,
-                                                    source: 'chatbot'
-                                                });
-                                            } catch (pipelineError) {
-                                                logWarn('Chatbot state saved but pipeline stage update failed', {
-                                                    pageId,
-                                                    senderId,
-                                                    contactId: contact.id,
-                                                    error: (pipelineError as Error).message
-                                                });
                                             }
 
                                             if (

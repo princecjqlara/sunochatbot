@@ -178,7 +178,11 @@ describe('chatbot follow-up scheduling', () => {
         expect(from).not.toHaveBeenCalled();
     });
 
-    it.each([[null, false], ['2026-09-21T01:00:00.000Z', false], [null, true]])('rechecks a due follow-up after generation (cutoff = %s, qualified during generation = %s)', async (historyStartAt, qualifiedDuringGeneration) => {
+    it.each([
+        { historyStartAt: null, change: 'none' },
+        { historyStartAt: '2026-09-21T01:00:00.000Z', change: 'none' },
+        ...['qualified', 'bot_disabled', 'followups_disabled', 'trial_changed', 'job_cancelled', 'lease_changed', 'read_error'].map(change => ({ historyStartAt: null, change }))
+    ])('rechecks a due follow-up after generation: $change, cutoff $historyStartAt', async ({ historyStartAt, change }) => {
         vi.clearAllMocks();
         const conversationHistory = [{
             id: 'message-1',
@@ -202,6 +206,7 @@ describe('chatbot follow-up scheduling', () => {
         mocks.recordOutboundMessageEvent.mockResolvedValue(undefined);
         const updates: Array<Record<string, unknown>> = [];
         let contactReads = 0;
+        let configReads = 0;
         const dueJob = {
             id: 'job-1',
             page_id: 'page-1',
@@ -216,6 +221,7 @@ describe('chatbot follow-up scheduling', () => {
         const supabase = {
             from: vi.fn((table: string) => {
                 let operation = '';
+                let columns = '';
                 const chain: any = {
                     error: null,
                     update: vi.fn((payload: Record<string, unknown>) => {
@@ -223,8 +229,9 @@ describe('chatbot follow-up scheduling', () => {
                         updates.push(payload);
                         return chain;
                     }),
-                    select: vi.fn(() => {
+                    select: vi.fn((selected: string) => {
                         operation = 'select';
+                        columns = selected;
                         return chain;
                     }),
                     eq: vi.fn(() => chain),
@@ -235,10 +242,14 @@ describe('chatbot follow-up scheduling', () => {
                         ? { data: [dueJob], error: null }
                         : { data: [], error: null }),
                     maybeSingle: vi.fn(async () => {
-                        if (table === 'chatbot_follow_up_jobs') return { data: { id: dueJob.id }, error: null };
+                        if (table === 'chatbot_follow_up_jobs') return { data: { id: dueJob.id, status: columns === 'status,claimed_at' && change === 'job_cancelled' ? 'cancelled' : 'processing', claimed_at: change === 'lease_changed' ? '2026-09-22T01:01:00+00:00' : '2026-09-22T01:00:00+00:00' }, error: null };
+                        if (table === 'pages' && change === 'read_error') return { data: null, error: { message: 'Transient page lookup failure' } };
                         if (table === 'pages') return { data: { id: 'page-1', name: 'Test Page', fb_page_id: 'fb-page-1', access_token: 'token' }, error: null };
-                        if (table === 'contacts') return { data: { id: 'contact-1', page_id: 'page-1', psid: 'psid-1', name: 'Alex', last_interaction_at: dueJob.anchor_inbound_at, last_inbound_at: dueJob.anchor_inbound_at, pipeline_stage: ++contactReads > 1 && qualifiedDuringGeneration ? 'qualified' : 'engaged' }, error: null };
-                        if (table === 'chatbot_configs') return { data: { enabled: true, follow_up_enabled: true }, error: null };
+                        if (table === 'contacts') return { data: { id: 'contact-1', page_id: 'page-1', psid: 'psid-1', name: 'Alex', last_interaction_at: dueJob.anchor_inbound_at, last_inbound_at: dueJob.anchor_inbound_at, pipeline_stage: ++contactReads > 1 && change === 'qualified' ? 'qualified' : 'engaged' }, error: null };
+                        if (table === 'chatbot_configs') {
+                            const changed = ++configReads > 1;
+                            return { data: { enabled: !(changed && change === 'bot_disabled'), follow_up_enabled: !(changed && change === 'followups_disabled'), trial_mode_enabled: changed && change === 'trial_changed', trial_contact_id: 'different-contact' }, error: null };
+                        }
                         return { data: { status: 'active', collected_details: { Service: 'Premium haircut' }, missing_details: ['Mobile number'], history_start_at: historyStartAt }, error: null };
                     })
                 };
@@ -251,10 +262,17 @@ describe('chatbot follow-up scheduling', () => {
             now: new Date('2026-09-22T01:00:00.000Z')
         });
 
-        if (qualifiedDuringGeneration) {
+        if (change === 'read_error') {
+            expect(result).toMatchObject({ sent: 0, failed: 1, cancelled: 0 });
+            expect(mocks.generateChatbotFollowUp).not.toHaveBeenCalled();
+            expect(mocks.sendMessage).not.toHaveBeenCalled();
+            expect(updates).toContainEqual(expect.objectContaining({ status: 'pending', attempt_count: 1 }));
+            return;
+        }
+        if (change !== 'none') {
             expect(result).toMatchObject({ checked: 1, sent: 0, cancelled: 1 });
             expect(mocks.sendMessage).not.toHaveBeenCalled();
-            expect(updates).toContainEqual(expect.objectContaining({ status: 'cancelled' }));
+            if (change !== 'job_cancelled' && change !== 'lease_changed') expect(updates).toContainEqual(expect.objectContaining({ status: 'cancelled' }));
             return;
         }
         expect(result).toMatchObject({ checked: 1, sent: 1, readyManual: 0 });

@@ -210,12 +210,15 @@ export async function scheduleChatbotFollowUps(input: {
 async function markJob(
     supabase: SupabaseLike,
     jobId: string,
-    payload: Record<string, unknown>
+    payload: Record<string, unknown>,
+    claimedAt: string
 ) {
     const { error } = await supabase
         .from('chatbot_follow_up_jobs')
         .update({ ...payload, updated_at: new Date().toISOString() })
-        .eq('id', jobId);
+        .eq('id', jobId)
+        .eq('status', 'processing')
+        .eq('claimed_at', claimedAt);
     if (error) throw new Error(error.message || 'Could not update chatbot follow-up');
 }
 
@@ -255,14 +258,19 @@ export async function processDueChatbotFollowUps(input: {
             .select('id')
             .maybeSingle();
         if (claimError || !claimed) continue;
+        const markClaimedJob = (payload: Record<string, unknown>) => markJob(supabase, job.id, payload, now.toISOString());
 
         try {
-            const [{ data: page }, { data: contact }, { data: config }, { data: state }] = await Promise.all([
+            const eligibilityResults = await Promise.all([
                 supabase.from('pages').select('id, name, fb_page_id, access_token').eq('id', job.page_id).maybeSingle(),
                 supabase.from('contacts').select('id, page_id, psid, name, last_interaction_at, last_inbound_at, pipeline_stage').eq('id', job.contact_id).maybeSingle(),
                 supabase.from('chatbot_configs').select('*').eq('page_id', job.page_id).maybeSingle(),
                 supabase.from('chatbot_contact_states').select('status, collected_details, missing_details, history_start_at').eq('page_id', job.page_id).eq('contact_id', job.contact_id).maybeSingle()
             ]);
+            if (eligibilityResults.some(result => result.error)) {
+                throw new Error('Could not load follow-up eligibility; retrying instead of cancelling');
+            }
+            const [{ data: page }, { data: contact }, { data: config }, { data: state }] = eligibilityResults;
             const anchorTime = new Date(job.anchor_inbound_at).getTime();
             const latestInboundTime = new Date(contact?.last_inbound_at || contact?.last_interaction_at || 0).getTime();
             const messagingType = getAutomatedFollowUpMessagingType(
@@ -278,7 +286,7 @@ export async function processDueChatbotFollowUps(input: {
                 (state?.history_start_at && anchorTime < Date.parse(state.history_start_at)) ||
                 latestInboundTime > anchorTime ||
                 (!messagingType && job.schedule_type !== 'manual_human_agent')) {
-                await markJob(supabase, job.id, {
+                await markClaimedJob({
                     status: 'cancelled',
                     cancelled_at: now.toISOString(),
                     claimed_at: null,
@@ -363,25 +371,38 @@ export async function processDueChatbotFollowUps(input: {
             const selectedMedia = selectedMediaItems[0] || null;
 
             // The customer may answer or qualify while personalization is running.
-            const [currentContactResult, currentStateResult] = await Promise.all([
+            const [currentContactResult, currentStateResult, currentConfigResult, currentJobResult] = await Promise.all([
                 supabase.from('contacts').select('pipeline_stage,last_inbound_at').eq('id', job.contact_id).eq('page_id', job.page_id).maybeSingle(),
-                supabase.from('chatbot_contact_states').select('status,collected_details,history_start_at').eq('page_id', job.page_id).eq('contact_id', job.contact_id).maybeSingle()
+                supabase.from('chatbot_contact_states').select('status,collected_details,history_start_at').eq('page_id', job.page_id).eq('contact_id', job.contact_id).maybeSingle(),
+                supabase.from('chatbot_configs').select('*').eq('page_id', job.page_id).maybeSingle(),
+                supabase.from('chatbot_follow_up_jobs').select('status,claimed_at').eq('id', job.id).maybeSingle()
             ]);
-            if (currentContactResult.error || currentStateResult.error) throw new Error('Could not recheck follow-up eligibility');
+            if (currentContactResult.error || currentStateResult.error || currentConfigResult.error || currentJobResult.error) {
+                throw new Error('Could not recheck follow-up eligibility');
+            }
+            // A cancellation or a different worker's lease must remain authoritative.
+            if (currentJobResult.data?.status !== 'processing' || Date.parse(currentJobResult.data?.claimed_at || '') !== now.getTime()) {
+                result.cancelled += 1;
+                continue;
+            }
             const currentContact = currentContactResult.data;
             const currentState = currentStateResult.data;
-            if (currentState?.status === 'stopped' || isPipelineClosedForAutomation(currentContact?.pipeline_stage) ||
-                hasReachedChatbotDetailTarget(config, currentState?.collected_details) ||
+            const currentConfig = currentConfigResult.data;
+            if (!currentContact || !currentConfig?.enabled || !currentConfig?.follow_up_enabled ||
+                !isChatbotContactAllowed(currentConfig, job.contact_id) ||
+                !isChatbotFollowUpWithinLimit(currentConfig as ChatbotConfig, job.schedule_type, job.sequence_index) ||
+                currentState?.status === 'stopped' || isPipelineClosedForAutomation(currentContact?.pipeline_stage) ||
+                hasReachedChatbotDetailTarget(currentConfig, currentState?.collected_details) ||
                 Date.parse(currentContact?.last_inbound_at || '') > anchorTime ||
                 (currentState?.history_start_at && Date.parse(currentState.history_start_at) > anchorTime)) {
-                await markJob(supabase, job.id, { status: 'cancelled', cancelled_at: now.toISOString(),
-                    claimed_at: null, error_message: 'Follow-up stopped or collection goal reached during personalization' });
+                await markClaimedJob({ status: 'cancelled', cancelled_at: now.toISOString(),
+                    claimed_at: null, error_message: 'Follow-up cancelled, disabled, or collection goal reached during personalization' });
                 result.cancelled += 1;
                 continue;
             }
 
             if (job.schedule_type === 'manual_human_agent') {
-                await markJob(supabase, job.id, {
+                await markClaimedJob({
                     status: 'ready_manual',
                     message_text: personalizedMessage,
                     media_asset_id: selectedMedia?.id || null,
@@ -525,7 +546,7 @@ export async function processDueChatbotFollowUps(input: {
                 }
             }
 
-            await markJob(supabase, job.id, {
+            await markClaimedJob({
                 status: 'sent',
                 message_id: lastSendResult.message_id,
                 message_text: messageParts.join('\n\n'),
@@ -537,7 +558,7 @@ export async function processDueChatbotFollowUps(input: {
             result.sent += 1;
         } catch (sendError) {
             const attempts = Number(job.attempt_count || 0) + 1;
-            await markJob(supabase, job.id, attempts >= MAX_ATTEMPTS ? {
+            await markClaimedJob(attempts >= MAX_ATTEMPTS ? {
                 status: 'failed',
                 attempt_count: attempts,
                 claimed_at: null,

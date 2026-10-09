@@ -54,7 +54,8 @@ export function isChatbotContactAllowed(
 }
 
 const OPT_OUT_PATTERNS = [
-    /\bstop\b/i,
+    /^(?:please\s+)?stop(?:\s+(?:po|na|please|pls))*[.!?]*$/i,
+    /\bstop(?:\s+(?:po|na|please|pls))*\s+(?:messaging|messages?|contacting|texting|replying|sending|(?:the\s+)?bot)\b/i,
     /\bunsubscribe\b/i,
     /\bremove me\b/i,
     /\bdo not (?:message|contact|text|reply)\b/i,
@@ -74,7 +75,7 @@ const REFUSAL_PATTERNS = [
     /\bno thank you\b/i,
     /\bi(?:'m| am) not buying\b/i,
     /\bi (?:do not|don't) want (?:it|this|that|to buy)\b/i,
-    /\bpass(?: muna)?\b/i,
+    /\bpass\b(?!\s+(?:the|me|it|on|along|through|by)\b)/i,
     /\bayoko\b/i,
     /\bhindi ako interesado\b/i,
     /\bdi ako interesado\b/i,
@@ -104,21 +105,36 @@ export function classifyChatbotStopIntent(
 ): ChatbotStopReason | null {
     const value = messageText.trim();
     if (!value) return null;
-    if (options.stopOnOptOut && OPT_OUT_PATTERNS.some((pattern) => pattern.test(value))) {
+    if (options.stopOnOptOut && hasChatbotOptOutIntent(value)) {
         return 'opt_out';
     }
-    const rejectsAnOption = /\b(?:ayoko|pass|wag na|huwag na|don't want|do not want)\b.{0,100}\b(?:boses|vocals?|style|genre|lyrics|mood|version|package|bundle|dalawa|tatlo|two songs|three songs)\b/i.test(value);
+    if (isChatbotBriefEditRequest(value)) return null;
+    if (options.stopOnRefusal && REFUSAL_PATTERNS.some((pattern) => pattern.test(value))) {
+        return 'refusal';
+    }
+    return null;
+}
+
+function hasChatbotOptOutIntent(value: string): boolean {
+    const text = value.replace(/\b(?:don't|do not|never)\s+stop\s+(?:messaging|contacting|texting|replying|sending(?:\s+messages?)?)\b/gi, '');
+    return OPT_OUT_PATTERNS.some(pattern => pattern.test(text));
+}
+
+/** A verified change to the song brief must not become a model-generated stop. */
+export function isChatbotBriefEditRequest(messageText: string): boolean {
+    const value = messageText.trim();
+    if (hasChatbotOptOutIntent(value)) return false;
+    const optionRejection = /\b(?:ayoko|pass|wag na|huwag na|don't want|do not want)\b.{0,100}\b(?:boses|vocals?|style|genre|lyrics|mood|version|package|bundle|dalawa|tatlo|two songs|three songs)\b/i;
     const requestsAnAlternative = /\b(?:gusto|prefer|instead|rather|palitan|change|switch|isa(?:ng)?|one|female|male)\b/i.test(value);
     const clearlyDeclinesPurchase = TAGALOG_PURCHASE_REFUSAL.test(value) || /not interested|not buying|(?:don't|do not) want to buy|(?:hindi|di) ako interesado|ayoko.{0,20}(?:bumili|magpagawa|umorder)/i.test(value);
     // Leaving something out of the song is a brief edit, not a cancelled order.
     const contentOmission = /\b(?:wag|huwag)(?:\s+na)?(?:\s+(?:po|lang|muna))*\s+(?:isingit|isama|ilagay|banggitin|gamitin|include|mention)\b/i;
     const otherRefusal = REFUSAL_PATTERNS.some(pattern => pattern.test(value.replace(contentOmission, '')));
-    if (contentOmission.test(value) && !clearlyDeclinesPurchase && !otherRefusal) return null;
-    if (rejectsAnOption && requestsAnAlternative && !clearlyDeclinesPurchase) return null;
-    if (options.stopOnRefusal && REFUSAL_PATTERNS.some((pattern) => pattern.test(value))) {
-        return 'refusal';
-    }
-    return null;
+    return !clearlyDeclinesPurchase && (
+        (contentOmission.test(value) && !otherRefusal) ||
+        (optionRejection.test(value) && requestsAnAlternative &&
+            !REFUSAL_PATTERNS.some(pattern => pattern.test(value.replace(optionRejection, ''))))
+    );
 }
 
 export function getMissingChatbotDetails(
