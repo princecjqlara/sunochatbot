@@ -1,12 +1,17 @@
-import { describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+const tagMocks = vi.hoisted(() => ({ assign: vi.fn().mockResolvedValue(undefined) }));
+vi.mock('@/lib/messenger-outcome-tags', () => ({ assignMessengerOutcomeTags: tagMocks.assign }));
 import {
     isPipelineClosedForAutomation,
+    chatbotStopReasonForPipelineStage,
     pipelineStageForChatbotProgress,
     pipelineStageForMessengerSignal,
-    shouldAutoMovePipeline
+    shouldAutoMovePipeline,
+    updateContactPipelineStage
 } from '@/lib/contact-pipeline';
 
 describe('contact pipeline', () => {
+    beforeEach(() => tagMocks.assign.mockReset().mockResolvedValue(undefined));
     it('maps bot progress to the appropriate stage', () => {
         expect(pipelineStageForChatbotProgress({})).toBe('engaged');
         expect(pipelineStageForChatbotProgress({ collectedDetails: { email: 'a@example.com' } })).toBe('collecting_details');
@@ -20,6 +25,69 @@ describe('contact pipeline', () => {
         expect(pipelineStageForMessengerSignal('order_created')).toBe('order_created');
         expect(pipelineStageForMessengerSignal('converted')).toBe('converted');
         expect(pipelineStageForMessengerSignal('not_qualified')).toBe('not_qualified');
+    });
+
+    it('records a Messenger handoff even when the bot already set the same stage', async () => {
+        const update = vi.fn();
+        const chain: any = { select: () => chain, eq: () => chain,
+            maybeSingle: async () => ({ data: { pipeline_stage: 'qualified', pipeline_stage_source: 'chatbot' }, error: null }),
+            update: (payload: unknown) => { update(payload); return chain; },
+            then: (resolve: any, reject: any) => Promise.resolve({ error: null }).then(resolve, reject)
+        };
+        expect(await updateContactPipelineStage({ from: () => chain }, { pageId: 'page', contactId: 'contact', stage: 'qualified', source: 'messenger' })).toBe(true);
+        expect(update).toHaveBeenCalledWith(expect.objectContaining({ pipeline_stage_source: 'messenger' }));
+        expect(tagMocks.assign).toHaveBeenCalledWith(expect.anything(), 'page', 'contact', 'qualified');
+    });
+
+    it('repairs missing tags when Messenger confirms an unchanged stage', async () => {
+        const chain: any = { select: () => chain, eq: () => chain,
+            maybeSingle: async () => ({ data: { pipeline_stage: 'qualified', pipeline_stage_source: 'messenger' }, error: null }) };
+        expect(await updateContactPipelineStage({ from: () => chain }, {
+            pageId: 'page', contactId: 'contact', stage: 'qualified', source: 'messenger'
+        })).toBe(false);
+        expect(tagMocks.assign).toHaveBeenCalledWith(expect.anything(), 'page', 'contact', 'qualified');
+    });
+
+    it('retains human ownership when optional outcome tagging fails', async () => {
+        tagMocks.assign.mockRejectedValueOnce(new Error('Tag write failed'));
+        const update = vi.fn();
+        const chain: any = { select: () => chain, eq: () => chain,
+            maybeSingle: async () => ({ data: { pipeline_stage: 'engaged', pipeline_stage_source: 'chatbot' }, error: null }),
+            update: (payload: unknown) => { update(payload); return chain; },
+            then: (resolve: any) => Promise.resolve({ error: null }).then(resolve) };
+        expect(await updateContactPipelineStage({ from: () => chain }, {
+            pageId: 'page', contactId: 'contact', stage: 'qualified', source: 'messenger'
+        })).toBe(true);
+        expect(update).toHaveBeenCalledWith(expect.objectContaining({ pipeline_stage_source: 'messenger', pipeline_stage: 'qualified' }));
+    });
+
+    it('retains the current stage while making a generic staff handoff visible to every automation', async () => {
+        const update = vi.fn();
+        const chain: any = { select: () => chain, eq: () => chain,
+            maybeSingle: async () => ({ data: { pipeline_stage: 'collecting_details', pipeline_stage_source: 'chatbot' }, error: null }),
+            update: (payload: unknown) => { update(payload); return chain; },
+            then: (resolve: any) => Promise.resolve({ error: null }).then(resolve)
+        };
+        expect(await updateContactPipelineStage({ from: () => chain }, {
+            pageId: 'page', contactId: 'contact', stage: 'engaged', source: 'messenger'
+        })).toBe(true);
+        expect(update).toHaveBeenCalledWith(expect.objectContaining({
+            pipeline_stage: 'collecting_details', pipeline_stage_source: 'messenger'
+        }));
+    });
+
+    it.each([false, true])('tags a completed stage preserved by a staff handoff (explicit preserve: %s)', async preserveStage => {
+        const update = vi.fn();
+        const chain: any = { select: () => chain, eq: () => chain,
+            maybeSingle: async () => ({ data: { pipeline_stage: 'qualified', pipeline_stage_source: 'chatbot' }, error: null }),
+            update: (payload: unknown) => { update(payload); return chain; },
+            then: (resolve: any) => Promise.resolve({ error: null }).then(resolve)
+        };
+        await updateContactPipelineStage({ from: () => chain }, {
+            pageId: 'page', contactId: 'contact', stage: 'engaged', source: 'messenger', preserveStage
+        });
+        expect(update).toHaveBeenCalledWith(expect.objectContaining({ pipeline_stage: 'qualified', pipeline_stage_source: 'messenger' }));
+        expect(tagMocks.assign).toHaveBeenCalledWith(expect.anything(), 'page', 'contact', 'qualified', { includePositiveTag: false });
     });
 
     it('moves forward automatically without regressing successful contacts', () => {
@@ -40,5 +108,48 @@ describe('contact pipeline', () => {
         expect(isPipelineClosedForAutomation('converted')).toBe(true);
         expect(isPipelineClosedForAutomation('not_qualified')).toBe(true);
         expect(isPipelineClosedForAutomation('opted_out')).toBe(true);
+    });
+
+    it.each(['new', 'engaged', 'collecting_details'])(
+        'stops a human-selected %s stage while retaining automatic intake', (stage) => {
+            expect(isPipelineClosedForAutomation(stage, 'manual')).toBe(true);
+            expect(isPipelineClosedForAutomation(stage, 'messenger')).toBe(true);
+            expect(chatbotStopReasonForPipelineStage(stage, 'manual')).toBe('manual');
+            expect(isPipelineClosedForAutomation(stage, 'chatbot')).toBe(false);
+            expect(isPipelineClosedForAutomation(stage, 'system')).toBe(false);
+        }
+    );
+
+    it('prevents chatbot progress from replacing a human stage', async () => {
+        const update = vi.fn();
+        const chain: any = { select: () => chain, eq: () => chain,
+            maybeSingle: async () => ({ data: { pipeline_stage: 'engaged', pipeline_stage_source: 'manual' }, error: null }),
+            update
+        };
+        expect(await updateContactPipelineStage({ from: () => chain }, {
+            pageId: 'page', contactId: 'contact', stage: 'qualified', source: 'chatbot'
+        })).toBe(false);
+        expect(update).not.toHaveBeenCalled();
+    });
+
+    it('does not overwrite a handoff arriving after the pipeline read', async () => {
+        let contact = { pipeline_stage: 'engaged', pipeline_stage_source: 'chatbot' };
+        const filters: Record<string, string> = {};
+        let payload: typeof contact;
+        const chain: any = { select: () => chain,
+            eq: (key: string, value: string) => { filters[key] = value; return chain; },
+            maybeSingle: async () => {
+                const snapshot = { ...contact };
+                contact = { pipeline_stage: 'engaged', pipeline_stage_source: 'manual' };
+                return { data: snapshot, error: null };
+            },
+            update: (value: typeof contact) => { payload = value; return chain; },
+            then: (resolve: any) => {
+                if (filters.pipeline_stage === contact.pipeline_stage && filters.pipeline_stage_source === contact.pipeline_stage_source) contact = payload;
+                return Promise.resolve({ error: null }).then(resolve);
+            }
+        };
+        await updateContactPipelineStage({ from: () => chain }, { pageId: 'page', contactId: 'contact', stage: 'qualified', source: 'chatbot' });
+        expect(contact).toEqual({ pipeline_stage: 'engaged', pipeline_stage_source: 'manual' });
     });
 });

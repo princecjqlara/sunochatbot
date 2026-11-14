@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import {cronAuthorizationError} from '@/lib/cron-auth';
 import { getSupabaseAdmin } from '@/lib/supabase';
 import { getPageConversations, getUserProfile } from '@/lib/facebook';
 import { composeContactName, normalizeContactName, pickPreferredContactName } from '../../../../lib/contact-names';
@@ -49,6 +50,8 @@ async function markPageAttempted(supabase: any, pageId: string) {
 
 // GET /api/cron/sync - Sync all pages (called by external cron service)
 export async function GET(request: NextRequest) {
+    const denied=cronAuthorizationError(request);if(denied)return denied;
+    if (process.env.VEO_WORKSPACE_ENABLED === 'true') return NextResponse.json({ success: true, mode: 'new_events_only', message: 'Historical imports disabled; see workspace sync health.' });
     try {
         const supabase = getSupabaseAdmin();
         const url = new URL(request.url);

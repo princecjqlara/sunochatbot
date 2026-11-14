@@ -1,18 +1,26 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { sendSunoMessage } from '@/lib/suno-message-send';
+import { allowsRequestedChatbotRepeat } from '@/lib/chatbot-message-delivery';
+import { getChatbotSalesStopReason } from '@/lib/chatbot-sales-stop';
+import { receiveWorkspaceEvents } from '@/lib/veo-events';
+import { veoEventReplay } from '@/lib/veo-event-context';
+import { syncMessengerStageHistory } from '@/lib/messenger-stage-sync';
+import { messengerTimestamp } from '@/lib/messenger-timestamp';
 import { getSupabaseAdmin } from '@/lib/supabase';
 import { verifyWebhookSignature, sendMessage, sendMessengerGenericCarousel, getConversationForPsid, getUserProfile } from '@/lib/facebook';
 import { isExpectedFacebookProfileLookupError } from '@/lib/facebook-errors';
+import { getPhilippinesDayOfWeek, getPhilippinesHour } from '@/lib/philippines-time';
 import { replaceTemplateVariables } from '@/lib/placeholders';
 import { handleFollowUpWorkflowContactReply, stopWorkflowAutomationsFromPageMessage } from '@/lib/workflow-automations';
 import { recordChatbotInterruptionIfNeeded, recordOutboundMessageEvent } from '@/lib/outbound-message-events';
 import {
     generateChatbotResponse,
-    getChatbotGoalClosingMessage,
+    extractChatbotContactDetails,
     getChatbotKnowledgePageId,
-    includeKnownContactName,
-    splitChatbotMessageBubbles,
     type ChatbotConfig
 } from '@/lib/chatbot';
+import type { FacebookMessage } from '@/types';
+import { getCommercialVideoMessageControls, resolveChatbotAction } from '@/lib/chatbot-interactions';
 import {
     analyzeInboundCustomerImages,
     createChatbotMediaPublicViewUrl,
@@ -22,15 +30,18 @@ import {
 } from '@/lib/chatbot-media';
 import { getReadyChatbotDriveFilesForDocuments, getReadyChatbotDriveFolderForDocument } from '@/lib/chatbot-drive-folders';
 import { cancelPendingChatbotFollowUps, scheduleChatbotFollowUps } from '@/lib/chatbot-follow-ups';
-import { recordContactBestTime } from '@/lib/contact-best-time';
 import { claimChatbotReply, finishChatbotReply } from '@/lib/chatbot-replies';
+import { usesSunoConversationPolicy } from '@/lib/suno-business';
+import { resolveConversationPriceQuote } from '@/lib/chatbot-conversation-pricing';
+import { pauseChatbotForHumanTakeover } from '@/lib/chatbot-human-takeover';
+import { isChatbotFormMessage } from '@/lib/chatbot-form-priority';
+import { assertChatbotDeliveryAllowed, assertMessengerAutomationDeliveryAllowed, ChatbotDeliveryStoppedError } from '@/lib/chatbot-delivery';
 import {
     classifyChatbotStopIntent,
-    filterChatbotConversationHistory,
     getChatbotContactState,
+    getChatbotHandoffOptions,
     getChatbotStateStopReason,
     getMissingChatbotDetails,
-    hasReachedChatbotDetailTarget,
     isChatbotContactAllowed,
     saveChatbotContactState,
     type ChatbotContactState,
@@ -38,24 +49,26 @@ import {
 } from '@/lib/chatbot-control';
 import {
     isPipelineClosedForAutomation,
+    isContactPipelineStage,
+    chatbotStopReasonForPipelineStage,
+    pipelineStageForMessengerSignal,
     pipelineStageForChatbotProgress,
     updateContactPipelineStage
 } from '@/lib/contact-pipeline';
 import { composeContactName, hasUsableContactName, normalizeContactName, pickPreferredContactName } from '../../../../lib/contact-names';
-import { findLatestMessengerLeadStageEvent, findLatestMessengerSystemSignal } from '@/lib/messaging-auto-tag';
+import { classifyMessengerSystemMessage, findLatestMessengerLeadStageEvent, findLatestMessengerSystemSignal, getMessengerHandoffMetadata, isMessengerAutomaticNotice, loadMessengerHistoryForStopCheck } from '@/lib/messaging-auto-tag';
+import { evaluateCommercialVideoIntake, isCommercialVideoIntake } from '@/lib/chatbot-policy';
+import { captureCommercialVideoFormProgress } from '@/lib/chatbot-form-progress';
+import { usesSalesAssistant, salesSettings, normalizeSalesDetails, mergeSalesChatDetails, salesAssumptions, type SalesProgress } from '@/lib/chatbot-sales-assistant';
+import { mergeSalesRecord, salesFormUrl } from '@/lib/chatbot-sales-store';
+import { applyPricingOffer, assertPricingOfferActive, beginPricingDelivery, getContactPricingCatalog, getPricingQuoteContext, recordPricingDelivery, releasePricingOffer, renderPricingOffer, reservePricingOffer, type PricingOffer } from '@/lib/chatbot-pricing';
+import { captureContactAdSource, captureStandaloneAdReferral } from '@/lib/ad-attribution';
+
+export const maxDuration = 300;
 
 const PROFILE_LOOKUP_FAILURE_TTL_MS = 60 * 60 * 1000;
 const CONTACT_NAME_LOOKUP_TIMEOUT_MS = 2500;
 const profileLookupSuppressedUntil = new Map<string, number>();
-
-function chatbotStopReasonForPipelineStage(stage: unknown): ChatbotStopReason | null {
-    if (stage === 'qualified') return 'qualified';
-    if (stage === 'order_created') return 'order_created';
-    if (stage === 'converted') return 'converted';
-    if (stage === 'not_qualified') return 'not_qualified';
-    if (stage === 'opted_out') return 'opt_out';
-    return null;
-}
 
 function isProfileLookupSuppressed(pageId: string, senderId: string) {
     const key = `${pageId}:${senderId}`;
@@ -132,6 +145,13 @@ export async function GET(request: NextRequest) {
 
 // POST /api/facebook/webhook - Receive webhook events
 export async function POST(request: NextRequest) {
+    if (process.env.VEO_WORKSPACE_ENABLED === 'true' && !veoEventReplay.getStore()) return receiveWorkspaceEvents(request);
+    // Compatible deployments journal post-cutoff events before workspace mode is enabled.
+    // The database rejects pre-launch events, closing the deployment-to-launch collection gap.
+    if (process.env.VEO_WORKSPACE_ENABLED !== 'true' && process.env.VEO_JAUCIAN_SECRET) {
+        const recorded = await receiveWorkspaceEvents(request.clone());
+        if (!recorded.ok) return recorded;
+    }
     const requestId = typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function'
         ? crypto.randomUUID()
         : `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
@@ -247,7 +267,7 @@ export async function POST(request: NextRequest) {
                     try {
                         const { data: storedChatbotConfig, error: chatbotConfigError } = await supabase
                             .from('chatbot_configs')
-                            .select('page_id, updated_at, knowledge_source_page_id, enabled, trial_mode_enabled, trial_contact_id, instructions, fallback_reply, model, rag_enabled, follow_up_prompt, details_to_collect, details_completion_percent, bot_dos, bot_donts, follow_up_enabled, follow_up_quick_delays_minutes, follow_up_best_time_days, follow_up_messages, follow_up_ai_instructions, follow_up_utility_template_name, follow_up_utility_template_language, follow_up_utility_text, follow_up_media_asset_id, split_messages, max_message_parts, stop_when_details_collected, stop_on_opt_out, stop_on_refusal, stop_on_qualified, stop_on_not_qualified, stop_on_converted, stop_on_order_created')
+                            .select('*')
                             .eq('page_id', page.id)
                             .maybeSingle();
 
@@ -273,6 +293,11 @@ export async function POST(request: NextRequest) {
 
                 // Process inbound events from both messaging and standby arrays
                 if (inboundEvents.length > 0) {
+                    const failedHandoffContacts = new Set<string>();
+                    // A Meta batch can list the customer's message before a
+                    // staff handoff. Apply outbound stops before generating replies.
+                    inboundEvents.sort((left, right) =>
+                        Number(right.sender?.id === pageId) - Number(left.sender?.id === pageId));
                     for (const event of inboundEvents) {
                         processedEvents += 1;
                         try {
@@ -305,6 +330,10 @@ export async function POST(request: NextRequest) {
                             }
 
                             const isFromContact = senderId !== pageId;
+                            if (isFromContact && failedHandoffContacts.has(senderId)) {
+                                skippedEvents += 1;
+                                continue;
+                            }
 
                             // Page echoes can carry the manual workflow stop code.
                             if (!isFromContact) {
@@ -313,6 +342,90 @@ export async function POST(request: NextRequest) {
                                     ? event.message.text.trim()
                                     : '';
 
+                                if (eventType === 'message' && recipientId) {
+                                    const stageSignal = classifyMessengerSystemMessage(outboundMessageText);
+                                    // API echoes include app_id even before the send's
+                                    // attribution has been saved. Do not stop on our own echo.
+                                    let humanReply = event.message?.is_echo === true && !event.message.app_id &&
+                                        !isMessengerAutomaticNotice(outboundMessageText);
+                                    const echoMessageId = typeof event.message?.mid === 'string' ? event.message.mid.trim() : '';
+                                    if (humanReply && echoMessageId) {
+                                        const { data: attribution, error } = await supabase.from('outbound_message_events')
+                                            .select('source_type').eq('page_id', page.id).eq('message_id', echoMessageId).maybeSingle();
+                                        if (error) throw error;
+                                        humanReply = !attribution || attribution.source_type === 'manual';
+                                    }
+                                    if (stageSignal || humanReply) {
+                                        let { data: stageContact, error } = await supabase.from('contacts').select('id,pipeline_stage')
+                                            .eq('page_id', page.id).eq('psid', recipientId).maybeSingle();
+                                        if (error) throw error;
+                                        if (!stageContact) {
+                                            const inserted = await supabase.from('contacts')
+                                                .upsert({ page_id: page.id, psid: recipientId },
+                                                    { onConflict: 'page_id,psid', ignoreDuplicates: true })
+                                                .select('id,pipeline_stage').maybeSingle();
+                                            if (inserted.error) throw inserted.error;
+                                            stageContact = inserted.data;
+                                            if (!stageContact) {
+                                                const found = await supabase.from('contacts').select('id,pipeline_stage')
+                                                    .eq('page_id', page.id).eq('psid', recipientId).maybeSingle();
+                                                if (found.error) throw found.error;
+                                                stageContact = found.data;
+                                            }
+                                            if (!stageContact) throw new Error('Could not save Messenger handoff contact');
+                                        }
+                                        if (stageContact) {
+                                            const state = await getChatbotContactState(supabase, page.id, stageContact.id);
+                                            const staffAt = new Date(messengerTimestamp(event.timestamp) ?? Date.now()).toISOString();
+                                            if (state?.messenger_history_reset_at && event.timestamp != null &&
+                                                Date.parse(staffAt) < Date.parse(state.messenger_history_reset_at)) continue;
+                                            // Delayed echoes from an acknowledged takeover must not stop a reviewed restart.
+                                            if (!stageSignal && state?.automation_resumed_at &&
+                                                Date.parse(staffAt) <= Date.parse(state.automation_resumed_at)) continue;
+                                            const stopReason = stageSignal ||
+                                                (state?.status === 'stopped' && state.stop_reason !== 'details_collected' ? state.stop_reason : null) || 'manual';
+                                            const sunoConfig = !stageSignal && humanReply ? await supabase.from('chatbot_configs')
+                                                .select('instructions,details_to_collect').eq('page_id', page.id).maybeSingle() : null;
+                                            if (sunoConfig?.error) throw sunoConfig.error;
+                                            const sunoHumanPause = !!(sunoConfig?.data && usesSunoConversationPolicy(sunoConfig.data) && echoMessageId);
+                                            if (sunoHumanPause && echoMessageId) {
+                                                await pauseChatbotForHumanTakeover(supabase, { pageId: page.id, contactId: stageContact.id,
+                                                    messageId: echoMessageId, messageText: outboundMessageText, takenOverAt: staffAt });
+                                            } else await saveChatbotContactState(supabase, {
+                                                pageId: page.id, contactId: stageContact.id, existingState: state, stopReason,
+                                                pauseKind: state?.pause_kind === 'explicit_hold' || /^Lead stage set to /i.test(outboundMessageText)
+                                                    ? 'explicit_hold' : 'human_takeover',
+                                                humanActivityAt: staffAt
+                                            });
+                                            await cancelPendingChatbotFollowUps({ supabase, pageId: page.id,
+                                                contactId: stageContact.id, reason: `Messenger handoff: ${stopReason}` });
+                                            const stageSync = await syncMessengerStageHistory(supabase, { pageId: page.id,
+                                                contactId: stageContact.id, facebookPageId: pageId,
+                                                messages: [{ id: echoMessageId, message: outboundMessageText, from: { id: pageId }, created_time: staffAt }],
+                                                options: getChatbotHandoffOptions(state) });
+                                            if (!stageSync.events && !sunoHumanPause) await updateContactPipelineStage(supabase, { pageId: page.id,
+                                                contactId: stageContact.id,
+                                                stage: stageSignal && stageSignal !== 'manual'
+                                                    ? pipelineStageForMessengerSignal(stageSignal)
+                                                    : isContactPipelineStage(stageContact.pipeline_stage) ? stageContact.pipeline_stage : 'engaged',
+                                                source: 'messenger' });
+                                            try {
+                                                await recordChatbotInterruptionIfNeeded(supabase, {
+                                                    pageId: page.id, contactId: stageContact.id, messageId: echoMessageId,
+                                                    source: 'business_suite', stateBeforeStop: state,
+                                                    interruptionType: /^Lead stage set to /i.test(outboundMessageText)
+                                                        ? 'lead_stage_change' : 'manual_message',
+                                                    leadStage: stageSignal && stageSignal !== 'manual'
+                                                        ? pipelineStageForMessengerSignal(stageSignal) : null
+                                                });
+                                            } catch (auditError) {
+                                                logWarn('Messenger handoff saved but interruption audit failed', {
+                                                    pageId, recipientId, error: (auditError as Error).message
+                                                });
+                                            }
+                                        }
+                                    }
+                                }
                                 if (eventType === 'message' && outboundMessageText && recipientId) {
                                     try {
                                         const stopResult = await stopWorkflowAutomationsFromPageMessage({
@@ -338,6 +451,21 @@ export async function POST(request: NextRequest) {
                                     }
                                 }
 
+                                // Preserve handoff/stop processing priority over analytics.
+                                if (eventType === 'message' && recipientId) {
+                                    const echoAt = messengerTimestamp(event.timestamp);
+                                    if (echoAt != null) {
+                                        try {
+                                            const invalidated = await supabase.rpc('mark_conversion_source_dirty', {
+                                                p_page_id: page.id, p_psid: recipientId, p_at: new Date(echoAt).toISOString()
+                                            });
+                                            if (invalidated?.error) logWarn('Payment projection source could not be marked for refresh', { pageId });
+                                        } catch {
+                                            logWarn('Payment projection source could not be marked for refresh', { pageId });
+                                        }
+                                    }
+                                }
+
                                 if (eventType === 'message' || eventType === 'postback' || eventType === 'referral') {
                                     logInfo('Skipping outbound page event from webhook payload', {
                                         pageId,
@@ -349,26 +477,17 @@ export async function POST(request: NextRequest) {
                                 continue;
                             }
 
+                        if (eventType === 'referral') {
+                            try { await captureStandaloneAdReferral(supabase, page.id, pageId, event); }
+                            catch { hadCriticalFailure = true; logWarn('Ad referral touch could not be saved', { pageId }); }
+                            continue;
+                        }
+
                         let interactionTime = new Date();
                         const rawTimestamp = event.timestamp;
                         if (rawTimestamp !== undefined && rawTimestamp !== null) {
-                            let parsedTime: Date | null = null;
-                            if (typeof rawTimestamp === 'number' || typeof rawTimestamp === 'string') {
-                                const numericTimestamp = Number(rawTimestamp);
-                                if (Number.isFinite(numericTimestamp)) {
-                                    const candidate = new Date(numericTimestamp);
-                                    if (!Number.isNaN(candidate.getTime())) {
-                                        parsedTime = candidate;
-                                    }
-                                }
-
-                                if (!parsedTime) {
-                                    const candidate = new Date(rawTimestamp);
-                                    if (!Number.isNaN(candidate.getTime())) {
-                                        parsedTime = candidate;
-                                    }
-                                }
-                            }
+                            const normalized = messengerTimestamp(rawTimestamp);
+                            const parsedTime = normalized == null ? null : new Date(normalized);
 
                             if (parsedTime) {
                                 interactionTime = parsedTime;
@@ -393,7 +512,7 @@ export async function POST(request: NextRequest) {
                         // Check if contact exists BEFORE upsert (to detect new contacts)
                         const { data: existingContact, error: existingContactError } = await supabase
                             .from('contacts')
-                            .select('id, name, last_inbound_at, best_contact_hour, pipeline_stage')
+                            .select('id, name, first_interaction_at, last_inbound_at, best_contact_hour, pipeline_stage, pipeline_stage_source, chatbot_enabled')
                             .eq('page_id', page.id)
                             .eq('psid', senderId)
                             .maybeSingle();
@@ -490,7 +609,7 @@ export async function POST(request: NextRequest) {
                             ...(resolvedName ? { name: resolvedName } : existingNameShouldBeCleared ? { name: null } : {}),
                             ...(profilePic ? { profile_pic: profilePic } : {}),
                             last_interaction_at: interactionAt,
-                            ...(eventType === 'message' && (
+                            ...((eventType === 'message' || eventType === 'postback') && (
                                 !existingContact?.last_inbound_at ||
                                 new Date(existingContact.last_inbound_at).getTime() < interactionTime.getTime()
                             ) ? { last_inbound_at: interactionAt } : {}),
@@ -503,7 +622,7 @@ export async function POST(request: NextRequest) {
                             .upsert(contactPayload, {
                                 onConflict: 'page_id,psid'
                             })
-                            .select('id, name, best_contact_hour, pipeline_stage')
+                            .select('id, name, best_contact_hour, pipeline_stage, pipeline_stage_source, chatbot_enabled')
                             .single();
 
                         if (
@@ -524,7 +643,7 @@ export async function POST(request: NextRequest) {
                                 .upsert(legacyContactPayload, {
                                     onConflict: 'page_id,psid'
                                 })
-                                .select('id, name, best_contact_hour, pipeline_stage')
+                                .select('id, name, best_contact_hour, pipeline_stage, pipeline_stage_source, chatbot_enabled')
                                 .single();
 
                             contact = retryResult.data;
@@ -542,7 +661,7 @@ export async function POST(request: NextRequest) {
                             const insertResult = await supabase
                                 .from('contacts')
                                 .insert(insertContactPayload)
-                                .select('id, name, best_contact_hour, pipeline_stage')
+                                .select('id, name, best_contact_hour, pipeline_stage, pipeline_stage_source, chatbot_enabled')
                                 .single();
 
                             contact = insertResult.data;
@@ -560,23 +679,37 @@ export async function POST(request: NextRequest) {
                         }
 
                         processedContacts += 1;
+                        if (contact) {
+                            try {
+                                await captureContactAdSource(supabase, { pageId: page.id, pageFacebookId: pageId,
+                                    contactId: contact.id, event, priorFirstAt: existingContact?.first_interaction_at,
+                                    knownConversation: resolvedConversation });
+                            } catch {
+                                // Ask Meta to retry the signed event; existing reply claims
+                                // remain responsible for avoiding duplicate bot deliveries.
+                                hadCriticalFailure = true;
+                                logWarn('Ad-source evidence could not be saved', { pageId, eventType });
+                            }
+                        }
                         let welcomeMessageSent = false;
                         let conversationHistoryUnavailable = false;
-                        const inboundMessageText = typeof event.message?.text === 'string'
+                        const clickedChatbotAction = resolveChatbotAction(event.message?.quick_reply?.payload || event.postback?.payload);
+                        const inboundMessageText = clickedChatbotAction?.message || (typeof event.message?.text === 'string'
                             ? event.message.text.trim()
-                            : '';
+                            : typeof event.postback?.title === 'string' && event.postback.title.trim()
+                                ? event.postback.title.trim()
+                                : typeof event.postback?.payload === 'string' ? event.postback.payload.trim() : '');
                         const inboundImageUrls = getInboundMessengerImageUrls(event.message);
 
-                        const configForInboundImages = eventType === 'message' &&
-                            inboundImageUrls.length > 0 &&
+                        const inboundChatbotConfig = (eventType === 'message' || eventType === 'postback') &&
+                            (inboundMessageText || inboundImageUrls.length > 0) &&
                             !isStandbyEvent
                             ? await loadChatbotConfig()
                             : null;
-                        const chatbotWillHandleInboundImages = Boolean(
+                        const chatbotWillHandleInboundInquiry = Boolean(
                             contact &&
-                            inboundImageUrls.length > 0 &&
-                            configForInboundImages?.enabled &&
-                            isChatbotContactAllowed(configForInboundImages, contact.id)
+                            inboundChatbotConfig?.enabled &&
+                            contact.chatbot_enabled !== false && isChatbotContactAllowed(inboundChatbotConfig, contact.id)
                         );
 
                         // A contact can be new to our database while already having an
@@ -613,7 +746,7 @@ export async function POST(request: NextRequest) {
                             contact &&
                             !hasPriorConversation &&
                             !conversationHistoryUnavailable &&
-                            !chatbotWillHandleInboundImages
+                            !chatbotWillHandleInboundInquiry
                         ) {
                             // Lazy-load welcome config once per page per webhook batch
                             if (!welcomeConfigFetched) {
@@ -682,6 +815,11 @@ export async function POST(request: NextRequest) {
 
                                 // Send welcome message (must await in serverless environment)
                                 try {
+                                    await assertMessengerAutomationDeliveryAllowed({
+                                        supabase, pageId: page.id, facebookPageId: pageId,
+                                        accessToken: page.access_token, contactId: contact.id,
+                                        psid: senderId, anchorInboundAt: interactionAt
+                                    });
                                     const sendResult = await sendMessage(
                                         pageId,
                                         page.access_token,
@@ -720,25 +858,19 @@ export async function POST(request: NextRequest) {
 
                         // Record interaction for best time to contact analysis
                         if (contact) {
-                            try {
-                                const bestHour = await recordContactBestTime({ supabase, pageId: page.id,
-                                    contactId: contact.id, interactionTime });
-                                contact.best_contact_hour = bestHour;
-                            } catch (bestTimeError) {
-                                logWarn('Could not refresh contact best time before scheduling', {
-                                    pageId, contactId: contact.id, error: (bestTimeError as Error).message
-                                });
-                            }
                             // Attachments are replies too. The workflow handler
                             // does not require text, so schedule/reset on every
                             // inbound message rather than text-only messages.
-                            if (eventType === 'message') {
+                            if (eventType === 'message' || eventType === 'postback') {
                                 try {
                                     await cancelPendingChatbotFollowUps({
                                         supabase,
                                         pageId: page.id,
                                         contactId: contact.id,
                                         reason: 'Customer replied',
+                                        // Duplicate or out-of-order webhooks must
+                                        // preserve the current/newer sequence.
+                                        beforeAnchorInboundAt: interactionAt,
                                         now: interactionTime
                                     });
                                 } catch (followUpCancelError) {
@@ -752,7 +884,8 @@ export async function POST(request: NextRequest) {
 
                                 try {
                                     const pipelineClosed = isPipelineClosedForAutomation(
-                                        (contact as { pipeline_stage?: unknown }).pipeline_stage
+                                        (contact as { pipeline_stage?: unknown }).pipeline_stage,
+                                        (contact as { pipeline_stage_source?: unknown }).pipeline_stage_source
                                     );
                                     const workflowResult = pipelineClosed
                                         ? { scheduled: 0, continued: 0, reset: 0, stopped: 0, errors: 0 }
@@ -800,10 +933,13 @@ export async function POST(request: NextRequest) {
 
                             const inboundMessageId = typeof event.message?.mid === 'string'
                                 ? event.message.mid.trim()
-                                : '';
+                                : typeof event.postback?.mid === 'string' ? event.postback.mid.trim()
+                                    : eventType === 'postback' && rawTimestamp != null
+                                        ? `postback:${pageId}:${senderId}:${messengerTimestamp(rawTimestamp) ?? rawTimestamp}:${event.postback?.payload || event.postback?.title || ''}`
+                                        : '';
 
                             if (
-                                eventType === 'message' &&
+                                (eventType === 'message' || eventType === 'postback') &&
                                 (inboundMessageText || inboundImageUrls.length > 0) &&
                                 inboundMessageId &&
                                 !isStandbyEvent &&
@@ -811,8 +947,9 @@ export async function POST(request: NextRequest) {
                             ) {
                                 const chatbotConfig = await loadChatbotConfig();
 
-                                if (chatbotConfig?.enabled && isChatbotContactAllowed(chatbotConfig, contact.id)) {
+                                if (chatbotConfig?.enabled && contact.chatbot_enabled !== false && isChatbotContactAllowed(chatbotConfig, contact.id)) {
                                     let chatbotState: ChatbotContactState | null = null;
+                                    let chatbotConversationHistory: FacebookMessage[] = [];
                                     let liveStageStopReason: ChatbotStopReason | null = null;
                                     let conversationAuditFailed = false;
                                     try {
@@ -825,16 +962,24 @@ export async function POST(request: NextRequest) {
                                                 { throwOnError: true, timeoutMs: 5000 }
                                             );
                                         }
-                                        const conversationMessages = filterChatbotConversationHistory(
-                                            resolvedConversation?.messages?.data || [], chatbotState?.history_start_at
+                                        const conversationMessages = await loadMessengerHistoryForStopCheck({
+                                            facebookPageId: pageId, accessToken: page.access_token,
+                                            initialPage: resolvedConversation?.messages, requireAvailable: true,
+                                            ...getChatbotHandoffOptions(chatbotState, interactionAt)
+                                        });
+                                        chatbotConversationHistory = conversationMessages.filter((message): message is FacebookMessage =>
+                                            typeof message.id === 'string' && typeof message.message === 'string' &&
+                                            typeof message.from?.id === 'string' && typeof message.created_time === 'string'
                                         );
                                         const liveLeadStageEvent = findLatestMessengerLeadStageEvent(
                                             conversationMessages,
-                                            pageId
+                                            pageId,
+                                            getChatbotHandoffOptions(chatbotState, interactionAt)
                                         );
-                                        liveStageStopReason = liveLeadStageEvent?.signal || findLatestMessengerSystemSignal(
+                                        liveStageStopReason = findLatestMessengerSystemSignal(
                                             conversationMessages,
-                                            pageId
+                                            pageId,
+                                            getChatbotHandoffOptions(chatbotState, interactionAt)
                                         );
                                         if (liveLeadStageEvent) {
                                             try {
@@ -844,7 +989,7 @@ export async function POST(request: NextRequest) {
                                                     messageId: liveLeadStageEvent.messageId,
                                                     source: 'business_suite',
                                                     interruptionType: 'lead_stage_change',
-                                                    leadStage: pipelineStageForChatbotProgress({
+                                                    leadStage: liveLeadStageEvent.signal === 'manual' ? null : pipelineStageForChatbotProgress({
                                                         stopReason: liveLeadStageEvent.signal
                                                     }),
                                                     interruptedAt: liveLeadStageEvent.createdTime || undefined
@@ -859,16 +1004,29 @@ export async function POST(request: NextRequest) {
                                             }
                                         }
                                         if (liveStageStopReason) {
-                                            await updateContactPipelineStage(supabase, {
+                                            await saveChatbotContactState(supabase, {
+                                                pageId: page.id, contactId: contact.id,
+                                                existingState: await getChatbotContactState(supabase, page.id, contact.id),
+                                                stopReason: liveStageStopReason,
+                                                ...getMessengerHandoffMetadata(conversationMessages, pageId,
+                                                    getChatbotHandoffOptions(chatbotState, interactionAt))
+                                            });
+                                            await cancelPendingChatbotFollowUps({ supabase, pageId: page.id,
+                                                contactId: contact.id, reason: `Messenger lead stage: ${liveStageStopReason}` });
+                                            const stageSync = await syncMessengerStageHistory(supabase, { pageId: page.id, contactId: contact.id,
+                                                facebookPageId: pageId, messages: conversationMessages,
+                                                options: getChatbotHandoffOptions(chatbotState, interactionAt) });
+                                            if (!stageSync.events) await updateContactPipelineStage(supabase, {
                                                 pageId: page.id,
                                                 contactId: contact.id,
-                                                stage: liveStageStopReason,
+                                                stage: pipelineStageForMessengerSignal(liveStageStopReason),
                                                 source: 'messenger',
                                                 now: interactionTime
                                             });
                                         }
                                     } catch (conversationError) {
                                         conversationAuditFailed = true;
+                                        hadCriticalFailure = true;
                                         logWarn('Could not verify live Lead Center stage; skipping automatic reply safely', {
                                             pageId,
                                             senderId,
@@ -877,42 +1035,33 @@ export async function POST(request: NextRequest) {
                                         });
                                     }
 
-                                    const inboundBeforeReset = chatbotState?.history_start_at &&
-                                        interactionTime.getTime() < Date.parse(chatbotState.history_start_at);
-                                    let stateStopReason: ChatbotStopReason | null = conversationAuditFailed || inboundBeforeReset
+                                    let stateStopReason: ChatbotStopReason | null = conversationAuditFailed
                                         ? 'manual'
                                         : chatbotStopReasonForPipelineStage(
-                                            (contact as { pipeline_stage?: unknown }).pipeline_stage
+                                            (contact as { pipeline_stage?: unknown }).pipeline_stage,
+                                            (contact as { pipeline_stage_source?: unknown }).pipeline_stage_source,
+                                            chatbotConfig
                                         ) || liveStageStopReason;
                                     try {
+                                        chatbotState = await getChatbotContactState(supabase, page.id, contact.id);
                                         const storedStopReason = getChatbotStateStopReason(chatbotState, interactionTime);
+                                        if (!stateStopReason) stateStopReason = await getChatbotSalesStopReason(supabase, page.id, contact.id);
                                         if (storedStopReason === 'window_expired') {
                                             // A fresh customer message opens a new seven-day activity window.
                                             // Other stop reasons remain durable until manually reset.
-                                            chatbotState = chatbotState ? {
-                                                ...chatbotState,
-                                                status: 'active',
-                                                started_at: interactionAt,
-                                                stop_reason: null,
-                                                stopped_at: null,
-                                                last_inbound_at: interactionAt
-                                            } : null;
+                                            chatbotState = null;
                                         } else if (!stateStopReason) {
                                             stateStopReason = storedStopReason;
                                         }
-                                        stateStopReason = stateStopReason || classifyChatbotStopIntent(inboundMessageText, {
+                                        stateStopReason = classifyChatbotStopIntent(inboundMessageText, {
                                                 stopOnOptOut: chatbotConfig.stop_on_opt_out,
                                                 stopOnRefusal: chatbotConfig.stop_on_refusal
-                                            });
-                                        if (!stateStopReason && chatbotConfig.stop_when_details_collected &&
-                                            hasReachedChatbotDetailTarget(chatbotConfig, chatbotState?.collected_details)) {
-                                            stateStopReason = 'details_collected';
-                                        }
+                                            }) || stateStopReason;
 
                                         if (
                                             stateStopReason &&
                                             stateStopReason !== 'manual' &&
-                                            chatbotState?.status !== 'stopped'
+                                            (chatbotState?.status !== 'stopped' || chatbotState.stop_reason !== stateStopReason)
                                         ) {
                                             await saveChatbotContactState(supabase, {
                                                 pageId: page.id,
@@ -930,6 +1079,7 @@ export async function POST(request: NextRequest) {
                                         }
                                     } catch (stateError) {
                                         stateStopReason = 'manual';
+                                        hadCriticalFailure = true;
                                         logWarn('Chatbot state is unavailable; skipping automatic reply safely', {
                                             pageId,
                                             senderId,
@@ -959,7 +1109,56 @@ export async function POST(request: NextRequest) {
                                         }
                                     }
 
+                                    if (usesSalesAssistant(chatbotConfig) && inboundMessageText) {
+                                        const settings = salesSettings(chatbotConfig.sales_assistant_settings);
+                                        const base = chatbotState?.collected_details || {};
+                                        const details = mergeSalesChatDetails(base, {}, [inboundMessageText], inboundMessageText, settings, chatbotState?.sales_progress?.last_question);
+                                        const synced = await mergeSalesRecord(supabase, { pageId: page.id, contactId: contact.id,
+                                            base, details, source: 'chat', eventKey: 'capture:' + inboundMessageId, observedAt: interactionAt,
+                                            progress: { assumptions: salesAssumptions(details, settings),
+                                                ...(!chatbotState?.last_bot_reply_at && !Object.keys(base).length && !chatbotConversationHistory.some(message => message.from?.id === pageId)
+                                                    ? { introduction_pending: true } : {}) } });
+                                        chatbotState = synced.state;
+                                    }
                                     if (stateStopReason) {
+                                        if (
+                                            inboundMessageText && !conversationAuditFailed &&
+                                            (isCommercialVideoIntake(chatbotConfig) || ['details_collected', 'qualified', 'converted', 'order_created'].includes(stateStopReason)) &&
+                                            chatbotConfig.details_to_collect.length > 0
+                                        ) {
+                                            try {
+                                                const details = await extractChatbotContactDetails({
+                                                    salesProgress: chatbotState?.sales_progress,
+                                                    config: chatbotConfig, pageId, pageName: page.name,
+                                                    contactName: contact.name, inboundMessage: inboundMessageText,
+                                                    history: chatbotConversationHistory,
+                                                    collectedDetails: chatbotState?.collected_details || {},
+                                                    hasClearRequest: chatbotState?.has_clear_request,
+                                                    requestType: chatbotState?.request_type,
+                                                    requestEvidence: chatbotState?.request_evidence
+                                                });
+                                                // Refresh the state before merging late answers so a
+                                                // concurrent human handoff remains stopped.
+                                                const latestState = usesSalesAssistant(chatbotConfig) ? (await mergeSalesRecord(supabase, {
+                                                    pageId: page.id, contactId: contact.id, base: chatbotState?.collected_details || {}, details: details.collected_details,
+                                                    source: 'chat', eventKey: 'extract:' + inboundMessageId, observedAt: interactionAt })).state : await getChatbotContactState(supabase, page.id, contact.id);
+                                                await saveChatbotContactState(supabase, {
+                                                    pageId: page.id, contactId: contact.id,
+                                                    existingState: latestState || chatbotState,
+                                                    collectedDetails: usesSalesAssistant(chatbotConfig) ? latestState?.collected_details : details.collected_details,
+                                                    missingDetails: details.missing_details,
+                                                    inboundAt: interactionAt,
+                                                    stopReason: latestState?.stop_reason || stateStopReason,
+                                                    hasClearRequest: details.has_clear_request,
+                                                    requestType: details.request_type,
+                                                    requestEvidence: details.request_evidence
+                                                });
+                                            } catch (detailError) {
+                                                logWarn('Stopped bot could not update customer details', {
+                                                    pageId, contactId: contact.id, error: (detailError as Error).message
+                                                });
+                                            }
+                                        }
                                         logInfo('Chatbot reply skipped by stop rule', {
                                             pageId,
                                             senderId,
@@ -974,9 +1173,11 @@ export async function POST(request: NextRequest) {
                                             claimed = await claimChatbotReply(supabase, {
                                                 inboundMessageId,
                                                 pageId: page.id,
-                                                contactId: contact.id
+                                                contactId: contact.id,
+                                                inboundAt: interactionAt
                                             });
                                         } catch (claimError) {
+                                            hadCriticalFailure = true;
                                             logWarn('Could not claim chatbot reply', {
                                                 pageId,
                                                 senderId,
@@ -987,25 +1188,34 @@ export async function POST(request: NextRequest) {
                                     }
 
                                     if (claimed) {
+                                        let lastOutboundMessageId: string | undefined;
+                                        let pricingOffer: PricingOffer | null = null;
+                                        let pricingMessage: string | null = null;
+                                        let pricingSendStarted = false;
                                         try {
-                                            let replyMessages = chatbotConfig.fallback_reply.trim()
-                                                ? splitChatbotMessageBubbles(
-                                                    chatbotConfig.fallback_reply,
-                                                    chatbotConfig.split_messages
-                                                )
-                                                : [];
-                                            let collectedDetails = includeKnownContactName(chatbotConfig.details_to_collect,
-                                                chatbotState?.collected_details, (contact as { name?: string | null }).name);
+                                            if (isCommercialVideoIntake(chatbotConfig) && !usesSalesAssistant(chatbotConfig)) {
+                                                chatbotState = await captureCommercialVideoFormProgress(supabase, {
+                                                    pageId: page.id, contactId: contact.id, existingState: chatbotState,
+                                                    guidedSales: chatbotConfig.guided_sales_enabled, salesFormFields: chatbotConfig.sales_form_fields,
+                                                    customerText: inboundMessageText, inboundAt: interactionAt
+                                                });
+                                            }
+                                            const replyAutomationEpoch = chatbotState?.automation_epoch || 0;
+                                            let replyMessages: string[] = [];
+                                            let collectedDetails = chatbotState?.collected_details || {};
                                             let missingDetails = getMissingChatbotDetails(
                                                 chatbotConfig.details_to_collect,
                                                 collectedDetails
                                             );
                                             let generatedStopReason: ChatbotStopReason | null = null;
                                             let detailsComplete = false;
-                                            let replySuppressed = false;
+                                            let hasClearRequest = chatbotState?.has_clear_request || false;
+                                            let requestType = chatbotState?.request_type;
+                                            let requestEvidence = chatbotState?.request_evidence;
                                             let generatedMediaDocumentIds: string[] = [];
                                             let generatedDriveFileDocumentIds: string[] = [];
                                             let generatedLinkDocumentId: string | undefined;
+                                            let salesProgress: SalesProgress | undefined;
                                             try {
                                                 let chatbotInboundMessage = inboundMessageText;
                                                 if (inboundImageUrls.length > 0) {
@@ -1027,26 +1237,41 @@ export async function POST(request: NextRequest) {
                                                             imageCount: inboundImageUrls.length,
                                                             error: (photoAnalysisError as Error).message
                                                         });
-                                                        chatbotInboundMessage = inboundMessageText ||
-                                                            'The customer sent one or more photos without a text caption, but the visual content could not be read reliably. Acknowledge the photos and ask one concise clarifying question.';
+                                                        chatbotInboundMessage = [
+                                                            inboundMessageText ? `Customer message: ${inboundMessageText}` : '',
+                                                            'The customer sent one or more photos, but the visual content could not be read reliably. Do not claim to have seen their contents. Acknowledge the photos and ask one concise clarifying question.'
+                                                        ].filter(Boolean).join('\n\n');
                                                     }
                                                 }
                                                 const generated = await generateChatbotResponse({
+                                                    formSentAt: chatbotState?.form_sent_at,
+                                                    conversationPriceQuote: usesSunoConversationPolicy(chatbotConfig) ? await resolveConversationPriceQuote({
+                                                        supabase, pageId: page.id, facebookPageId: pageId, contactId: contact.id,
+                                                        history: chatbotConversationHistory, state: chatbotState }) : undefined,
+                                                    salesProgress: chatbotState?.sales_progress, formUrl: salesFormUrl(page.id, contact.id),
+                                                    pricingCatalog: await getContactPricingCatalog(supabase, page.id, contact.id),
                                                     config: chatbotConfig,
                                                     contactName: (contact as { name?: string | null }).name,
                                                     pageName: page.name,
                                                     pageId,
                                                     inboundMessage: chatbotInboundMessage,
-                                                    history: filterChatbotConversationHistory(
-                                                        resolvedConversation?.messages?.data || [], chatbotState?.history_start_at
-                                                    ),
-                                                    collectedDetails
+                                                    history: chatbotConversationHistory,
+                                                    collectedDetails,
+                                                    detailTargetCount: chatbotState?.detail_collection_target,
+                                                    hasClearRequest,
+                                                    requestType,
+                                                    requestEvidence
                                                 });
                                                 replyMessages = generated.messages;
-                                                replySuppressed = Boolean(generated.reply_suppressed);
-                                                collectedDetails = { ...collectedDetails, ...generated.collected_details };
+                                                salesProgress = generated.sales_progress;
+                                                collectedDetails = generated.collected_details;
                                                 missingDetails = generated.missing_details;
-                                                detailsComplete = hasReachedChatbotDetailTarget(chatbotConfig, collectedDetails);
+                                                detailsComplete = generated.details_complete;
+                                                hasClearRequest = generated.has_clear_request ?? hasClearRequest;
+                                                if (generated.has_clear_request !== undefined) {
+                                                    requestType = generated.request_type;
+                                                    requestEvidence = generated.request_evidence;
+                                                }
                                                 generatedMediaDocumentIds = generated.media_document_ids?.length
                                                     ? generated.media_document_ids
                                                     : generated.media_document_id
@@ -1065,90 +1290,90 @@ export async function POST(request: NextRequest) {
                                                 ) {
                                                     generatedStopReason = 'refusal';
                                                 } else if (
-                                                    detailsComplete &&
-                                                    chatbotConfig.stop_when_details_collected
+                                                    isCommercialVideoIntake(chatbotConfig)
+                                                        ? !evaluateCommercialVideoIntake(collectedDetails, hasClearRequest).needsContinuation
+                                                        : generated.details_complete && chatbotConfig.stop_when_details_collected
                                                 ) {
                                                     generatedStopReason = 'details_collected';
-                                                    replyMessages = [getChatbotGoalClosingMessage(chatbotConfig.instructions, inboundMessageText)];
-                                                    replySuppressed = false;
                                                 }
                                             } catch (generationError) {
-                                                logWarn('AI reply generation failed; using chatbot fallback', {
+                                                logWarn('AI reply generation failed; retaining inquiry for retry', {
                                                     pageId,
                                                     senderId,
                                                     error: (generationError as Error).message
                                                 });
-                                                const normalize = (value: string) => value.toLowerCase().replace(/[^\p{L}\p{N}]+/gu, ' ').trim();
-                                                const priorReplies = (resolvedConversation?.messages?.data || [])
-                                                    .filter(message => message.from?.id === pageId)
-                                                    .map(message => normalize(message.message || ''));
-                                                replyMessages = replyMessages.filter(message => !priorReplies.includes(normalize(message)));
-                                                replySuppressed = replyMessages.length === 0;
+                                                throw generationError;
                                             }
 
                                             if (generatedStopReason === 'opt_out' || generatedStopReason === 'refusal') {
                                                 replyMessages = [];
                                             }
 
-                                            if (replyMessages.length === 0 && !generatedStopReason && !replySuppressed) {
-                                                throw new Error('Chatbot generated no reply and no fallback is configured');
+                                            if (replyMessages.length === 0 && !generatedStopReason) {
+                                                throw new Error('Chatbot generated no reply; inquiry retained for retry');
                                             }
 
-                                            // Generation can take several seconds. Recheck a stop or newly
-                                            // completed brief before saving/sending this older turn.
-                                            let latestState = await getChatbotContactState(supabase, page.id, contact.id);
-                                            const { data: latestConfig, error: latestConfigError } = await supabase.from('chatbot_configs')
-                                                .select('*').eq('page_id', page.id).maybeSingle();
-                                            if (latestConfigError) throw latestConfigError;
-                                            if (!latestConfig?.enabled || !isChatbotContactAllowed(latestConfig, contact.id) ||
-                                                (latestConfig.updated_at && chatbotConfig.updated_at && latestConfig.updated_at !== chatbotConfig.updated_at)) {
-                                                throw new Error('Reply suppressed because chatbot settings changed during generation');
+                                            const commercialPricing = isCommercialVideoIntake(chatbotConfig);
+                                            const quote = getPricingQuoteContext({ config: chatbotConfig, pageId,
+                                                history: chatbotConversationHistory, inboundMessage: inboundMessageText,
+                                                collectedDetails, hasClearRequest });
+                                            if (!generatedStopReason && quote.eligible &&
+                                                (!commercialPricing || replyMessages.some(text => /PRICING PARA SA /i.test(text)))) {
+                                                pricingOffer = await reservePricingOffer(supabase, { pageId: page.id, contactId: contact.id,
+                                                    sourceKey: 'reply:' + inboundMessageId, followUp: false,
+                                                    quoteEligible: true, durationSeconds: quote.durationSeconds });
+                                                if (pricingOffer) {
+                                                    const copyContext = { commercial: commercialPricing, contactName: contact.name,
+                                                        business: collectedDetails['Business Name'] };
+                                                    replyMessages = applyPricingOffer(replyMessages, pricingOffer, copyContext);
+                                                    pricingMessage = renderPricingOffer(pricingOffer, copyContext);
+                                                }
                                             }
-                                            if (latestState && getChatbotStateStopReason(latestState, interactionTime) === 'window_expired') {
-                                                latestState = { ...latestState, status: 'active', stop_reason: null,
-                                                    stopped_at: null, started_at: interactionAt };
+
+                                            if (usesSalesAssistant(chatbotConfig)) {
+                                                const synced = await mergeSalesRecord(supabase, { pageId: page.id, contactId: contact.id,
+                                                    details: collectedDetails, base: chatbotState?.collected_details || {}, source: 'chat',
+                                                    eventKey: 'extract:' + inboundMessageId, observedAt: interactionAt });
+                                                const expected = normalizeSalesDetails(collectedDetails, salesSettings(chatbotConfig.sales_assistant_settings));
+                                                const actual = normalizeSalesDetails(synced.state.collected_details, salesSettings(chatbotConfig.sales_assistant_settings));
+                                                if (synced.conflicts.length || Object.keys({ ...expected, ...actual }).some(key => expected[key] !== actual[key])) {
+                                                    throw new Error('Customer details changed during generation; retry with the latest form answers');
+                                                }
+                                                collectedDetails = synced.state.collected_details;
                                             }
-                                            const { data: latestContact, error: latestContactError } = await supabase.from('contacts')
-                                                .select('pipeline_stage,last_inbound_at').eq('id', contact.id).eq('page_id', page.id).maybeSingle();
-                                            if (latestContactError) throw latestContactError;
-                                            if (latestState?.status === 'stopped' || isPipelineClosedForAutomation(latestContact?.pipeline_stage) ||
-                                                (latestContact?.last_inbound_at && Date.parse(latestContact.last_inbound_at) > interactionTime.getTime()) ||
-                                                (latestState?.last_inbound_at && Date.parse(latestState.last_inbound_at) > interactionTime.getTime()) ||
-                                                (latestState?.history_start_at && Date.parse(latestState.history_start_at) > interactionTime.getTime()) ||
-                                                (chatbotConfig.stop_when_details_collected && hasReachedChatbotDetailTarget(chatbotConfig, latestState?.collected_details))) {
-                                                throw new Error('Reply suppressed because a newer customer message, stop, or completed goal superseded this turn');
+                                            const [freshContactResult, freshState] = await Promise.all([
+                                                supabase.from('contacts').select('pipeline_stage,pipeline_stage_source,chatbot_enabled')
+                                                    .eq('page_id', page.id).eq('id', contact.id).maybeSingle(),
+                                                getChatbotContactState(supabase, page.id, contact.id)
+                                            ]);
+                                            if (freshContactResult.error) throw freshContactResult.error;
+                                            if (!freshContactResult.data) throw new Error('Contact unavailable before chatbot delivery');
+                                            const freshPipelineStop = chatbotStopReasonForPipelineStage(
+                                                freshContactResult.data.pipeline_stage, freshContactResult.data.pipeline_stage_source, chatbotConfig);
+                                            const freshStateStop = getChatbotStateStopReason(freshState);
+                                            if (freshContactResult.data.chatbot_enabled === false || (freshState?.automation_epoch || 0) !== replyAutomationEpoch || freshPipelineStop || (freshStateStop && freshStateStop !== 'window_expired')) {
+                                                throw new ChatbotDeliveryStoppedError('Chatbot stopped during reply generation; automatic reply cancelled');
                                             }
-                                            chatbotState = latestState || chatbotState;
-                                            collectedDetails = { ...(chatbotState?.collected_details || {}), ...collectedDetails };
-                                            missingDetails = getMissingChatbotDetails(chatbotConfig.details_to_collect, collectedDetails);
-                                            detailsComplete = hasReachedChatbotDetailTarget(chatbotConfig, collectedDetails);
-                                            if (!generatedStopReason && detailsComplete && chatbotConfig.stop_when_details_collected) {
-                                                generatedStopReason = 'details_collected';
-                                                replyMessages = [getChatbotGoalClosingMessage(chatbotConfig.instructions, inboundMessageText)];
-                                                replySuppressed = false;
-                                            }
-                                            // Save answers and the durable stop before sending so delivery
-                                            // failures cannot lose answers or restart the collection flow.
+                                            chatbotState = freshState || chatbotState;
+                                            // Retain answers even if Meta subsequently rejects delivery.
                                             await saveChatbotContactState(supabase, {
                                                 pageId: page.id, contactId: contact.id, existingState: chatbotState,
                                                 collectedDetails, missingDetails, inboundAt: interactionAt,
-                                                stopReason: generatedStopReason
+                                                // Persist answers before delivery; apply this response's
+                                                // completion stop only after its final message is sent.
+                                                stopReason: generatedStopReason === 'details_collected' ? null : generatedStopReason,
+                                                hasClearRequest: isCommercialVideoIntake(chatbotConfig) ? hasClearRequest : undefined,
+                                                requestType: isCommercialVideoIntake(chatbotConfig) ? requestType : undefined,
+                                                requestEvidence: isCommercialVideoIntake(chatbotConfig) ? requestEvidence : undefined
                                             });
-                                            const chatbotPipelineStage = pipelineStageForChatbotProgress({
-                                                stopReason: generatedStopReason, detailsComplete, collectedDetails
-                                            });
-                                            // Qualification describes the saved answers, even if Messenger
-                                            // cannot deliver the closing acknowledgement.
-                                            await updateContactPipelineStage(supabase, {
-                                                pageId: page.id, contactId: contact.id,
-                                                stage: chatbotPipelineStage, source: 'chatbot'
-                                            });
-                                            if (generatedStopReason || detailsComplete) {
-                                                await cancelPendingChatbotFollowUps({ supabase, pageId: page.id,
-                                                    contactId: contact.id, reason: 'Contact reached the collection goal or stopped' });
-                                            }
 
-                                            let lastOutboundMessageId: string | undefined;
+                                            const checkDelivery = () => assertChatbotDeliveryAllowed({
+                                                supabase, pageId: page.id, facebookPageId: pageId,
+                                                accessToken: page.access_token, contactId: contact.id, psid: senderId,
+                                                anchorInboundAt: interactionAt,
+                                                automationEpoch: replyAutomationEpoch,
+                                                policyRevision: chatbotConfig.policy_revision || 1
+                                            });
                                             let sentMedia = false;
                                             const knowledgePageId = getChatbotKnowledgePageId(chatbotConfig);
                                             let selectedDriveFolder = null;
@@ -1183,9 +1408,23 @@ export async function POST(request: NextRequest) {
                                                     });
                                                 }
                                             }
-                                            for (const [messageIndex, replyText] of replyMessages.entries()) {
+                                            const deferQuestion = isCommercialVideoIntake(chatbotConfig) &&
+                                                (selectedDriveFiles.length > 0 || generatedMediaDocumentIds.length > 0) &&
+                                                replyMessages.length > 1 && /\?\s*$/.test(replyMessages[replyMessages.length - 1]);
+                                            const sendReplyPart = async (messageIndex: number) => {
+                                                const replyText = replyMessages[messageIndex];
+                                                const controls = isCommercialVideoIntake(chatbotConfig)
+                                                    ? getCommercialVideoMessageControls(replyMessages).find(item => item.message_index === messageIndex) : undefined;
+                                                await checkDelivery();
+                                                if (pricingOffer && replyText === pricingMessage) {
+                                                    await assertPricingOfferActive(supabase, pricingOffer);
+                                                }
                                                 const isFinalMessage = messageIndex === replyMessages.length - 1;
-                                                const sendResult = await sendMessage(
+                                                const buttons = [
+                                                    ...(controls?.buttons || []).map(button => ({ type: 'POSTBACK' as const, text: button.title, payload: button.payload })),
+                                                    ...(isFinalMessage && selectedDriveFolder ? [{ type: 'URL' as const, text: selectedDriveFolder.button_text, url: selectedDriveFolder.folder_url }] : [])
+                                                ];
+                                                const sendArgs: Parameters<typeof sendMessage> = [
                                                     pageId,
                                                     page.access_token,
                                                     senderId,
@@ -1194,15 +1433,28 @@ export async function POST(request: NextRequest) {
                                                     undefined,
                                                     undefined,
                                                     undefined,
-                                                    isFinalMessage && selectedDriveFolder
-                                                        ? [{
-                                                            type: 'URL',
-                                                            text: selectedDriveFolder.button_text,
-                                                            url: selectedDriveFolder.folder_url
-                                                        }]
-                                                        : undefined
-                                                );
+                                                    buttons.length ? buttons : undefined
+                                                ];
+                                                if (controls?.quick_replies?.length) sendArgs[10] = controls.quick_replies;
+                                                if (pricingOffer && replyText === pricingMessage) {
+                                                    await beginPricingDelivery(supabase, pricingOffer);
+                                                    pricingSendStarted = true;
+                                                }
+                                                const sendResult = usesSunoConversationPolicy(chatbotConfig)
+                                                    ? await sendSunoMessage({supabase,pageId:page.id,contactId:contact.id,message:replyText.trim(),
+                                                        sourceKey: 'inbound:' + inboundMessageId + ':' + messageIndex,
+                                                        historyStartAt:chatbotState?.history_start_at,allowRepeat:allowsRequestedChatbotRepeat(inboundMessageText),args:sendArgs,checkDelivery})
+                                                    : await sendMessage(...sendArgs);
                                                 lastOutboundMessageId = sendResult.message_id;
+                                                if (usesSunoConversationPolicy(chatbotConfig) && isChatbotFormMessage(replyText, chatbotConfig)) {
+                                                    const savedForm = await supabase.rpc('record_chatbot_form_sent', { p_page_id: page.id,
+                                                        p_contact_id: contact.id, p_sent_at: new Date().toISOString(), p_history_start_at: chatbotState?.history_start_at || null });
+                                                    if (savedForm.error) throw new Error('Delivered form checkpoint could not be saved');
+                                                }
+
+                                                if (pricingOffer && replyText === pricingMessage) {
+                                                    await recordPricingDelivery(supabase, pricingOffer, sendResult.message_id);
+                                                }
 
                                                 await recordOutboundMessageEvent(supabase, {
                                                     pageId: page.id,
@@ -1214,10 +1466,15 @@ export async function POST(request: NextRequest) {
                                                         : 'AI Chatbot',
                                                     messageKind: 'RESPONSE'
                                                 });
+                                            };
+                                            const initialPartCount = replyMessages.length - (deferQuestion ? 1 : 0);
+                                            for (let messageIndex = 0; messageIndex < initialPartCount; messageIndex++) {
+                                                await sendReplyPart(messageIndex);
                                             }
 
                                             if (selectedDriveFiles.length > 0 && !generatedStopReason) {
                                                 try {
+                                                    await checkDelivery();
                                                     const mediaResult = await sendMessengerGenericCarousel(
                                                         pageId,
                                                         page.access_token,
@@ -1234,7 +1491,7 @@ export async function POST(request: NextRequest) {
                                                     lastOutboundMessageId = mediaResult.message_id;
                                                     sentMedia = true;
                                                     await recordOutboundMessageEvent(supabase, {
-                                                        pageId: knowledgePageId,
+                                                        pageId: page.id,
                                                         contactId: contact.id,
                                                         messageId: mediaResult.message_id,
                                                         sourceType: 'chatbot',
@@ -1246,6 +1503,7 @@ export async function POST(request: NextRequest) {
                                                             : 'Drive media card'
                                                     });
                                                 } catch (driveCarouselError) {
+                                                    if (driveCarouselError instanceof ChatbotDeliveryStoppedError) throw driveCarouselError;
                                                     logWarn('Chatbot text sent but Drive file carousel failed', {
                                                         pageId,
                                                         senderId,
@@ -1272,6 +1530,7 @@ export async function POST(request: NextRequest) {
                                                                 buttonTitle: media.media_type === 'image' ? 'View image' : 'Watch video'
                                                             };
                                                         }));
+                                                        await checkDelivery();
                                                         const mediaResult = await sendMessengerGenericCarousel(
                                                             pageId,
                                                             page.access_token,
@@ -1295,6 +1554,7 @@ export async function POST(request: NextRequest) {
                                                         });
                                                     }
                                                 } catch (mediaError) {
+                                                    if (mediaError instanceof ChatbotDeliveryStoppedError) throw mediaError;
                                                     logWarn('Chatbot text sent but media attachment failed', {
                                                         pageId,
                                                         senderId,
@@ -1304,16 +1564,57 @@ export async function POST(request: NextRequest) {
                                                 }
                                             }
 
-                                            if (lastOutboundMessageId) {
-                                                const { error: replyTimeError } = await supabase.from('chatbot_contact_states')
-                                                    .update({ last_bot_reply_at: new Date().toISOString() })
-                                                    .eq('page_id', page.id).eq('contact_id', contact.id);
-                                                if (replyTimeError) throw replyTimeError;
+                                            if (deferQuestion) await sendReplyPart(replyMessages.length - 1);
+
+                                            if (salesProgress && usesSalesAssistant(chatbotConfig)) {
+                                                await mergeSalesRecord(supabase, { pageId: page.id, contactId: contact.id,
+                                                    source: 'delivery', eventKey: 'delivered:' + inboundMessageId, observedAt: interactionAt,
+                                                    progress: { ...salesProgress, ...(sentMedia ? { samples_sent: [...generatedMediaDocumentIds, ...generatedDriveFileDocumentIds] } : {}) } });
+                                            }
+                                            const latestDeliveryState = await getChatbotContactState(supabase, page.id, contact.id);
+                                            await saveChatbotContactState(supabase, {
+                                                pageId: page.id,
+                                                contactId: contact.id,
+                                                existingState: latestDeliveryState || chatbotState,
+                                                collectedDetails: usesSalesAssistant(chatbotConfig) ? latestDeliveryState?.collected_details || collectedDetails : collectedDetails,
+                                                missingDetails,
+                                                inboundAt: interactionAt,
+                                                botRepliedAt: replyMessages.length > 0 || sentMedia ? new Date().toISOString() : undefined,
+                                                stopReason: latestDeliveryState?.status === 'stopped'
+                                                    ? latestDeliveryState.stop_reason || 'manual'
+                                                    : generatedStopReason,
+                                                pauseKind: generatedStopReason === 'details_collected' && isCommercialVideoIntake(chatbotConfig) && latestDeliveryState?.status !== 'stopped'
+                                                    ? 'ready_for_team' : undefined,
+                                                hasClearRequest: isCommercialVideoIntake(chatbotConfig) ? hasClearRequest : undefined,
+                                                requestType: isCommercialVideoIntake(chatbotConfig) ? requestType : undefined,
+                                                requestEvidence: isCommercialVideoIntake(chatbotConfig) ? requestEvidence : undefined
+                                            });
+
+                                            const chatbotPipelineStage = pipelineStageForChatbotProgress({
+                                                stopReason: generatedStopReason,
+                                                detailsComplete: isCommercialVideoIntake(chatbotConfig) ? detailsComplete && hasClearRequest : detailsComplete,
+                                                collectedDetails
+                                            });
+                                            try {
+                                                await updateContactPipelineStage(supabase, {
+                                                    pageId: page.id,
+                                                    contactId: contact.id,
+                                                    stage: chatbotPipelineStage,
+                                                    source: 'chatbot'
+                                                });
+                                            } catch (pipelineError) {
+                                                logWarn('Chatbot state saved but pipeline stage update failed', {
+                                                    pageId,
+                                                    senderId,
+                                                    contactId: contact.id,
+                                                    error: (pipelineError as Error).message
+                                                });
                                             }
 
                                             if (
                                                 !generatedStopReason &&
-                                                !isPipelineClosedForAutomation(chatbotPipelineStage) &&
+                                                latestDeliveryState?.status !== 'stopped' &&
+                                                !isPipelineClosedForAutomation(chatbotPipelineStage, 'chatbot', chatbotConfig) &&
                                                 (replyMessages.length > 0 || sentMedia)
                                             ) {
                                                 try {
@@ -1327,12 +1628,13 @@ export async function POST(request: NextRequest) {
                                                             name: (contact as { name?: string | null }).name || null,
                                                             best_contact_hour: (contact as { best_contact_hour?: number | null }).best_contact_hour,
                                                             last_interaction_at: interactionAt,
-                                                            pipeline_stage: chatbotPipelineStage
+                                                            first_interaction_at: existingContact?.first_interaction_at || (isNewContact ? interactionAt : null),
+                                                            pipeline_stage: chatbotPipelineStage,
+                                                            pipeline_stage_source: 'chatbot'
                                                         },
                                                         config: chatbotConfig,
                                                         anchorInboundAt: interactionAt,
-                                                        inboundMessage: inboundMessageText,
-                                                        now: interactionTime
+                                                        now: new Date()
                                                     });
                                                     if (scheduledFollowUps > 0) {
                                                         logInfo('Scheduled chatbot follow-ups', {
@@ -1353,9 +1655,8 @@ export async function POST(request: NextRequest) {
                                             }
 
                                             await finishChatbotReply(supabase, inboundMessageId, {
-                                                status: replySuppressed ? 'failed' : 'sent',
-                                                outboundMessageId: lastOutboundMessageId,
-                                                ...(replySuppressed ? { error: 'Repetitive reply suppressed; collected answers retained' } : {})
+                                                status: 'sent',
+                                                outboundMessageId: lastOutboundMessageId
                                             }).catch((finishError) => {
                                                 logWarn('Chatbot reply sent but status update failed', {
                                                     pageId,
@@ -1364,7 +1665,7 @@ export async function POST(request: NextRequest) {
                                                 });
                                             });
 
-                                            logInfo(replySuppressed ? 'Repetitive chatbot reply suppressed' : 'Chatbot reply sent', {
+                                            logInfo('Chatbot reply sent', {
                                                 pageId,
                                                 senderId,
                                                 inboundMessageId,
@@ -1374,8 +1675,12 @@ export async function POST(request: NextRequest) {
                                                 missingDetails
                                             });
                                         } catch (chatbotError) {
+                                            if (!lastOutboundMessageId && !(chatbotError instanceof ChatbotDeliveryStoppedError)) {
+                                                hadCriticalFailure = true;
+                                            }
                                             await finishChatbotReply(supabase, inboundMessageId, {
                                                 status: 'failed',
+                                                outboundMessageId: lastOutboundMessageId,
                                                 error: (chatbotError as Error).message
                                             }).catch(() => undefined);
 
@@ -1385,16 +1690,109 @@ export async function POST(request: NextRequest) {
                                                 inboundMessageId,
                                                 error: (chatbotError as Error).message
                                             });
+                                        } finally {
+                                            if (!pricingSendStarted) await releasePricingOffer(supabase, pricingOffer);
                                         }
                                     }
                                 }
                             }
 
+                            const hourOfDay = getPhilippinesHour(interactionTime);
+                            const dayOfWeek = getPhilippinesDayOfWeek(interactionTime);
 
+                            const { error: insertInteractionError } = await supabase
+                                .from('contact_interactions')
+                                .insert({
+                                    contact_id: contact.id,
+                                    page_id: page.id,
+                                    interaction_at: interactionAt,
+                                    hour_of_day: hourOfDay,
+                                    day_of_week: dayOfWeek,
+                                    is_from_contact: true
+                                });
+
+                            if (insertInteractionError) {
+                                logWarn('Failed to save contact interaction', {
+                                    pageId,
+                                    senderId,
+                                    contactId: contact.id,
+                                    error: insertInteractionError.message
+                                });
+                            }
+
+                            // Automatically recalculate best time to contact
+                            const { data: interactions, error: interactionsError } = await supabase
+                                .from('contact_interactions')
+                                .select('hour_of_day')
+                                .eq('contact_id', contact.id)
+                                .eq('is_from_contact', true);
+
+                            if (interactionsError) {
+                                logWarn('Failed to fetch interaction history for best-time calculation', {
+                                    pageId,
+                                    senderId,
+                                    contactId: contact.id,
+                                    error: interactionsError.message
+                                });
+                                continue;
+                            }
+
+                            const interactionCount = interactions?.length || 0;
+                            const hourDistribution: Record<number, number> = {};
+
+                            for (const interaction of interactions || []) {
+                                const hour = interaction.hour_of_day;
+                                hourDistribution[hour] = (hourDistribution[hour] || 0) + 1;
+                            }
+
+                            // Find most common hour
+                            let bestHour: number | null = null;
+                            let maxCount = 0;
+                            for (const [hour, count] of Object.entries(hourDistribution)) {
+                                if (count > maxCount) {
+                                    maxCount = count;
+                                    bestHour = parseInt(hour);
+                                }
+                            }
+
+                            // Determine confidence level
+                            let confidence: string;
+                            if (interactionCount >= 5) {
+                                confidence = 'high';
+                            } else if (interactionCount >= 2) {
+                                confidence = 'medium';
+                            } else if (interactionCount === 1) {
+                                confidence = 'inferred';
+                                // For single interaction, use neighbor inference (simplified - use this hour)
+                                bestHour = hourOfDay;
+                            } else {
+                                confidence = 'none';
+                            }
+
+                            // Update contact with best time data
+                            const { error: bestTimeUpdateError } = await supabase
+                                .from('contacts')
+                                .update({
+                                    best_contact_hour: bestHour,
+                                    best_contact_confidence: confidence
+                                })
+                                .eq('id', contact.id);
+
+                            if (bestTimeUpdateError) {
+                                logWarn('Failed to update best-time fields for contact', {
+                                    pageId,
+                                    senderId,
+                                    contactId: contact.id,
+                                    error: bestTimeUpdateError.message
+                                });
+                            }
                         }
                         } catch (eventError) {
                             skippedEvents += 1;
                             hadCriticalFailure = true;
+                            if (event.sender?.id === pageId && event.recipient?.id && event.message) {
+                                failedHandoffContacts.add(event.recipient.id);
+                            }
                             logError('Unhandled exception while processing inbound webhook event', {
                                 pageId,
                                 senderId: event?.sender?.id ?? null,
@@ -1422,7 +1820,7 @@ export async function POST(request: NextRequest) {
             return NextResponse.json(
                 {
                     error: 'Webhook processing partially failed',
-                    message: 'One or more contact upserts failed. Returning 500 so Facebook can retry delivery.'
+                    message: 'One or more webhook operations failed. Returning 500 so Facebook can retry delivery.'
                 },
                 { status: 500 }
             );

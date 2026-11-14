@@ -1,4 +1,5 @@
 import { generatePersonalizedMessage } from './ai';
+import { assertVeoSendAllowed } from './veo-delivery';
 import { parseCampaignMessageParts } from './campaign-message-sequence';
 import { getConversationIdForPsid, getConversationMessages, sendMessage, getPageTemplates, takeThreadControl } from './facebook';
 import { getBaseTemplateName, UTILITY_TEMPLATES as TEMPLATE_DEFS } from './facebook-templates';
@@ -11,6 +12,7 @@ import {
     shouldPauseCampaignForSendError
 } from './send-errors';
 import { getSupabaseAdmin } from './supabase';
+import { getAutomationPageScope } from './page-automation-scope';
 import {
     claimCampaignRecipients,
     finishCampaignRecipientBatch,
@@ -144,6 +146,8 @@ export async function sendCampaignById({
             }
         }
 
+        const automationScope=await getAutomationPageScope(supabase);
+        if(automationScope!==null&&!automationScope.includes(campaign.page_id))return {status:409,body:{error:'Page connection required',message:'Reconnect this Page to VeoBot before sending its campaign.'}};
         const allowedStatuses = new Set(allowScheduled ? ['draft', 'scheduled', 'sending'] : ['draft', 'sending']);
         if (!allowedStatuses.has(campaign.status)) {
             return {
@@ -518,6 +522,7 @@ export async function sendCampaignById({
                                     sendArgs.push(undefined, messageMediaHeader);
                                 }
 
+                                await assertVeoSendAllowed(page.fb_page_id, campaign.created_by, campaign.id);
                                 const sendResult = await sendMessage(...sendArgs);
                                 await recordOutboundMessageEvent(supabase, {
                                     pageId: campaign.page_id,
@@ -541,7 +546,7 @@ export async function sendCampaignById({
                                         await takeThreadControl(
                                             page.access_token,
                                             recipient.contact_psid,
-                                            `Sunobot campaign ${campaignId}`
+                                            `VeoBot campaign ${campaignId}`
                                         );
                                         console.warn(`Took Messenger thread control for ${recipient.contact_psid}; retrying delivery once.`);
                                         continue;

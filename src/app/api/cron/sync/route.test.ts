@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { NextRequest } from 'next/server';
 
 const mocks = vi.hoisted(() => ({
@@ -23,7 +23,7 @@ vi.mock('../../../../lib/contact-name-repair', () => ({
 
 function createRequest(): NextRequest {
     return new Request('http://localhost:3000/api/cron/sync', {
-        method: 'GET'
+        method: 'GET', headers:{Authorization:'Bearer private-cron'}
     }) as NextRequest;
 }
 
@@ -89,6 +89,7 @@ describe('GET /api/cron/sync', () => {
     beforeEach(() => {
         vi.clearAllMocks();
         vi.unstubAllEnvs();
+        vi.stubEnv('CRON_SECRET','private-cron');
         mocks.repairMissingContactNamesForPage.mockResolvedValue({
             checked: 0,
             repaired: 0,
@@ -179,3 +180,5 @@ describe('GET /api/cron/sync', () => {
         expect(payload.profile_pic).toBe('https://example.com/unknown.jpg');
     });
 });
+
+afterEach(()=>{vi.unstubAllEnvs();});

@@ -32,9 +32,12 @@
         "next-env.d.ts",
         "**/*.ts",
         "**/*.tsx",
+        "**/*.mts",
         ".next/types/**/*.ts"
     ],
     "exclude": [
-        "node_modules"
+        "node_modules",
+        "node_modules.shared-veo",
+        ".worktrees"
     ]
 }

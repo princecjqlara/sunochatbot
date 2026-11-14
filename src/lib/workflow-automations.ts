@@ -1,7 +1,9 @@
 import { sendMessage, sendMessengerMediaAttachment } from './facebook';
+import { getAutomationPageScope, scopeAutomationQuery } from './page-automation-scope';
 import { ContactRecord, replaceTemplateVariables } from './placeholders';
 import { recordOutboundMessageEvent } from './outbound-message-events';
 import { isPipelineClosedForAutomation } from './contact-pipeline';
+import { assertMessengerAutomationDeliveryAllowed, ChatbotDeliveryStoppedError } from './chatbot-delivery';
 
 const STANDARD_REPLY_WINDOW_MS = 24 * 60 * 60 * 1000;
 const MAX_FOLLOW_UP_STEPS = 10;
@@ -435,6 +437,7 @@ export async function processDueFollowUpAutomationSteps(params: {
     limit?: number;
 }): Promise<FollowUpCronResult> {
     const { supabase } = params;
+    const scope=await getAutomationPageScope(supabase);
     const now = params.now ?? new Date();
     const limit = Math.max(1, Math.min(params.limit || 10, 50));
     const result: FollowUpCronResult = {
@@ -446,7 +449,7 @@ export async function processDueFollowUpAutomationSteps(params: {
         errors: 0
     };
 
-    const { data, error } = await supabase
+    const { data, error } = await scopeAutomationQuery(supabase
         .from('workflow_automation_states')
         .select(`
             id,
@@ -455,7 +458,7 @@ export async function processDueFollowUpAutomationSteps(params: {
             status,
             current_step_index,
             next_step_at,
-            workflow_automations(
+            workflow_automations${scope===null?'':'!inner'}(
                 id,
                 page_id,
                 name,
@@ -468,10 +471,10 @@ export async function processDueFollowUpAutomationSteps(params: {
                 reply_action,
                 pages(fb_page_id, access_token)
             ),
-            contacts(id, psid, page_id, name, last_interaction_at, pipeline_stage)
+            contacts(id, psid, page_id, name, last_interaction_at, last_inbound_at, pipeline_stage, pipeline_stage_source)
         `)
         .eq('status', 'active')
-        .lte('next_step_at', now.toISOString())
+        .lte('next_step_at', now.toISOString()),scope,'workflow_automations.page_id')
         .order('next_step_at', { ascending: true })
         .limit(limit);
 
@@ -496,7 +499,7 @@ export async function processDueFollowUpAutomationSteps(params: {
                 continue;
             }
 
-            if (isPipelineClosedForAutomation(contact.pipeline_stage)) {
+            if (isPipelineClosedForAutomation(contact.pipeline_stage, contact.pipeline_stage_source)) {
                 await updateAutomationState(supabase, state.id, {
                     status: 'stopped',
                     stopped_at: now.toISOString(),
@@ -549,7 +552,13 @@ export async function processDueFollowUpAutomationSteps(params: {
                 continue;
             }
 
+            const checkDelivery = () => assertMessengerAutomationDeliveryAllowed({
+                supabase, pageId: automation.page_id, facebookPageId: page.fb_page_id,
+                accessToken: page.access_token, contactId: contact.id, psid: contact.psid,
+                anchorInboundAt: contact.last_inbound_at || undefined
+            });
             if (messageToSend) {
+                await checkDelivery();
                 const sendResult = await sendMessage(
                     page.fb_page_id,
                     page.access_token,
@@ -569,6 +578,8 @@ export async function processDueFollowUpAutomationSteps(params: {
             }
 
             if (mediaUrl) {
+                // A stage edit can arrive after text but before the attachment.
+                await checkDelivery();
                 const mediaSendResult = await sendMessengerMediaAttachment(
                     page.fb_page_id,
                     page.access_token,
@@ -613,6 +624,14 @@ export async function processDueFollowUpAutomationSteps(params: {
 
             result.sent += 1;
         } catch (error) {
+            if (error instanceof ChatbotDeliveryStoppedError) {
+                await updateAutomationState(supabase, state.id, {
+                    status: 'stopped', stopped_at: now.toISOString(),
+                    stopped_reason: 'lead_stage_or_handoff', next_step_at: null
+                });
+                result.stopped += 1;
+                continue;
+            }
             result.errors += 1;
             console.error('[FOLLOW_UP_AUTOMATION] Failed to send due step', {
                 stateId: state.id,

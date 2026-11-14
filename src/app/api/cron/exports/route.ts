@@ -1,4 +1,5 @@
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
+import {cronAuthorizationError} from '@/lib/cron-auth';
 import { chunkArray } from '@/lib/chunking';
 import { getSupabaseAdmin } from '@/lib/supabase';
 import {
@@ -23,14 +24,19 @@ async function removeExpiredExports() {
             `${job.storage_prefix}/chunk-${String(index).padStart(6, '0')}.csv`
         );
         for (const batch of chunkArray(paths, 100)) {
-            if (batch.length > 0) await supabase.storage.from(CONVERSATION_EXPORT_BUCKET).remove(batch);
+            if (batch.length > 0) {
+                const removed = await supabase.storage.from(CONVERSATION_EXPORT_BUCKET).remove(batch);
+                if (removed.error) throw new Error('Expired export cleanup must retry');
+            }
         }
-        await supabase.from('conversation_export_jobs').delete().eq('id', job.id);
+        const deleted = await supabase.from('conversation_export_jobs').delete().eq('id', job.id);
+        if (deleted.error) throw new Error('Expired export checkpoint must retry');
     }
     return expired?.length || 0;
 }
 
-export async function GET() {
+export async function GET(request:NextRequest) {
+    const denied=cronAuthorizationError(request);if(denied)return denied;
     try {
         const results = await processConversationExportQueue({ maxBatches: 10, maxDurationMs: 50_000 });
         const removedExpired = await removeExpiredExports();

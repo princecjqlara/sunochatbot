@@ -27,7 +27,7 @@ export async function GET(
         if (!session?.user?.id) {
             return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
         }
-        if (!await userHasPageAccess(session.user.id, pageId)) {
+        if (!await userHasPageAccess(session.user.id, pageId, request)) {
             return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
         }
 
@@ -60,7 +60,7 @@ export async function GET(
                 id: row.id,
                 sent_by: row.actor_name || (row.source === 'business_suite'
                     ? 'Business Suite team member'
-                    : 'Sunobot team member'),
+                    : 'VeoBot team member'),
                 contact_name: contactNames.get(row.contact_id) || 'Messenger contact',
                 interruption_type: row.interruption_type,
                 lead_stage: row.lead_stage,

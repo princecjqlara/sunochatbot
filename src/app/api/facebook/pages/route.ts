@@ -1,50 +1,18 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { getServerSession } from 'next-auth';
-import { authOptions } from '@/lib/auth';
-import { getFacebookPages, isFacebookReauthRequired } from '@/lib/facebook';
-import { FACEBOOK_REAUTH_MESSAGE } from '@/lib/facebook-permissions';
-
+import { NextRequest } from 'next/server';
+import { getFacebookPages } from '@/lib/facebook';
+import { readFacebookPageGrant } from '@/lib/facebook-page-authorization';
+import { PageSetupError, pageSetupFailure, pageSetupResponse, requirePageOwner } from '@/lib/veo-page-connections';
 export const dynamic = 'force-dynamic';
-
-// GET /api/facebook/pages - Get user's Facebook pages
+export const maxDuration = 60;
 export async function GET(request: NextRequest) {
     try {
-        const session = await getServerSession(authOptions);
-
-        if (!session?.user) {
-            return NextResponse.json(
-                { error: 'Unauthorized', message: 'Please sign in' },
-                { status: 401 }
-            );
-        }
-
-        // Note: Facebook pages functionality requires Facebook OAuth
-        // With email/password login, this endpoint returns empty pages
-        // Pages should be connected via the admin or API with stored tokens
-        if (!session.accessToken) {
-            return NextResponse.json({ pages: [], message: 'No Facebook token available' });
-        }
-
-        const pages = await getFacebookPages(session.accessToken);
-
-        return NextResponse.json({ pages });
-    } catch (error) {
-        console.error('Error fetching Facebook pages:', error);
-        if (isFacebookReauthRequired(error)) {
-            return NextResponse.json(
-                {
-                    error: 'Facebook authorization required',
-                    code: 'FACEBOOK_REAUTH_REQUIRED',
-                    requiresReauth: true,
-                    message: FACEBOOK_REAUTH_MESSAGE
-                },
-                { status: 409 }
-            );
-        }
-
-        return NextResponse.json(
-            { error: 'Failed to fetch pages', message: (error as Error).message },
-            { status: 500 }
-        );
+        const scope = await requirePageOwner(request), grant = await readFacebookPageGrant(request, scope.user_id, undefined, scope.tenant_id);
+        if (!grant) throw new PageSetupError('Authorize Facebook to choose from the Pages you manage.', 409, 'FACEBOOK_AUTHORIZATION_REQUIRED');
+        const pages = await getFacebookPages(grant.token);
+        // Tokens stay on the server; list every authorized Page, including new IDs.
+        return pageSetupResponse({ pages: pages.map(page => ({ id: page.id, name: page.name, category: page.category || null, tasks: page.tasks || [] })), expiresAt: grant.expiresAt });
+    } catch (error: any) {
+        if (error?.requiresReauth) return pageSetupFailure(new PageSetupError('Facebook needs renewed permissions. Authorize Facebook Pages again.', 409, 'FACEBOOK_AUTHORIZATION_REQUIRED'));
+        return pageSetupFailure(error);
     }
 }

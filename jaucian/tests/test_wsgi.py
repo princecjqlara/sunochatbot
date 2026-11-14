@@ -1,0 +1,324 @@
+import io
+import json
+import os
+import unittest
+from unittest.mock import patch
+
+from app import app
+
+
+def call_app(path, *, method="GET", headers=None, body=b"", query=""):
+    environ = {
+        "REQUEST_METHOD": method,
+        "PATH_INFO": path,
+        "QUERY_STRING": query,
+        "CONTENT_LENGTH": str(len(body)),
+        "wsgi.input": io.BytesIO(body),
+    }
+    for name, value in (headers or {}).items():
+        environ["HTTP_" + name.upper().replace("-", "_")] = value
+    captured = {}
+
+    def start_response(status, response_headers):
+        captured["status"] = int(status.split()[0])
+        captured["headers"] = dict(response_headers)
+
+    payload = json.loads(b"".join(app(environ, start_response)))
+    return captured["status"], payload
+
+
+class WsgiApplicationTests(unittest.TestCase):
+    def test_public_health_checks_supabase_without_exposing_groups(self):
+        with patch.dict(os.environ, {"ALLOWED_CHAT_IDS": "-100123"}), patch(
+            "app.archive_status", return_value=[{"chat_id": -100123}]
+        ) as status_query:
+            status, payload = call_app("/api/health")
+        self.assertEqual(status, 200)
+        self.assertEqual(payload, {"ok": True})
+        status_query.assert_called_once_with({-100123})
+
+    def test_public_health_reports_database_failure(self):
+        with patch.dict(os.environ, {"ALLOWED_CHAT_IDS": "-100123"}), patch(
+            "app.archive_status", side_effect=RuntimeError("database unavailable")
+        ):
+            status, payload = call_app("/api/health")
+        self.assertEqual(status, 503)
+        self.assertEqual(payload, {"ok": False})
+
+    def test_status_requires_authorization(self):
+        with patch.dict(os.environ, {"INSIGHTS_API_KEY": "correct"}):
+            status, payload = call_app("/api/status")
+        self.assertEqual(status, 401)
+        self.assertFalse(payload["ok"])
+
+    def test_status_uses_cloud_archive(self):
+        with patch.dict(os.environ, {"INSIGHTS_API_KEY": "correct", "ALLOWED_CHAT_IDS": "-100123"}), patch(
+            "app.archive_status", return_value=[{"chat_id": -100123}]
+        ):
+            status, payload = call_app(
+                "/api/status", headers={"Authorization": "Bearer correct"}
+            )
+        self.assertEqual(status, 200)
+        self.assertEqual(payload["groups"], [{"chat_id": -100123}])
+
+    def test_workspace_status_describes_the_active_three_snapshots_and_warning_source(self):
+        with patch.dict(os.environ, {"INSIGHTS_API_KEY": "correct", "VEO_WORKSPACE_ENABLED": "true", "ALLOWED_CHAT_IDS": "-100123"}), patch("app.archive_status", return_value=[]):
+            status, payload = call_app("/api/status", headers={"Authorization": "Bearer correct"})
+        self.assertEqual(status, 200)
+        self.assertEqual(payload["daily_reports"]["times_pht"], ["08:00", "16:00", "00:10"])
+        self.assertEqual(payload["member_warnings"]["source"], "VEO current staff warnings")
+        self.assertFalse(payload["page_access_reminders"]["enabled"])
+
+    def test_groups_show_discovered_and_approved_state(self):
+        discovered = [{"chat_id": -100999, "title": "Daily Reports", "approved": False}]
+        with patch.dict(
+            os.environ,
+            {"INSIGHTS_API_KEY": "correct", "ALLOWED_CHAT_IDS": "-100123"},
+        ), patch("app.known_chats", return_value=discovered) as query:
+            status, payload = call_app(
+                "/api/groups", headers={"Authorization": "Bearer correct"}
+            )
+        self.assertEqual(status, 200)
+        self.assertEqual(payload["groups"], discovered)
+        self.assertEqual(payload["approved_chat_ids"], [-100123])
+        query.assert_called_once_with({-100123})
+
+    def test_worker_activity_is_authenticated_and_scoped_to_approved_group(self):
+        report = {"team": "Veo", "workers": []}
+        with patch.dict(
+            os.environ,
+            {"INSIGHTS_API_KEY": "correct", "ALLOWED_CHAT_IDS": "-1003647732254"},
+        ), patch("app.worker_activity_report", return_value=report) as activity:
+            status, payload = call_app(
+                "/api/workers/activity",
+                query="group=-1003647732254&days=14",
+                headers={"Authorization": "Bearer correct"},
+            )
+        self.assertEqual(status, 200)
+        self.assertEqual(payload["activity"], report)
+        self.assertEqual(activity.call_args.args[:2], (-1003647732254, 14))
+
+        with patch.dict(os.environ, {"INSIGHTS_API_KEY": "correct", "ALLOWED_CHAT_IDS": "-100123"}):
+            status, _ = call_app(
+                "/api/workers/activity",
+                query="group=-1003647732254&days=14",
+                headers={"Authorization": "Bearer correct"},
+            )
+        self.assertEqual(status, 403)
+
+    def test_new_client_status_uses_its_own_workflow(self):
+        groups = [{"team": "Veo Jel", "assigned_today": 2}]
+        with patch.dict(
+            os.environ,
+            {"INSIGHTS_API_KEY": "correct", "ALLOWED_CHAT_IDS": "-1004461399292"},
+        ), patch("app.new_client_status", return_value=groups) as status_query:
+            status, payload = call_app(
+                "/api/new-clients/status", headers={"Authorization": "Bearer correct"}
+            )
+        self.assertEqual(status, 200)
+        self.assertEqual(payload["groups"], groups)
+        self.assertEqual(status_query.call_args.args[0], {-1004461399292})
+
+    def test_webhook_stores_valid_update(self):
+        body = json.dumps({"update_id": 1}).encode()
+        with patch.dict(
+            os.environ,
+            {"TELEGRAM_WEBHOOK_SECRET": "correct", "ALLOWED_CHAT_IDS": "-100123"},
+        ), patch("app.save_update") as save:
+            status, payload = call_app(
+                "/api/webhook",
+                method="POST",
+                headers={"X-Telegram-Bot-Api-Secret-Token": "correct"},
+                body=body,
+            )
+        self.assertEqual(status, 200)
+        self.assertTrue(payload["ok"])
+        save.assert_called_once_with({"update_id": 1}, {-100123})
+
+    def test_schedules_require_authorization(self):
+        with patch.dict(os.environ, {"INSIGHTS_API_KEY": "correct"}):
+            status, payload = call_app("/api/schedules")
+        self.assertEqual(status, 401)
+        self.assertFalse(payload["ok"])
+
+    def test_creates_scheduled_message_for_approved_group(self):
+        request_body = json.dumps({
+            "chat_id": -100123,
+            "action_type": "message",
+            "scheduled_for": "2026-09-20T09:30:00+08:00",
+            "payload": {"text": "Team update", "disable_notification": True},
+        }).encode()
+        created = {"id": 7, "chat_id": -100123, "status": "pending"}
+        with patch.dict(
+            os.environ,
+            {"INSIGHTS_API_KEY": "correct", "ALLOWED_CHAT_IDS": "-100123"},
+        ), patch("app.create_scheduled_action", return_value=created) as create:
+            status, payload = call_app(
+                "/api/schedules",
+                method="POST",
+                headers={"Authorization": "Bearer correct"},
+                body=request_body,
+            )
+        self.assertEqual(status, 201)
+        self.assertEqual(payload["schedule"], created)
+        create.assert_called_once()
+        called = create.call_args.kwargs
+        self.assertEqual(called["chat_id"], -100123)
+        self.assertEqual(called["action_type"], "message")
+        self.assertEqual(called["payload"]["text"], "Team update")
+        self.assertEqual(called["scheduled_for"].isoformat(), "2026-09-20T01:30:00+00:00")
+
+    def test_rejects_schedule_for_unapproved_group(self):
+        request_body = json.dumps({
+            "chat_id": -100999,
+            "action_type": "message",
+            "scheduled_for": "2026-09-20T09:30:00+08:00",
+            "payload": {"text": "Team update"},
+        }).encode()
+        with patch.dict(
+            os.environ,
+            {"INSIGHTS_API_KEY": "correct", "ALLOWED_CHAT_IDS": "-100123"},
+        ), patch("app.create_scheduled_action") as create:
+            status, _ = call_app(
+                "/api/schedules",
+                method="POST",
+                headers={"Authorization": "Bearer correct"},
+                body=request_body,
+            )
+        self.assertEqual(status, 403)
+        create.assert_not_called()
+
+    def test_dispatches_due_action_and_archives_sent_message(self):
+        action = {
+            "id": 7,
+            "chat_id": -100123,
+            "action_type": "message",
+            "payload": {"text": "Team update"},
+        }
+        sent_message = {"message_id": 51, "chat": {"id": -100123, "type": "supergroup"}, "date": 1}
+        with patch.dict(os.environ, {"ALLOWED_CHAT_IDS": "-100123"}), patch(
+            "app.run_due_daily_automation", return_value=0
+        ), patch(
+            "app.claim_scheduled_actions", return_value=[action]
+        ) as claim, patch("app.send_scheduled_action", return_value=sent_message) as send, patch(
+            "app.finish_scheduled_action", return_value=True
+        ) as finish, patch("app.save_update") as save:
+            status, payload = call_app("/api/cron/dispatch")
+        self.assertEqual(status, 200)
+        self.assertEqual(payload, {"ok": True, "queued": 0, "processed": 1, "sent": 1, "failed": 0})
+        claim.assert_called_once_with({-100123}, limit=25)
+        send.assert_called_once_with(action)
+        finish.assert_called_once_with(7, success=True, telegram_message_id=51, claim=action)
+        save.assert_called_once_with({"message": sent_message}, {-100123})
+
+    def test_dispatch_with_no_due_actions_is_safe(self):
+        with patch.dict(os.environ, {"ALLOWED_CHAT_IDS": "-100123"}), patch(
+            "app.run_due_daily_automation", return_value=0
+        ), patch(
+            "app.claim_scheduled_actions", return_value=[]
+        ):
+            status, payload = call_app("/api/cron/dispatch")
+        self.assertEqual(status, 200)
+        self.assertEqual(payload["processed"], 0)
+
+    def test_daily_poll_is_registered_before_schedule_is_finalized(self):
+        action = {
+            "id": 8,
+            "chat_id": -100123,
+            "action_type": "poll",
+            "payload": {
+                "question": "Will you be active?", "options": ["Yes", "No"],
+                "message_thread_id": 42, "daily_poll_date": "2026-09-20",
+            },
+        }
+        sent_poll = {
+            "message_id": 52, "chat": {"id": -100123, "type": "supergroup"},
+            "date": 1, "poll": {"id": "poll-52"},
+        }
+        with patch.dict(os.environ, {"ALLOWED_CHAT_IDS": "-100123"}), patch(
+            "app.run_due_daily_automation", return_value=0
+        ), patch("app.claim_scheduled_actions", return_value=[action]), patch(
+            "app.daily_poll_counts", return_value={}
+        ), patch("app.send_scheduled_action", return_value=sent_poll), patch(
+            "app.finish_scheduled_action", return_value=True
+        ) as finish, patch("app.register_daily_poll") as register, patch("app.save_update"):
+            def register_before_finish(**_):
+                self.assertFalse(finish.called)
+                return True
+
+            register.side_effect = register_before_finish
+            status, payload = call_app("/api/cron/dispatch")
+        self.assertEqual(status, 200)
+        self.assertEqual(payload["sent"], 1)
+        register.assert_called_once()
+        finish.assert_called_once_with(8, success=True, telegram_message_id=52, claim=action)
+
+    def test_tracked_daily_poll_is_not_sent_twice_after_finalize_failure(self):
+        action = {
+            "id": 8,
+            "chat_id": -100123,
+            "action_type": "poll",
+            "payload": {
+                "question": "Will you be active?", "options": ["Yes", "No"],
+                "message_thread_id": 42, "daily_poll_date": "2026-09-20",
+            },
+        }
+        with patch.dict(os.environ, {"ALLOWED_CHAT_IDS": "-100123"}), patch(
+            "app.run_due_daily_automation", return_value=0
+        ), patch("app.claim_scheduled_actions", return_value=[action]), patch(
+            "app.daily_poll_counts", return_value={-100123: {"poll_id": "poll-52"}}
+        ), patch("app.send_scheduled_action") as send, patch(
+            "app.finish_scheduled_action", return_value=True
+        ) as finish:
+            status, payload = call_app("/api/cron/dispatch")
+        self.assertEqual(status, 200)
+        self.assertEqual(payload["sent"], 0)
+        send.assert_not_called()
+        finish.assert_called_once_with(8, success=True, claim=action)
+
+    def test_webhook_stores_poll_answer(self):
+        update = {"update_id": 2, "poll_answer": {"poll_id": "poll-1"}}
+        body = json.dumps(update).encode()
+        with patch.dict(
+            os.environ,
+            {"TELEGRAM_WEBHOOK_SECRET": "correct", "ALLOWED_CHAT_IDS": "-100123"},
+        ), patch("app.save_poll_answer") as save:
+            status, payload = call_app(
+                "/api/webhook",
+                method="POST",
+                headers={"X-Telegram-Bot-Api-Secret-Token": "correct"},
+                body=body,
+            )
+        self.assertEqual(status, 200)
+        self.assertTrue(payload["ok"])
+        save.assert_called_once_with(update, {-100123})
+
+    def test_active_poll_vote_queues_both_assignment_workflows(self):
+        update = {"poll_answer": {"poll_id": "today-poll"}}
+        with patch.dict(os.environ, {
+            "TELEGRAM_WEBHOOK_SECRET": "correct", "ALLOWED_CHAT_IDS": "-100123",
+            "CRM_SUPABASE_SERVICE_ROLE_KEY": "configured",
+        }), patch("app.save_poll_answer", return_value=True), patch(
+            "app.poll_answer_chat_today", return_value=-100123
+        ), patch("app.queue_freebie_assignments", return_value=1) as freebie_queue, patch(
+            "app.queue_new_client_assignments", return_value=1
+        ) as client_queue, patch(
+            "app.deliver_due_actions", return_value=(1, 1, 0)
+        ) as deliver:
+            status, _ = call_app(
+                "/api/webhook", method="POST",
+                headers={"X-Telegram-Bot-Api-Secret-Token": "correct"},
+                body=json.dumps(update).encode(),
+            )
+        self.assertEqual(status, 200)
+        self.assertEqual(freebie_queue.call_args.args[1], {-100123})
+        self.assertEqual(client_queue.call_args.args[1], {-100123})
+        deliver.assert_called_once_with({-100123}, limit=5)
+
+    def test_unknown_route_returns_not_found(self):
+        status, _ = call_app("/missing")
+        self.assertEqual(status, 404)
+
+
+if __name__ == "__main__":
+    unittest.main()

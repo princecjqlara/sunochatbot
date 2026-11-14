@@ -1,0 +1,73 @@
+{
+  "verified_at": "2026-11-14T17:45:57.460982+00:00",
+  "app_regression": {
+    "files": 336,
+    "passed": 2645,
+    "failed": 0
+  },
+  "final_targeted_compatibility": {
+    "files": 7,
+    "passed": 87,
+    "failed": 0
+  },
+  "bot": {
+    "passed": 1392,
+    "failed": 0
+  },
+  "typecheck_passed": true,
+  "production_build_passed": true,
+  "http_smoke": {
+    "passed": true,
+    "authenticated": false,
+    "sends_invoked": false,
+    "checks": 42
+  },
+  "incremental_schema": {
+    "passed": true,
+    "pending_files": 150,
+    "retained_table_columns": 443,
+    "customer_rows_extracted": 0,
+    "retained_types_verified": true,
+    "retained_not_null_verified": true
+  },
+  "production_deployed": false,
+  "production_migrated": false,
+  "remaining": [
+    "Suno earnings rules and adapter",
+    "dedicated bot archive and hosting routes",
+    "approved groups and Page routes",
+    "retained job/token/archive handover",
+    "owner login and interactive/profile/calendar live acceptance",
+    "verified Meta app and Page runtime ownership"
+  ],
+  "lint": {
+    "passed": true,
+    "errors": 0,
+    "warnings": 25
+  },
+  "dependencies": {
+    "next": "15.5.29",
+    "next_auth": "4.24.15",
+    "production_vulnerabilities": 0,
+    "development_moderate_vulnerabilities": 6,
+    "high_or_critical_vulnerabilities": 0
+  },
+  "legacy_installer_unsafe_modes_blocked": true,
+  "build_trace": {
+    "manifests": 154,
+    "references": 11774,
+    "outside_or_private_references": 0,
+    "tracing_root": "C:\\Users\\Cj Lara\\Downloads\\sunobot\\suno-system"
+  },
+  "coverage": {
+    "api_routes": 125,
+    "pages": 22,
+    "components": 56,
+    "cron_routes": 17,
+    "scheduled_in_vercel": 16,
+    "not_scheduled_in_vercel": 1,
+    "bot_routes": 28,
+    "current_data_column_records": 411,
+    "unclassified": 0
+  }
+}

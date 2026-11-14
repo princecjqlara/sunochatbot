@@ -5,9 +5,14 @@ import { getSupabaseAdmin } from '@/lib/supabase';
 import {
     CONTACT_PIPELINE_LABELS,
     CONTACT_PIPELINE_STAGES,
+    chatbotStopReasonForPipelineStage,
     isContactPipelineStage,
     updateContactPipelineStage
 } from '@/lib/contact-pipeline';
+import { getChatbotContactState, saveChatbotContactState } from '@/lib/chatbot-control';
+import { cancelPendingChatbotFollowUps } from '@/lib/chatbot-follow-ups';
+import { getChatbotDetailProgress } from '@/lib/chatbot-form-progress';
+import {leadQualityForStage} from '@/lib/lead-quality';
 
 export const dynamic = 'force-dynamic';
 
@@ -16,7 +21,7 @@ async function authorize(request: NextRequest, pageId: string) {
     if (!session?.user?.id) {
         return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
-    if (!await userHasPageAccess(session.user.id, pageId)) {
+    if (!await userHasPageAccess(session.user.id, pageId, request)) {
         return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
     return null;
@@ -41,6 +46,7 @@ export async function GET(
         const pageSize = positiveInteger(searchParams.get('pageSize'), 25, 100);
         const requestedStage = searchParams.get('stage');
         const stage = isContactPipelineStage(requestedStage) ? requestedStage : null;
+        const withDetails = searchParams.get('details') === 'with_details';
         const search = (searchParams.get('search') || '')
             .trim()
             .replace(/[^\p{L}\p{N}\s@._+-]/gu, ' ')
@@ -52,28 +58,35 @@ export async function GET(
         let contactsQuery = db
             .from('contacts')
             .select(
-                'id,page_id,psid,name,profile_pic,last_interaction_at,last_inbound_at,created_at,pipeline_stage,pipeline_stage_source,pipeline_stage_updated_at',
-                search ? { count: 'exact' } : {}
+                withDetails
+                    ? 'id,page_id,psid,name,profile_pic,last_interaction_at,last_inbound_at,created_at,pipeline_stage,pipeline_stage_source,pipeline_stage_updated_at,messenger_stage_label,messenger_stage_event_at,contact_tags(tags(id,name,color,system_key)),chatbot_contact_states!inner(contact_id)'
+                    : 'id,page_id,psid,name,profile_pic,last_interaction_at,last_inbound_at,created_at,pipeline_stage,pipeline_stage_source,pipeline_stage_updated_at,messenger_stage_label,messenger_stage_event_at,contact_tags(tags(id,name,color,system_key))',
+                search || withDetails ? { count: 'exact' } : {}
             )
             .eq('page_id', pageId)
             .order('pipeline_stage_updated_at', { ascending: false })
             .order('last_interaction_at', { ascending: false, nullsFirst: false });
         if (stage) contactsQuery = contactsQuery.eq('pipeline_stage', stage);
+        if (withDetails) contactsQuery = contactsQuery.neq('chatbot_contact_states.collected_details', '{}');
         if (search) contactsQuery = contactsQuery.or(`name.ilike.*${search}*,psid.ilike.*${search}*`);
 
-        const [contactsResult, stageCountResult] = await Promise.all([
+        const [contactsResult, stageCountResult, configResult, syncResult] = await Promise.all([
             contactsQuery.range(from, to),
-            db.rpc('get_contact_pipeline_counts', { p_page_id: pageId })
+            db.rpc('get_contact_pipeline_counts', { p_page_id: pageId }),
+            db.from('chatbot_configs').select('*').eq('page_id', pageId).maybeSingle(),
+            db.from('pages').select('messaging_auto_tag_enabled,messaging_auto_tag_checked_at,messaging_auto_tag_last_error').eq('id', pageId).maybeSingle()
         ]);
         if (contactsResult.error) throw contactsResult.error;
         if (stageCountResult.error) throw stageCountResult.error;
+        if (configResult.error) throw configResult.error;
+        if (syncResult.error) throw syncResult.error;
 
-        const contacts = contactsResult.data || [];
+        const contacts = (contactsResult.data || []) as unknown as Array<{ id: string; [key: string]: unknown }>;
         const contactIds = contacts.map((contact) => contact.id);
         const { data: chatbotStates, error: stateError } = contactIds.length > 0
             ? await db
                 .from('chatbot_contact_states')
-                .select('contact_id,status,collected_details,missing_details,stop_reason,last_inbound_at,last_bot_reply_at,updated_at')
+                .select('*')
                 .eq('page_id', pageId)
                 .in('contact_id', contactIds)
             : { data: [], error: null };
@@ -87,7 +100,7 @@ export async function GET(
             pipelineStage,
             Math.max(0, Number(returnedCounts[pipelineStage]) || 0)
         ]));
-        const totalForView = search
+        const totalForView = search || withDetails
             ? contactsResult.count || 0
             : stage
                 ? stageCounts[stage]
@@ -96,12 +109,18 @@ export async function GET(
         return NextResponse.json({
             contacts: contacts.map((contact) => ({
                 ...contact,
-                chatbot_state: stateByContactId.get(contact.id) || null
+                stage_history_tags: (Array.isArray(contact.contact_tags) ? contact.contact_tags : [])
+                    .map((assignment: any) => assignment.tags)
+                    .filter((tag: any) => typeof tag?.system_key === 'string' && tag.system_key.startsWith('stage_history:')),
+                lead_quality:leadQualityForStage(contact.pipeline_stage),
+                chatbot_state: stateByContactId.get(contact.id) || null,
+                detail_progress: getChatbotDetailProgress(configResult.data, stateByContactId.get(contact.id)?.collected_details)
             })),
             page,
             pageSize,
             total: totalForView,
             stageCounts,
+            stage_sync: syncResult.data || null,
             stages: CONTACT_PIPELINE_STAGES.map((value) => ({ value, label: CONTACT_PIPELINE_LABELS[value] }))
         });
     } catch (error) {
@@ -137,6 +156,16 @@ export async function PATCH(
         if (contactError) throw contactError;
         if (!contact) return NextResponse.json({ error: 'Contact not found' }, { status: 404 });
 
+        // Save the handoff before the visible stage so in-flight bot delivery
+        // stops as soon as this edit is accepted, including nonterminal stages.
+        await saveChatbotContactState(db, {
+            pageId, contactId,
+            existingState: await getChatbotContactState(db, pageId, contactId),
+            stopReason: chatbotStopReasonForPipelineStage(body.stage, 'manual'),
+            pauseKind: 'explicit_hold',
+            humanActivityAt: new Date().toISOString()
+        });
+        await cancelPendingChatbotFollowUps({ supabase: db, pageId, contactId, reason: 'Lead stage set by a person' });
         await updateContactPipelineStage(db, {
             pageId,
             contactId,
@@ -144,7 +173,7 @@ export async function PATCH(
             source: 'manual',
             force: true
         });
-        return NextResponse.json({ success: true, stage: body.stage });
+        return NextResponse.json({ success: true, stage: body.stage,lead_quality:leadQualityForStage(body.stage) });
     } catch (error) {
         console.error('[PIPELINE_PATCH]', error);
         return NextResponse.json(

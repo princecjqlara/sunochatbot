@@ -7,10 +7,13 @@ const mocks = vi.hoisted(() => ({
     userHasPageAccess: vi.fn(),
     generateChatbotFollowUp: vi.fn(),
     generateChatbotResponse: vi.fn(),
+    extractChatbotContactDetails: vi.fn(),
+    analyzeChatbotContinuation: vi.fn(),
     getOpenRouterModelContextLength: vi.fn(),
     getReadyChatbotMediaForDocument: vi.fn(),
     getReadyChatbotMediaForDocuments: vi.fn(),
-    createChatbotMediaSignedUrl: vi.fn()
+    createChatbotMediaSignedUrl: vi.fn(),
+    getReadyChatbotDriveFolderForDocument: vi.fn()
 }));
 
 vi.mock('@/lib/get-session', () => ({
@@ -31,6 +34,8 @@ vi.mock('@/lib/chatbot', async (importOriginal) => {
         ...original,
         generateChatbotFollowUp: mocks.generateChatbotFollowUp,
         generateChatbotResponse: mocks.generateChatbotResponse,
+        extractChatbotContactDetails: mocks.extractChatbotContactDetails,
+        analyzeChatbotContinuation: mocks.analyzeChatbotContinuation,
         getOpenRouterModelContextLength: mocks.getOpenRouterModelContextLength
     };
 });
@@ -41,7 +46,15 @@ vi.mock('@/lib/chatbot-media', () => ({
     createChatbotMediaSignedUrl: mocks.createChatbotMediaSignedUrl
 }));
 
+vi.mock('@/lib/chatbot-drive-folders', async (importOriginal) => ({
+    ...await importOriginal<typeof import('@/lib/chatbot-drive-folders')>(),
+    getReadyChatbotDriveFolderForDocument: mocks.getReadyChatbotDriveFolderForDocument
+}));
+
 import { GET, POST, PUT } from './route';
+import { COMMERCIAL_VIDEO_REQUIRED_DETAILS } from '@/lib/chatbot-intake';
+import { videoPreferences } from '@/lib/__tests__/fixtures/commercial-video';
+import { usesSalesAssistant } from '@/lib/chatbot-sales-assistant';
 
 const savedConfig = {
     page_id: 'page_1',
@@ -83,6 +96,22 @@ function selectBuilder(result: { data: unknown; error: unknown }) {
     return builder;
 }
 
+function updateBuilder(existingPolicies: Array<{ page_id: string; commercial_video_intake_enabled: boolean; follow_up_first_day_mode?: 'fixed' | 'adaptive' }> = []) {
+    const builder: Record<string, any> = {};
+    builder.select = vi.fn(() => builder);
+    builder.in = vi.fn().mockResolvedValue({ data: existingPolicies, error: null });
+    builder.upsert = vi.fn().mockResolvedValue({ error: null });
+    return builder;
+}
+
+const requiredDetails = COMMERCIAL_VIDEO_REQUIRED_DETAILS;
+const completeForm = { ...videoPreferences, 'Business Name': 'CJ Cafe', 'Business Location': 'Manila', 'Goal ng video': 'Promote our opening', 'Contact Number': '09171234567' };
+
+function configRequest(body: unknown, method = 'PUT') {
+    return new Request('http://localhost/api/pages/page_1/chatbot', { method,
+        headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }) as NextRequest;
+}
+
 describe('chatbot Page-member access', () => {
     beforeEach(() => {
         vi.clearAllMocks();
@@ -90,6 +119,7 @@ describe('chatbot Page-member access', () => {
         mocks.userHasPageAccess.mockResolvedValue(true);
         mocks.getOpenRouterModelContextLength.mockResolvedValue(1_048_576);
         mocks.getReadyChatbotMediaForDocuments.mockResolvedValue([]);
+        mocks.getReadyChatbotDriveFolderForDocument.mockResolvedValue(null);
     });
 
     it('lets any user_pages collaborator load the shared bot configuration', async () => {
@@ -102,14 +132,41 @@ describe('chatbot Page-member access', () => {
 
         expect(response.status).toBe(200);
         expect(await response.json()).toEqual(expect.objectContaining({ config: savedConfig }));
-        expect(mocks.userHasPageAccess).toHaveBeenCalledWith('collaborator_1', 'page_1');
+        expect(mocks.userHasPageAccess).toHaveBeenCalledWith('collaborator_1', 'page_1', expect.any(Request));
+    });
+
+    it('returns persisted sales settings when the database honors the selected columns', async () => {
+        const stored = { ...savedConfig, commercial_video_intake_enabled: true,
+            sales_assistant_settings: { pricing_enabled: false, aggressiveness: 'direct' } };
+        const builder = selectBuilder({ data: stored, error: null });
+        let fields: string[] = [];
+        builder.select = vi.fn((columns: string) => { fields = columns.split(',').map(field => field.trim()); return builder; });
+        builder.maybeSingle = vi.fn(async () => ({ data: Object.fromEntries(Object.entries(stored).filter(([key]) => fields.includes(key))), error: null }));
+        mocks.getSupabaseAdmin.mockReturnValue({ from: vi.fn(() => builder) });
+        const response = await GET(new Request('http://localhost/api/pages/page_1/chatbot') as NextRequest,
+            { params: Promise.resolve({ pageId: 'page_1' }) });
+        expect(response.status).toBe(200);
+        expect((await response.json()).config.sales_assistant_settings).toEqual(stored.sales_assistant_settings);
+    });
+
+    it('previews an AI intake review without sending or changing any contact', async () => {
+        const builder = selectBuilder({ data: savedConfig, error: null });
+        const from = vi.fn(() => builder);
+        mocks.getSupabaseAdmin.mockReturnValue({ from });
+        mocks.analyzeChatbotContinuation.mockResolvedValue({ purchase_status: 'undecided', confidence: 0.9, summary: 'No agreement', customer_evidence: 'How much?' });
+        const response = await POST(new Request('http://localhost/api/pages/page_1/chatbot', { method: 'POST',
+            headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ mode: 'continuation_review', history: [{ role: 'user', content: 'How much?' }] })
+        }) as NextRequest, { params: Promise.resolve({ pageId: 'page_1' }) });
+        expect(response.status).toBe(200);
+        expect(await response.json()).toEqual(expect.objectContaining({ would_resume: true, no_customer_messages_sent: true }));
+        expect(mocks.generateChatbotResponse).not.toHaveBeenCalled();
+        expect(from).toHaveBeenCalledTimes(2);
+        expect(from).toHaveBeenNthCalledWith(1, 'chatbot_configs');
+        expect(from).toHaveBeenNthCalledWith(2, 'pages');
     });
 
     it('lets the collaborator edit the same Page-level bot configuration', async () => {
-        const builder: Record<string, any> = {};
-        builder.upsert = vi.fn(() => builder);
-        builder.select = vi.fn(() => builder);
-        builder.single = vi.fn().mockResolvedValue({ data: savedConfig, error: null });
+        const builder = updateBuilder();
         mocks.getSupabaseAdmin.mockReturnValue({ from: vi.fn(() => builder) });
 
         const response = await PUT(new Request('http://localhost/api/pages/page_1/chatbot', {
@@ -125,7 +182,163 @@ describe('chatbot Page-member access', () => {
             expect.objectContaining({ page_id: 'page_1', instructions: savedConfig.instructions }),
             { onConflict: 'page_id' }
         );
-        expect(mocks.userHasPageAccess).toHaveBeenCalledWith('collaborator_1', 'page_1');
+        expect(mocks.userHasPageAccess).toHaveBeenCalledWith('collaborator_1', 'page_1', expect.any(Request));
+    });
+
+    it('saves pricing OFF independently of the original flow', async () => {
+        const builder = updateBuilder(); mocks.getSupabaseAdmin.mockReturnValue({ from: vi.fn(() => builder) });
+        const response = await PUT(configRequest({ ...savedConfig, commercial_video_intake_enabled: true, sales_assistant_settings: {}, pricing_enabled: false }),
+            { params: Promise.resolve({ pageId: 'page_1' }) });
+        expect(response.status).toBe(200);
+        const config = builder.upsert.mock.calls[0][0]; expect(config.pricing_enabled).toBe(false);
+        expect(config.sales_assistant_settings).toEqual({}); expect(usesSalesAssistant(config)).toBe(false);
+    });
+    it('leaves saved pricing unchanged when older settings requests omit it', async () => {
+        const builder = updateBuilder(); mocks.getSupabaseAdmin.mockReturnValue({ from: vi.fn(() => builder) });
+        expect((await PUT(configRequest(savedConfig), { params: Promise.resolve({ pageId: 'page_1' }) })).status).toBe(200);
+        expect(builder.upsert.mock.calls[0][0]).not.toHaveProperty('pricing_enabled');
+    });
+    it('preserves the original flow when an unchanged empty sales object is saved', async () => {
+        const builder = updateBuilder(); mocks.getSupabaseAdmin.mockReturnValue({ from: vi.fn(() => builder) });
+        const response = await PUT(configRequest({ ...savedConfig, commercial_video_intake_enabled: true, sales_assistant_settings: {} }),
+            { params: Promise.resolve({ pageId: 'page_1' }) });
+        expect(response.status).toBe(200);
+        const config = builder.upsert.mock.calls[0][0]; expect(config.sales_assistant_settings).toEqual({}); expect(usesSalesAssistant(config)).toBe(false);
+    });
+    it('preserves the original flow when the dashboard previews its unchanged empty sales object', async () => {
+        const builder = selectBuilder({ data: { ...savedConfig, sales_assistant_settings: {}, commercial_video_intake_enabled: true }, error: null });
+        mocks.getSupabaseAdmin.mockReturnValue({ from: vi.fn(() => builder) });
+        mocks.generateChatbotResponse.mockResolvedValue({ reply: 'Business?', messages: ['Business?'], knowledge: [] });
+        const response = await POST(configRequest({ message: 'Hello', draft_config: { ...savedConfig, sales_assistant_settings: {}, commercial_video_intake_enabled: true } }, 'POST'),
+            { params: Promise.resolve({ pageId: 'page_1' }) });
+        expect(response.status).toBe(200); const config = mocks.generateChatbotResponse.mock.calls[0][0].config;
+        expect(config.sales_assistant_settings).toEqual({}); expect(usesSalesAssistant(config)).toBe(false);
+    });
+    it('does not preconfigure an alternate flow for a Page without saved chatbot settings', async () => {
+        const builder = selectBuilder({ data: null, error: null }); mocks.getSupabaseAdmin.mockReturnValue({ from: vi.fn(() => builder) });
+        const response = await GET(new Request('http://localhost/api/pages/page_1/chatbot') as NextRequest, { params: Promise.resolve({ pageId: 'page_1' }) });
+        expect(response.status).toBe(200); expect((await response.json()).config.sales_assistant_settings).toEqual({});
+    });
+    it('saves the first-day timing mode', async () => {
+        const builder = updateBuilder();
+        mocks.getSupabaseAdmin.mockReturnValue({ from: vi.fn(() => builder) });
+        const response = await PUT(configRequest({ ...savedConfig, follow_up_first_day_mode: 'adaptive' }),
+            { params: Promise.resolve({ pageId: 'page_1' }) });
+        expect(response.status).toBe(200);
+        expect(builder.upsert).toHaveBeenCalledWith(expect.objectContaining({ follow_up_first_day_mode: 'adaptive' }),
+            { onConflict: 'page_id' });
+    });
+
+    it('preserves the active timing mode when an older dashboard omits it', async () => {
+        const builder = updateBuilder([{ page_id: 'page_1', commercial_video_intake_enabled: true, follow_up_first_day_mode: 'adaptive' }]);
+        mocks.getSupabaseAdmin.mockReturnValue({ from: vi.fn(() => builder) });
+        const response = await PUT(configRequest(savedConfig), { params: Promise.resolve({ pageId: 'page_1' }) });
+        expect(response.status).toBe(200);
+        expect(builder.upsert).toHaveBeenCalledWith(expect.objectContaining({ follow_up_first_day_mode: 'adaptive' }),
+            { onConflict: 'page_id' });
+    });
+
+    it('rejects unsupported first-day timing modes', async () => {
+        const response = await PUT(configRequest({ ...savedConfig, follow_up_first_day_mode: 'random' }),
+            { params: Promise.resolve({ pageId: 'page_1' }) });
+        expect(response.status).toBe(400);
+    });
+
+    it('enforces the four-field policy without changing knowledge or follow-up switches', async () => {
+        const builder = updateBuilder();
+        mocks.getSupabaseAdmin.mockReturnValue({ from: vi.fn(() => builder) });
+        const response = await PUT(configRequest({ ...savedConfig, commercial_video_intake_enabled: true,
+            details_to_collect: ['Optional budget'], details_completion_percent: 1,
+            continuation_review_enabled: true, continuation_review_hour: 8, continuation_review_minute: 12,
+            stop_when_details_collected: true, rag_enabled: true, follow_up_enabled: true }),
+        { params: Promise.resolve({ pageId: 'page_1' }) });
+        expect(response.status).toBe(200);
+        expect(builder.upsert).toHaveBeenCalledWith(expect.objectContaining({
+            commercial_video_intake_enabled: true, details_to_collect: requiredDetails, details_completion_percent: 100,
+            continuation_review_hour: 23, continuation_review_minute: 59, stop_when_details_collected: false,
+            follow_up_enabled: true, rag_enabled: true
+        }), { onConflict: 'page_id' });
+    });
+
+    it('shows effective scoped policy settings on load even when stored legacy values conflict', async () => {
+        const builder = selectBuilder({ data: { ...savedConfig, commercial_video_intake_enabled: true,
+            details_to_collect: ['Budget'], details_completion_percent: 50, continuation_review_hour: 8,
+            continuation_review_minute: 0 }, error: null });
+        mocks.getSupabaseAdmin.mockReturnValue({ from: vi.fn(() => builder) });
+        const response = await GET(new Request('http://localhost/api/pages/page_1/chatbot') as NextRequest,
+            { params: Promise.resolve({ pageId: 'page_1' }) });
+        expect(response.status).toBe(200);
+        expect(await response.json()).toEqual(expect.objectContaining({ config: expect.objectContaining({
+            details_to_collect: requiredDetails, details_completion_percent: 100, continuation_review_hour: 23,
+            continuation_review_minute: 59, stop_when_details_collected: false }) }));
+    });
+
+    it('preserves existing scoped policies when an older client copies settings to several Pages', async () => {
+        const builder = updateBuilder([{ page_id: 'page_1', commercial_video_intake_enabled: true },
+            { page_id: 'page_2', commercial_video_intake_enabled: false }]);
+        mocks.getSupabaseAdmin.mockReturnValue({ from: vi.fn(() => builder) });
+        const response = await PUT(configRequest({ ...savedConfig, apply_to_page_ids: ['page_2'],
+            details_to_collect: ['Service needed'], details_completion_percent: 50 }),
+        { params: Promise.resolve({ pageId: 'page_1' }) });
+        expect(response.status).toBe(200);
+        const [payload] = builder.upsert.mock.calls[0];
+        expect(payload[0]).toEqual(expect.objectContaining({ details_to_collect: requiredDetails,
+            details_completion_percent: 100, continuation_review_hour: 23, continuation_review_minute: 59, stop_when_details_collected: false }));
+        expect(payload[1]).toEqual(expect.objectContaining({ details_to_collect: ['Service needed'], details_completion_percent: 50,
+            stop_when_details_collected: true }));
+        expect(payload[1]).not.toHaveProperty('commercial_video_intake_enabled');
+    });
+
+    it('keeps generic Page form settings and minute precision', async () => {
+        const builder = updateBuilder();
+        mocks.getSupabaseAdmin.mockReturnValue({ from: vi.fn(() => builder) });
+        const response = await PUT(configRequest({ ...savedConfig, commercial_video_intake_enabled: false,
+            details_to_collect: ['Service needed'], details_completion_percent: 50,
+            continuation_review_enabled: true, continuation_review_hour: 20, continuation_review_minute: 30 }),
+        { params: Promise.resolve({ pageId: 'page_1' }) });
+        expect(response.status).toBe(200);
+        expect(builder.upsert).toHaveBeenCalledWith(expect.objectContaining({ details_to_collect: ['Service needed'],
+            details_completion_percent: 50, continuation_review_hour: 20, continuation_review_minute: 30,
+            stop_when_details_collected: true }), { onConflict: 'page_id' });
+    });
+
+    it.each([-1, 60, 10.5, '59'])('rejects invalid review minute %s before writing', async (minute) => {
+        const response = await PUT(configRequest({ ...savedConfig, continuation_review_minute: minute }),
+            { params: Promise.resolve({ pageId: 'page_1' }) });
+        expect(response.status).toBe(400);
+        expect(mocks.getSupabaseAdmin).not.toHaveBeenCalled();
+    });
+
+    it.each([
+        [false, false, true], [false, true, true], [true, false, true], [true, true, false]
+    ])('previews the confirmed OR rule: form complete=%s, clear request=%s', async (formComplete, clearRequest, wouldResume) => {
+        const builder = selectBuilder({ data: { ...savedConfig, commercial_video_intake_enabled: true,
+            continuation_review_enabled: true }, error: null });
+        mocks.getSupabaseAdmin.mockReturnValue({ from: vi.fn(() => builder) });
+        mocks.extractChatbotContactDetails.mockResolvedValue({ collected_details: formComplete ? completeForm : { 'Business Name': 'CJ Cafe' }, missing_details: [] });
+        mocks.analyzeChatbotContinuation.mockResolvedValue({ purchase_status: clearRequest ? 'agreed' : 'unknown',
+            has_clear_request: clearRequest, confidence: 0.9, summary: 'Customer intent reviewed', customer_evidence: 'How much?' });
+        const response = await POST(configRequest({ mode: 'continuation_review', history: [{ role: 'user', content: 'How much?' }] }, 'POST'),
+            { params: Promise.resolve({ pageId: 'page_1' }) });
+        expect(response.status).toBe(200);
+        expect(await response.json()).toEqual(expect.objectContaining({ would_resume: wouldResume, no_customer_messages_sent: true,
+            policy: expect.objectContaining({ formComplete, clearRequest }) }));
+        expect(mocks.extractChatbotContactDetails).toHaveBeenCalled();
+        expect(mocks.generateChatbotResponse).not.toHaveBeenCalled();
+    });
+
+    it('applies the same scoped rules to draft previews and ignores legacy expanded targets', async () => {
+        const builder = selectBuilder({ data: savedConfig, error: null });
+        mocks.getSupabaseAdmin.mockReturnValue({ from: vi.fn(() => builder) });
+        mocks.generateChatbotResponse.mockResolvedValue({ reply: 'Form', messages: ['Form'], knowledge: [] });
+        const response = await POST(configRequest({ message: 'Hello', detail_target_count: 10,
+            draft_config: { commercial_video_intake_enabled: true, details_to_collect: ['Budget'], details_completion_percent: 50,
+                continuation_review_hour: 10, continuation_review_minute: 0, stop_when_details_collected: true } }, 'POST'),
+            { params: Promise.resolve({ pageId: 'page_1' }) });
+        expect(response.status).toBe(200);
+        expect(mocks.generateChatbotResponse).toHaveBeenCalledWith(expect.objectContaining({ detailTargetCount: undefined,
+            config: expect.objectContaining({ commercial_video_intake_enabled: true, details_to_collect: requiredDetails,
+                details_completion_percent: 100, continuation_review_enabled: true, continuation_review_hour: 23, continuation_review_minute: 59, stop_when_details_collected: false }) }));
     });
 
     it('carries test chat history and collected details into the next reply', async () => {
@@ -196,6 +409,16 @@ describe('chatbot Page-member access', () => {
         }));
     });
 
+    it('lets a Test Chat form button open the exact form through the same response generator', async () => {
+        const configBuilder = selectBuilder({ data: { ...savedConfig, commercial_video_intake_enabled: true }, error: null });
+        const pageBuilder = selectBuilder({ data: { name: 'Test Page' }, error: null });
+        mocks.getSupabaseAdmin.mockReturnValue({ from: vi.fn(table => table === 'chatbot_configs' ? configBuilder : pageBuilder) });
+        mocks.generateChatbotResponse.mockResolvedValue({ reply: 'Form', messages: ['Form', 'Anong business name mo?'], collected_details: {}, knowledge: [] });
+        const response = await POST(configRequest({ action_payload: 'VEO:FORM:2', contact_name: 'CJ Lara' }, 'POST'), { params: Promise.resolve({ pageId: 'page_1' }) });
+        expect(response.status).toBe(200);
+        expect(mocks.generateChatbotResponse).toHaveBeenCalledWith(expect.objectContaining({ inboundMessage: 'Pakisend ng fill-up form.', contactName: 'CJ Lara' }));
+    });
+
     it('previews a Human Agent follow-up without scheduling or sending it', async () => {
         const configBuilder = selectBuilder({ data: savedConfig, error: null });
         const pageBuilder = selectBuilder({ data: { name: 'Test Page' }, error: null });
@@ -204,6 +427,7 @@ describe('chatbot Page-member access', () => {
         });
         mocks.generateChatbotFollowUp.mockResolvedValue({
             message: 'Just checking whether you still need help next week.',
+            messages: ['We can help next week.', 'What day works best?'],
             knowledge: [],
             retrieval_warning: undefined
         });
@@ -226,13 +450,34 @@ describe('chatbot Page-member access', () => {
         expect(await response.json()).toEqual(expect.objectContaining({
             mode: 'follow_up',
             follow_up_type: 'human_agent',
-            reply: 'Just checking whether you still need help next week.'
+            reply: 'Just checking whether you still need help next week.',
+            messages: ['We can help next week.', 'What day works best?']
         }));
         expect(mocks.generateChatbotFollowUp).toHaveBeenCalledWith(expect.objectContaining({
             sequenceNumber: 2,
             scheduleLabel: 'best-time day 2-7'
         }));
         expect(mocks.generateChatbotFollowUp.mock.calls[0][0]).not.toHaveProperty('fallbackMessage');
+    });
+
+    it('previews the selected follow-up folder button without writing contacts or schedules', async () => {
+        const configBuilder = selectBuilder({ data: { ...savedConfig, knowledge_source_page_id: 'shared_library' }, error: null });
+        const pageBuilder = selectBuilder({ data: { name: 'Test Page' }, error: null });
+        const from = vi.fn((table: string) => table === 'chatbot_configs' ? configBuilder : pageBuilder);
+        mocks.getSupabaseAdmin.mockReturnValue({ from });
+        const folder = { id: 'folder_1', name: 'Bakery samples', folder_url: 'https://example.com/samples', button_text: 'View samples' };
+        mocks.getReadyChatbotDriveFolderForDocument.mockResolvedValue(folder);
+        mocks.generateChatbotFollowUp.mockResolvedValue({
+            message: 'Ito ang bakery samples. Anong style ang gusto mo?',
+            messages: ['Ito ang bakery samples.', 'Anong style ang gusto mo?'],
+            link_document_id: 'folder_document', knowledge: []
+        });
+        const response = await POST(configRequest({ mode: 'follow_up', history: [{ role: 'user', content: 'Bakery samples po.' }] }, 'POST'),
+            { params: Promise.resolve({ pageId: 'page_1' }) });
+        expect(response.status).toBe(200);
+        expect(await response.json()).toEqual(expect.objectContaining({ folder, messages: ['Ito ang bakery samples.', 'Anong style ang gusto mo?'] }));
+        expect(mocks.getReadyChatbotDriveFolderForDocument).toHaveBeenCalledWith({ pageId: 'shared_library', documentId: 'folder_document' });
+        expect(from.mock.calls.map(([table]) => table)).toEqual(['chatbot_configs', 'pages']);
     });
 
     it('rejects a signed-in user without a user_pages membership', async () => {

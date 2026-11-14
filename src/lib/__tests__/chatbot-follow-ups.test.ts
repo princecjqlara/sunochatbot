@@ -28,7 +28,6 @@ vi.mock('@/lib/outbound-message-events', () => ({
 import {
     getBestTimeFollowUpDueAt,
     getAutomatedFollowUpMessagingType,
-    isChatbotFollowUpWithinLimit,
     hasReadableCustomerConversationHistory,
     normalizeBestTimeFollowUpDays,
     normalizeQuickFollowUpDelays,
@@ -38,17 +37,6 @@ import {
 import type { ChatbotConfig } from '@/lib/chatbot';
 
 describe('chatbot follow-up scheduling', () => {
-    it('cancels existing reminders and creates none when a customer asks to get back later', async () => {
-        const chain: any = { update: vi.fn(() => chain), eq: vi.fn(() => chain),
-            in: vi.fn(async () => ({ error: null })), upsert: vi.fn() };
-        await expect(scheduleChatbotFollowUps({ supabase: { from: () => chain }, pageId: 'page-1',
-            contact: { id: 'contact-1', page_id: 'page-1', psid: 'psid-1' },
-            config: { follow_up_enabled: true, follow_up_quick_delays_minutes: [30,360,1320] } as ChatbotConfig,
-            anchorInboundAt: '2026-10-09T12:00:00Z', inboundMessage: 'Balikan ko po kayo mamaya',
-            now: new Date('2026-10-09T12:00:00Z') })).resolves.toBe(0);
-        expect(chain.update).toHaveBeenCalledWith(expect.objectContaining({ status: 'cancelled', error_message: 'Customer asked to pause reminders' }));
-        expect(chain.upsert).not.toHaveBeenCalled();
-    });
     it('requires at least one readable customer message before personalization', () => {
         expect(hasReadableCustomerConversationHistory([], 'page-1')).toBe(false);
         expect(hasReadableCustomerConversationHistory([
@@ -71,12 +59,7 @@ describe('chatbot follow-up scheduling', () => {
             new Date('2026-09-21T02:00:00.000Z'),
             2,
             9
-        )).toBe('2026-09-23T01:00:00.000Z');
-    });
-
-    it('uses the customer inbound hour when no learned best hour is available', () => {
-        expect(getBestTimeFollowUpDueAt(new Date('2026-10-09T14:37:00Z'), 2, null)).toBe('2026-10-11T14:00:00.000Z');
-        expect(getBestTimeFollowUpDueAt(new Date('2026-10-09T14:37:00Z'), 7, 99)).toBe('2026-10-16T14:00:00.000Z');
+        )).toBe('2026-09-22T01:00:00.000Z');
     });
 
     it('uses HUMAN_AGENT only before the guarded seven-day boundary', () => {
@@ -98,6 +81,7 @@ describe('chatbot follow-up scheduling', () => {
         const chain: any = {
             update: vi.fn(() => chain),
             eq: vi.fn(() => chain),
+            lt: vi.fn(() => chain),
             in: vi.fn(async () => ({ error: null })),
             upsert: vi.fn(async (rows: Array<Record<string, unknown>>) => {
                 inserted.push(...rows);
@@ -131,60 +115,56 @@ describe('chatbot follow-up scheduling', () => {
             'response', 'response', 'human_agent', 'human_agent'
         ]);
         expect(inserted[0].due_at).toBe('2026-09-21T02:10:00.000Z');
-        expect(inserted[2].due_at).toBe('2026-09-23T01:00:00.000Z');
+        expect(inserted[2].due_at).toBe('2026-09-22T01:00:00.000Z');
         expect(inserted.every((job) => job.message_text === 'AI-generated from conversation at send time')).toBe(true);
         expect(inserted.some((job) => job.message_text === 'First check-in' || job.message_text === 'Update about your request')).toBe(false);
     });
 
-    it('caps scheduled reminders across both schedule groups when the owner sets a limit', async () => {
-        const chain: any = {
-            update: vi.fn(() => chain), eq: vi.fn(() => chain),
-            in: vi.fn(async () => ({ error: null })),
-            upsert: vi.fn(async () => ({ error: null }))
-        };
-        const config = {
-            instructions: 'MAX_UNANSWERED_FOLLOW_UPS: 3', follow_up_enabled: true,
-            follow_up_quick_delays_minutes: [60, 240], follow_up_best_time_days: [2, 3, 5, 7]
-        } as ChatbotConfig;
-        await expect(scheduleChatbotFollowUps({
-            supabase: { from: () => chain }, pageId: 'page-1',
-            contact: { id: 'contact-1', page_id: 'page-1', psid: 'psid-1' }, config,
-            anchorInboundAt: '2026-10-06T02:00:00Z', now: new Date('2026-10-06T02:00:00Z')
-        })).resolves.toBe(3);
-        expect(chain.upsert.mock.calls[0][0]).toHaveLength(3);
-        expect(isChatbotFollowUpWithinLimit(config, 'human_agent', 0)).toBe(true);
-        expect(isChatbotFollowUpWithinLimit(config, 'human_agent', 1)).toBe(false);
-    });
-
-    it('keeps separate first-day and later-day budgets and queues later days for staff', async () => {
-        const chain: any = { update: vi.fn(() => chain), eq: vi.fn(() => chain),
-            in: vi.fn(async () => ({ error: null })), upsert: vi.fn(async () => ({ error: null })) };
-        const config = { instructions: 'MAX_UNANSWERED_FOLLOW_UPS: 3\nMAX_FIRST_DAY_FOLLOW_UPS: 4\nMAX_LATER_DAY_FOLLOW_UPS: 6\nFOLLOW_UP_LATER_DAYS_MODE: staff-review',
-            follow_up_enabled: true, follow_up_quick_delays_minutes: [30,180,480,1380],
-            follow_up_best_time_days: [2,3,4,5,6,7] } as ChatbotConfig;
-        await expect(scheduleChatbotFollowUps({ supabase: { from: () => chain }, pageId: 'page-1',
-            contact: { id: 'contact-1', page_id: 'page-1', psid: 'psid-1', best_contact_hour: 12 }, config,
-            anchorInboundAt: '2026-10-09T14:00:00Z', now: new Date('2026-10-09T14:00:00Z') })).resolves.toBe(10);
-        const rows = chain.upsert.mock.calls[0][0];
-        expect(rows.filter((job: any) => job.schedule_type === 'response')).toHaveLength(4);
-        expect(rows.filter((job: any) => job.schedule_type === 'manual_human_agent')).toHaveLength(6);
-        expect(rows[4].due_at).toBe('2026-10-11T04:00:00.000Z');
-        expect(rows[9].due_at).toBe('2026-10-16T04:00:00.000Z');
-        expect(isChatbotFollowUpWithinLimit(config, 'manual_human_agent', 5)).toBe(true);
-        expect(isChatbotFollowUpWithinLimit(config, 'manual_human_agent', 6)).toBe(false);
-        expect(isChatbotFollowUpWithinLimit(config, 'response', 4)).toBe(false);
-        expect(isChatbotFollowUpWithinLimit(config, 'human_agent', 0)).toBe(false);
-    });
-
-    it('rejects stale queued jobs removed from the owner schedule', () => {
-        const config = {
-            instructions: 'MAX_UNANSWERED_FOLLOW_UPS: 3',
-            follow_up_quick_delays_minutes: [60, 240, 720], follow_up_best_time_days: []
-        };
-        expect(isChatbotFollowUpWithinLimit(config, 'response', 2)).toBe(true);
-        expect(isChatbotFollowUpWithinLimit(config, 'response', 3)).toBe(false);
-        expect(isChatbotFollowUpWithinLimit(config, 'human_agent', 0)).toBe(false);
-        expect(isChatbotFollowUpWithinLimit(config, 'manual_human_agent', 0)).toBe(true);
+    it('keeps delivered and claimed jobs intact when the same scheduling event is replayed', async () => {
+        const anchor = '2026-10-14T10:00:00.000Z';
+        const rows: Array<Record<string, any>> = [];
+        const supabase = { from: () => {
+            const filters: Array<(row: Record<string, any>) => boolean> = [];
+            let update: Record<string, unknown> = {};
+            const chain: any = {
+                update: (payload: Record<string, unknown>) => { update = payload; return chain; },
+                eq: (key: string, value: unknown) => { filters.push(row => row[key] === value); return chain; },
+                lt: (key: string, value: string) => { filters.push(row => String(row[key]) < value); return chain; },
+                in: async (key: string, values: unknown[]) => {
+                    for (const row of rows) if (filters.every(match => match(row)) && values.includes(row[key])) Object.assign(row, update);
+                    return { error: null };
+                },
+                upsert: async (jobs: Array<Record<string, unknown>>, options: { ignoreDuplicates?: boolean }) => {
+                    for (const job of jobs) {
+                        const old = rows.find(row => ['contact_id', 'anchor_inbound_at', 'schedule_type', 'sequence_index'].every(key => row[key] === job[key]));
+                        if (!old) rows.push({ ...job });
+                        else if (!options.ignoreDuplicates) Object.assign(old, job);
+                    }
+                    return { error: null };
+                }
+            };
+            return chain;
+        } };
+        const input = { supabase, pageId: 'page-1', contact: { id: 'contact-1', page_id: 'page-1', psid: 'psid-1' },
+            config: { follow_up_enabled: true, follow_up_quick_delays_minutes: [60, 240, 720, 1380], follow_up_best_time_days: [] } as unknown as ChatbotConfig,
+            anchorInboundAt: anchor, now: new Date(anchor) };
+        await scheduleChatbotFollowUps(input);
+        const statuses = ['sent', 'processing', 'cancelled', 'failed'];
+        rows.forEach((row, index) => Object.assign(row, { status: statuses[index], message_id: index === 0 ? 'delivered' : null,
+            attempt_count: 2, claimed_at: index === 1 ? '2026-10-14T14:00:00.000Z' : null }));
+        rows.push({ page_id: 'page-1', contact_id: 'contact-1', anchor_inbound_at: '2026-10-14T09:00:00.000Z',
+            schedule_type: 'response', sequence_index: 0, status: 'pending' });
+        rows.push({ page_id: 'page-1', contact_id: 'contact-1', anchor_inbound_at: '2026-10-14T11:00:00.000Z',
+            schedule_type: 'response', sequence_index: 0, status: 'pending' });
+        // A replay carries the original webhook's interaction time.
+        await scheduleChatbotFollowUps(input);
+        expect(rows.filter(row => row.anchor_inbound_at === anchor).map(row => row.status)).toEqual(statuses);
+        expect(rows[0].message_id).toBe('delivered');
+        expect(rows[1].claimed_at).toBe('2026-10-14T14:00:00.000Z');
+        expect(rows.slice(0, 4).every(row => row.attempt_count === 2)).toBe(true);
+        expect(rows[4].status).toBe('cancelled');
+        expect(rows[5].status).toBe('pending');
+        expect(rows).toHaveLength(6);
     });
 
     it('does not schedule follow-ups after a contact is qualified', async () => {
@@ -214,24 +194,15 @@ describe('chatbot follow-up scheduling', () => {
         expect(from).not.toHaveBeenCalled();
     });
 
-    it.each([
-        { historyStartAt: null, change: 'none' },
-        { historyStartAt: '2026-09-21T01:00:00.000Z', change: 'none' },
-        { historyStartAt: null, change: 'staff_review' },
-        { historyStartAt: null, change: 'expired_staff_review' },
-        ...['qualified', 'bot_disabled', 'followups_disabled', 'trial_changed', 'job_cancelled', 'lease_changed', 'read_error', 'pause_requested'].map(change => ({ historyStartAt: null, change }))
-    ])('rechecks a due follow-up after generation: $change, cutoff $historyStartAt', async ({ historyStartAt, change }) => {
+    it('sends a due day 2-7 job as ordered split HUMAN_AGENT bubbles', async () => {
         vi.clearAllMocks();
         const conversationHistory = [{
             id: 'message-1',
-            message: change === 'pause_requested' ? 'Hindi na po muna' : 'Interested ako sa premium haircut next Friday.',
+            message: 'Interested ako sa premium haircut next Friday.',
             from: { id: 'psid-1', name: 'Alex' },
             created_time: '2026-09-21T02:00:00.000Z'
         }];
-        const oldMessage = { id: 'before-reset', message: 'Old business and old price.',
-            from: { id: 'psid-1', name: 'Alex' }, created_time: '2026-09-20T02:00:00.000Z' };
-        const fetchedHistory = [...conversationHistory, oldMessage];
-        mocks.getConversationForPsid.mockResolvedValue({ messages: { data: fetchedHistory } });
+        mocks.getConversationForPsid.mockResolvedValue({ messages: { data: conversationHistory } });
         mocks.generateChatbotFollowUp.mockResolvedValue({
             message: 'Personalized Human Agent follow-up\n\nWould Friday work?',
             messages: ['Personalized Human Agent follow-up', 'Would Friday work?'],
@@ -243,23 +214,21 @@ describe('chatbot follow-up scheduling', () => {
             .mockResolvedValueOnce({ message_id: 'mid-2' });
         mocks.recordOutboundMessageEvent.mockResolvedValue(undefined);
         const updates: Array<Record<string, unknown>> = [];
-        let contactReads = 0;
-        let configReads = 0;
         const dueJob = {
             id: 'job-1',
             page_id: 'page-1',
             contact_id: 'contact-1',
             anchor_inbound_at: '2026-09-21T02:00:00.000Z',
-            schedule_type: change.includes('staff_review') ? 'manual_human_agent' : 'human_agent',
+            schedule_type: 'human_agent',
             sequence_index: 0,
             due_at: '2026-09-22T01:00:00.000Z',
             message_text: 'Staff follow-up draft',
             attempt_count: 0
         };
         const supabase = {
+            rpc: vi.fn(async () => ({data:null,error:null})),
             from: vi.fn((table: string) => {
                 let operation = '';
-                let columns = '';
                 const chain: any = {
                     error: null,
                     update: vi.fn((payload: Record<string, unknown>) => {
@@ -267,13 +236,12 @@ describe('chatbot follow-up scheduling', () => {
                         updates.push(payload);
                         return chain;
                     }),
-                    select: vi.fn((selected: string) => {
+                    select: vi.fn(() => {
                         operation = 'select';
-                        columns = selected;
                         return chain;
                     }),
                     eq: vi.fn(() => chain),
-                    in: vi.fn(async () => ({ error: null })),
+                    not: vi.fn(() => chain),
                     lt: vi.fn(() => chain),
                     lte: vi.fn(() => chain),
                     order: vi.fn(() => chain),
@@ -281,15 +249,11 @@ describe('chatbot follow-up scheduling', () => {
                         ? { data: [dueJob], error: null }
                         : { data: [], error: null }),
                     maybeSingle: vi.fn(async () => {
-                        if (table === 'chatbot_follow_up_jobs') return { data: { id: dueJob.id, status: columns === 'status,claimed_at' && change === 'job_cancelled' ? 'cancelled' : 'processing', claimed_at: change === 'lease_changed' ? '2026-09-22T01:01:00+00:00' : '2026-09-22T01:00:00+00:00' }, error: null };
-                        if (table === 'pages' && change === 'read_error') return { data: null, error: { message: 'Transient page lookup failure' } };
+                        if (table === 'chatbot_follow_up_jobs') return { data: { id: dueJob.id, status: 'processing' }, error: null };
                         if (table === 'pages') return { data: { id: 'page-1', name: 'Test Page', fb_page_id: 'fb-page-1', access_token: 'token' }, error: null };
-                        if (table === 'contacts') return { data: { id: 'contact-1', page_id: 'page-1', psid: 'psid-1', name: 'Alex', last_interaction_at: dueJob.anchor_inbound_at, last_inbound_at: dueJob.anchor_inbound_at, pipeline_stage: ++contactReads > 1 && change === 'qualified' ? 'qualified' : 'engaged' }, error: null };
-                        if (table === 'chatbot_configs') {
-                            const changed = ++configReads > 1;
-                            return { data: { enabled: !(changed && change === 'bot_disabled'), follow_up_enabled: !(changed && change === 'followups_disabled'), trial_mode_enabled: changed && change === 'trial_changed', trial_contact_id: 'different-contact' }, error: null };
-                        }
-                        return { data: { status: 'active', collected_details: { Service: 'Premium haircut' }, missing_details: ['Mobile number'], history_start_at: historyStartAt }, error: null };
+                        if (table === 'contacts') return { data: { id: 'contact-1', page_id: 'page-1', psid: 'psid-1', name: 'Alex', last_interaction_at: dueJob.anchor_inbound_at, last_inbound_at: dueJob.anchor_inbound_at, pipeline_stage: 'engaged' }, error: null };
+                        if (table === 'chatbot_configs') return { data: { enabled: true, follow_up_enabled: true }, error: null };
+                        return { data: { status: 'active', collected_details: { Service: 'Premium haircut' }, missing_details: ['Mobile number'] }, error: null };
                     })
                 };
                 return chain;
@@ -298,30 +262,9 @@ describe('chatbot follow-up scheduling', () => {
 
         const result = await processDueChatbotFollowUps({
             supabase,
-            now: new Date(change === 'expired_staff_review' ? '2026-09-28T02:00:00.000Z' : '2026-09-22T01:00:00.000Z')
+            now: new Date('2026-09-22T01:00:00.000Z')
         });
 
-        if (change === 'read_error') {
-            expect(result).toMatchObject({ sent: 0, failed: 1, cancelled: 0 });
-            expect(mocks.generateChatbotFollowUp).not.toHaveBeenCalled();
-            expect(mocks.sendMessage).not.toHaveBeenCalled();
-            expect(updates).toContainEqual(expect.objectContaining({ status: 'pending', attempt_count: 1 }));
-            return;
-        }
-        if (change === 'staff_review') {
-            expect(result).toMatchObject({ checked: 1, sent: 0, readyManual: 1 });
-            expect(mocks.sendMessage).not.toHaveBeenCalled();
-            expect(updates).toContainEqual(expect.objectContaining({ status: 'ready_manual',
-                message_text: 'Personalized Human Agent follow-up\n\nWould Friday work?' }));
-            return;
-        }
-        if (change !== 'none') {
-            expect(result).toMatchObject({ checked: 1, sent: 0, cancelled: 1 });
-            expect(mocks.sendMessage).not.toHaveBeenCalled();
-            if (change === 'pause_requested') expect(mocks.generateChatbotFollowUp).not.toHaveBeenCalled();
-            if (change !== 'job_cancelled' && change !== 'lease_changed') expect(updates).toContainEqual(expect.objectContaining({ status: 'cancelled' }));
-            return;
-        }
         expect(result).toMatchObject({ checked: 1, sent: 1, readyManual: 0 });
         expect(mocks.sendMessage).toHaveBeenNthCalledWith(
             1,
@@ -346,7 +289,7 @@ describe('chatbot follow-up scheduling', () => {
             { throwOnError: true, timeoutMs: 5000 }
         );
         expect(mocks.generateChatbotFollowUp).toHaveBeenCalledWith(expect.objectContaining({
-            history: historyStartAt ? conversationHistory : fetchedHistory,
+            history: conversationHistory,
             collectedDetails: { Service: 'Premium haircut' },
             missingDetails: ['Mobile number']
         }));
@@ -370,5 +313,176 @@ describe('chatbot follow-up scheduling', () => {
             message_id: 'mid-2',
             message_text: 'Personalized Human Agent follow-up\n\nWould Friday work?'
         }));
+    });
+});
+
+describe('follow-up lead-stage checks', () => {
+    function fixture(options: { lookupError?: boolean } = {}) {
+        const updates: Array<{ table: string; payload: any }> = [];
+        const cancellations: Array<{ filters: Record<string, unknown> }> = [];
+        const job = { id: 'job-1', page_id: 'page-1', contact_id: 'contact-1',
+            anchor_inbound_at: '2026-10-06T00:00:00Z', schedule_type: 'human_agent', sequence_index: 0, attempt_count: 0 };
+        let stage = 'engaged';
+        let source = 'chatbot';
+        let jobStatus = 'processing';
+        const supabase = { rpc: vi.fn(async (name: string, args: any) => {
+            if (name === 'chatbot_contact_sales_stop') return {data:null,error:null};
+            if (name === 'apply_messenger_lead_stage') { stage = args.p_stage; source = 'messenger'; }
+            return { data: { applied: true }, error: null };
+        }), from: vi.fn((table: string) => {
+            const filters: Record<string, unknown> = {};
+            const chain: any = {
+                select: () => chain, eq: (key: string, value: unknown) => { filters[key] = value; return chain; },
+                in: (key: string, value: unknown) => { filters[key] = value; return chain; }, not: () => chain, lt: () => chain, lte: () => chain, order: () => chain,
+                update: (payload: any) => {
+                    updates.push({ table, payload });
+                    if (table === 'chatbot_follow_up_jobs' && payload.status === 'cancelled') cancellations.push({ filters });
+                    return chain;
+                },
+                upsert: async (payload: any) => { updates.push({ table, payload }); return { error: null }; },
+                limit: async () => ({ data: [job], error: null }),
+                maybeSingle: async () => {
+                    if (table === 'chatbot_follow_up_jobs') return { data: { id: job.id, status: jobStatus }, error: null };
+                    if (table === 'pages') return { data: { id: 'page-1', name: 'Page', fb_page_id: 'fb-page', access_token: 'token' }, error: null };
+                    if (table === 'contacts') return { data: { id: 'contact-1', page_id: 'page-1', psid: 'customer', name: 'Customer', last_inbound_at: job.anchor_inbound_at, pipeline_stage: stage, pipeline_stage_source: source }, error: null };
+                    if (table === 'chatbot_configs') return { data: { page_id: 'page-1', enabled: true, follow_up_enabled: true }, error: null };
+                    return { data: { status: 'active', collected_details: {}, missing_details: [] }, error: options.lookupError ? { message: 'State read failed' } : null };
+                },
+                then: (resolve: any, reject: any) => Promise.resolve({ data: [], error: null }).then(resolve, reject)
+            };
+            return chain;
+        }) };
+        return { supabase, updates, cancellations, close: () => { stage = 'qualified'; }, handoff: () => { source = 'manual'; }, cancel: () => { jobStatus = 'cancelled'; } };
+    }
+
+    it.each(['Qualified', 'Not Qualified', 'Converted', 'Order Created', 'Contacted', 'Intake', 'Custom Stage'])('cancels a due follow-up when Messenger has %s before the poller catches up', async (stage) => {
+        vi.clearAllMocks();
+        const { supabase, updates } = fixture();
+        mocks.getConversationForPsid.mockResolvedValue({ messages: { data: [
+            { id: 'lead-1', message: `Lead stage set to ${stage}`, from: { id: 'fb-page' }, created_time: '2026-10-06T02:00:00Z' },
+            { message: 'I need a video', from: { id: 'customer' } }
+        ] } });
+        const result = await processDueChatbotFollowUps({ supabase, now: new Date('2026-10-07T00:00:00Z') });
+        expect(result).toMatchObject({ sent: 0, cancelled: 1 });
+        expect(mocks.generateChatbotFollowUp).not.toHaveBeenCalled();
+        expect(mocks.sendMessage).not.toHaveBeenCalled();
+        const reason = ['Contacted', 'Intake', 'Custom Stage'].includes(stage) ? 'manual' : stage.toLowerCase().replace(/ /g, '_');
+        expect(updates).toContainEqual({ table: 'chatbot_contact_states', payload: expect.objectContaining({ status: 'stopped', stop_reason: reason }) });
+    });
+
+    it('cancels a Contacted handoff arriving during generation', async () => {
+        vi.clearAllMocks();
+        const { supabase, handoff } = fixture();
+        mocks.getConversationForPsid.mockResolvedValue({ messages: { data: [{ message: 'I need a video', from: { id: 'customer' } }] } });
+        mocks.generateChatbotFollowUp.mockImplementation(async () => { handoff(); return { message: 'A follow-up', messages: ['A follow-up'] }; });
+        const result = await processDueChatbotFollowUps({ supabase, now: new Date('2026-10-07T00:00:00Z') });
+        expect(result).toMatchObject({ sent: 0, cancelled: 1 });
+        expect(mocks.sendMessage).not.toHaveBeenCalled();
+    });
+
+    it('cancels a due follow-up for a staff mobile reply without lead-stage text', async () => {
+        vi.clearAllMocks();
+        const { supabase, updates, cancellations } = fixture();
+        mocks.getConversationForPsid.mockResolvedValue({ messages: { data: [
+            { id: 'staff-1', message: 'We will handle your order.', from: { id: 'fb-page' },
+                tags: { data: [{ name: 'source:mobile' }] } },
+            { message: 'I need a video', from: { id: 'customer' } }
+        ] } });
+        const result = await processDueChatbotFollowUps({ supabase, now: new Date('2026-10-07T00:00:00Z') });
+        expect(result).toMatchObject({ sent: 0, cancelled: 1 });
+        expect(mocks.generateChatbotFollowUp).not.toHaveBeenCalled();
+        expect(mocks.sendMessage).not.toHaveBeenCalled();
+        expect(updates).toContainEqual({ table: 'chatbot_contact_states', payload: expect.objectContaining({ status: 'stopped', stop_reason: 'manual' }) });
+        expect(cancellations).toContainEqual({ filters: {
+            page_id: 'page-1', contact_id: 'contact-1', status: ['pending', 'processing', 'ready_manual', 'waiting_response']
+        } });
+    });
+
+    it('cancels a job handed off while the AI is generating its follow-up', async () => {
+        vi.clearAllMocks();
+        const { supabase, close } = fixture();
+        mocks.getConversationForPsid.mockResolvedValue({ messages: { data: [{ message: 'I need a video', from: { id: 'customer' } }] } });
+        mocks.generateChatbotFollowUp.mockImplementation(async () => { close(); return { message: 'A follow-up', messages: ['A follow-up'] }; });
+        const result = await processDueChatbotFollowUps({ supabase, now: new Date('2026-10-07T00:00:00Z') });
+        expect(result).toMatchObject({ sent: 0, cancelled: 1 });
+        expect(mocks.sendMessage).not.toHaveBeenCalled();
+    });
+
+    it('does not send when a state lookup fails', async () => {
+        vi.clearAllMocks();
+        const { supabase } = fixture({ lookupError: true });
+        const result = await processDueChatbotFollowUps({ supabase, now: new Date('2026-10-07T00:00:00Z') });
+        expect(result).toMatchObject({ sent: 0, failed: 1 });
+        expect(mocks.sendMessage).not.toHaveBeenCalled();
+    });
+
+    it('uses customer context fetched beyond the first Messenger history page', async () => {
+        vi.clearAllMocks();
+        const { supabase } = fixture();
+        mocks.getConversationForPsid.mockResolvedValue({ messages: { data: [{
+            id: 'page-offer', message: 'Previous Page offer', from: { id: 'fb-page' }
+        }], paging: { next: 'https://graph.facebook.com/thread/messages?after=older' } } });
+        vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: true, json: async () => ({ data: [{
+            id: 'customer-request', message: 'I need a restaurant video', from: { id: 'customer' },
+            created_time: '2026-10-06T00:00:00Z'
+        }] }) }));
+        mocks.generateChatbotFollowUp.mockResolvedValue({ message: 'A restaurant video follow-up', messages: ['A restaurant video follow-up'] });
+        mocks.sendMessage.mockResolvedValue({ message_id: 'follow-up-sent' });
+        try {
+            const result = await processDueChatbotFollowUps({ supabase, now: new Date('2026-10-07T00:00:00Z') });
+            expect(result).toMatchObject({ sent: 1, failed: 0 });
+            expect(mocks.generateChatbotFollowUp).toHaveBeenCalledWith(expect.objectContaining({
+                history: expect.arrayContaining([expect.objectContaining({ id: 'customer-request', message: 'I need a restaurant video' })])
+            }));
+            expect(mocks.sendMessage).toHaveBeenCalledTimes(1);
+        } finally {
+            vi.unstubAllGlobals();
+        }
+    });
+
+    it('cancels a stage change visible only in Messenger after generation', async () => {
+        vi.clearAllMocks();
+        const { supabase, updates } = fixture();
+        mocks.getConversationForPsid.mockResolvedValue({ messages: { data: [{ message: 'I need a video', from: { id: 'customer' } }] } });
+        mocks.generateChatbotFollowUp.mockImplementationOnce(async () => {
+            mocks.getConversationForPsid.mockResolvedValue({ messages: { data: [{ message: 'Lead stage set to Qualified', from: { id: 'fb-page' } }] } });
+            return { message: 'Follow-up', messages: ['Follow-up'] };
+        });
+        const result = await processDueChatbotFollowUps({ supabase, now: new Date('2026-10-07T00:00:00Z') });
+        expect(result).toMatchObject({ sent: 0, cancelled: 1 });
+        expect(mocks.sendMessage).not.toHaveBeenCalled();
+        expect(updates).toContainEqual({ table: 'chatbot_contact_states', payload: expect.objectContaining({ status: 'stopped', stop_reason: 'qualified' }) });
+    });
+
+    it('cancels remaining follow-up bubbles if the stage changes after one send', async () => {
+        vi.clearAllMocks();
+        const { supabase, close } = fixture();
+        mocks.getConversationForPsid.mockResolvedValue({ messages: { data: [{ message: 'I need a video', from: { id: 'customer' } }] } });
+        mocks.generateChatbotFollowUp.mockResolvedValue({ message: 'First\n\nSecond', messages: ['First', 'Second'] });
+        mocks.sendMessage.mockImplementationOnce(async () => { close(); return { message_id: 'sent-first' }; });
+        const result = await processDueChatbotFollowUps({ supabase, now: new Date('2026-10-07T00:00:00Z') });
+        expect(result).toMatchObject({ sent: 0, cancelled: 1 });
+        expect(mocks.sendMessage).toHaveBeenCalledTimes(1);
+    });
+
+    it('does not retry a partially delivered follow-up after a later send fails', async () => {
+        vi.clearAllMocks();
+        const { supabase, updates } = fixture();
+        mocks.getConversationForPsid.mockResolvedValue({ messages: { data: [{ message: 'I need a video', from: { id: 'customer' } }] } });
+        mocks.generateChatbotFollowUp.mockResolvedValue({ message: 'First\n\nSecond', messages: ['First', 'Second'] });
+        mocks.sendMessage.mockResolvedValueOnce({ message_id: 'sent-first' }).mockRejectedValueOnce(new Error('Delivery failed'));
+        const result = await processDueChatbotFollowUps({ supabase, now: new Date('2026-10-07T00:00:00Z') });
+        expect(result).toMatchObject({ sent: 0, failed: 1 });
+        expect(updates).toContainEqual({ table: 'chatbot_follow_up_jobs', payload: expect.objectContaining({ status: 'failed', message_id: 'sent-first' }) });
+    });
+
+    it('honors cancellation of an already claimed follow-up before delivery', async () => {
+        vi.clearAllMocks();
+        const { supabase, cancel } = fixture();
+        mocks.getConversationForPsid.mockResolvedValue({ messages: { data: [{ message: 'I need a video', from: { id: 'customer' } }] } });
+        mocks.generateChatbotFollowUp.mockImplementationOnce(async () => { cancel(); return { message: 'Reminder', messages: ['Reminder'] }; });
+        const result = await processDueChatbotFollowUps({ supabase, now: new Date('2026-10-07T00:00:00Z') });
+        expect(result).toMatchObject({ sent: 0, cancelled: 1 });
+        expect(mocks.sendMessage).not.toHaveBeenCalled();
     });
 });

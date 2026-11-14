@@ -1,0 +1,66 @@
+import { beforeEach, afterEach, expect, it, vi } from 'vitest';
+import { NextRequest } from 'next/server';
+import fs from 'node:fs';
+const m = vi.hoisted(() => ({ refresh: vi.fn(), ids: vi.fn(), db: vi.fn(), decrypt: vi.fn(), claim:vi.fn(), bootstrap:vi.fn() }));
+vi.mock('@/lib/supabase', () => ({ getSupabaseAdmin: m.db }));
+vi.mock('@/lib/page-access', () => ({ getUserPageIds: m.ids }));
+vi.mock('@/lib/veo-stored-ads-refresh', () => ({ refreshStoredWorkspaceAds: m.refresh }));
+vi.mock('@/lib/meta-ads-credentials', () => ({ decryptMetaAdsToken: m.decrypt }));
+vi.mock('@/lib/veo-workspace', () => ({ workspaceEnabled: () => true }));
+vi.mock('@/lib/veo-page-ads-bootstrap', () => ({ bootstrapPageAds: m.bootstrap }));
+import { GET } from './route';
+let pageQuery: any;
+beforeEach(() => {
+    vi.resetAllMocks(); vi.stubEnv('CRON_SECRET', 'test-only');
+    m.ids.mockResolvedValue(['veo']); m.decrypt.mockReturnValue('test-token'); m.refresh.mockResolvedValue({ complete: true, errors: [] });
+    m.claim.mockResolvedValue({data:true});
+    pageQuery = { in: vi.fn(() => pageQuery), eq: vi.fn(() => Promise.resolve({ data: [{ id: 'veo', fb_page_id: '111' }] })) };
+    m.db.mockReturnValue({rpc:m.claim, from: (table: string) => table === 'meta_ads_credentials' ? { select: () => ({ limit: async () => ({ data: [{ user_id: 'owner' }] }) }), update: () => ({ eq: async () => ({ error: null }) }) } : { select: () => pageQuery } });
+});
+afterEach(() => { vi.unstubAllEnvs(); });
+const request = (authorized = true) => new NextRequest('https://veo.test/api/cron/meta-ads-sync', { headers: authorized ? { Authorization: 'Bearer test-only' } : {} });
+it('actually schedules the dedicated ads worker without depending on the external follow-up cron',()=>{
+ const config=JSON.parse(fs.readFileSync('vercel.json','utf8'));
+ expect(config.crons.filter((job:any)=>job.path==='/api/cron/meta-ads-sync')).toEqual([{path:'/api/cron/meta-ads-sync',schedule:'2-59/5 * * * *'}]);
+ expect(config.functions['src/app/api/cron/meta-ads-sync/route.ts'].maxDuration).toBe(300);
+});
+it('authenticates before any credential read', async () => { expect((await GET(request(false))).status).toBe(401); expect(m.db).not.toHaveBeenCalled(); });
+it('uses current Page scope, excludes disabled Pages and refreshes the newest dates every run', async () => {
+    expect((await GET(request())).status).toBe(200);
+    const options = m.refresh.mock.calls[0][0]; expect(options).toMatchObject({ user: 'owner', workspaceOnly: true });
+    expect(Date.parse(options.to) - Date.parse(options.from)).toBe(3 * 86400000);
+    expect(await options.authorize()).toEqual(['veo']);
+});
+it('does not overwrite connection health when a manual refresh owns the lease',async()=>{
+    m.refresh.mockRejectedValue(Object.assign(Error('Refresh already running'),{status:409}));
+    const response=await GET(request());expect(response.status).toBe(200);expect((await response.json()).reports[0].skipped).toBe(true);
+});
+it('reports a failed source fetch instead of declaring successful synchronization', async () => {
+    m.refresh.mockResolvedValue({ complete: false, errors: ['Incomplete account report'] });
+    const r = await GET(request()); expect(r.status).toBe(503); expect((await r.json()).complete).toBe(false);
+});
+it.each([false,true])('retries incomplete or failed refreshes in five minutes instead of waiting a full hour: %s',async throws=>{
+ const updates:any[]=[];
+ m.db.mockReturnValue({rpc:m.claim,from:()=>({select:()=>({limit:async()=>({data:[{user_id:'owner'}]})}),update:(data:any)=>{updates.push(data);return{eq:async()=>({error:null})};}})});
+ if(throws)m.refresh.mockRejectedValue(Error('Source temporarily unavailable'));else m.refresh.mockResolvedValue({complete:false,errors:['Partial source']});
+ const before=Date.now();expect((await GET(request())).status).toBe(503);
+ const retry=updates.find(data=>data.next_scheduled_refresh_at);expect(retry).toBeTruthy();
+ expect(Date.parse(retry.next_scheduled_refresh_at)).toBeGreaterThanOrEqual(before+300000);expect(Date.parse(retry.next_scheduled_refresh_at)).toBeLessThanOrEqual(Date.now()+300000);
+});
+it('automatically resumes the persisted initial or historical window before recent-date maintenance',async()=>{
+ const checkpoint={from:'2026-11-01',to:'2026-11-10',completed_windows:['one']};m.db.mockReturnValue({rpc:m.claim,from:()=>({select:()=>({limit:async()=>({data:[{user_id:'owner',sync_checkpoint:checkpoint}]})}),update:()=>({eq:async()=>({error:null})})})});
+ expect((await GET(request())).status).toBe(200);expect(m.refresh.mock.calls[0][0]).toMatchObject({from:checkpoint.from,to:checkpoint.to,preserveOtherCheckpoint:true});
+});
+it('skips repeated cron requests until the shared hourly claim is due',async()=>{
+ m.claim.mockResolvedValue({data:false});const response=await GET(request());expect(response.status).toBe(200);expect((await response.json()).reports[0].skipped).toBe(true);expect(m.refresh).not.toHaveBeenCalled();expect(m.claim).toHaveBeenCalledWith('veo_claim_scheduled_meta_ads_refresh',{p_user:'owner'});
+});
+it('fails closed without Meta API work if hourly coordination is unavailable',async()=>{
+ m.claim.mockResolvedValue({error:{message:'Database unavailable'}});expect((await GET(request())).status).toBe(503);expect(m.refresh).not.toHaveBeenCalled();
+});
+it('returns an honest skipped state before any ad consent exists',async()=>{
+ m.db.mockReturnValue({rpc:async()=>({data:[]}),from:()=>({select:()=>({limit:async()=>({data:[]})})})});const response=await GET(request());expect(response.status).toBe(200);expect(await response.json()).toMatchObject({complete:false,skipped:true,reason:'connect_meta_ads_required'});expect(m.refresh).not.toHaveBeenCalled();
+});
+it('discovers eligible saved Page grants on the existing cron path before refreshing their persisted source',async()=>{
+ m.claim.mockImplementation(async(fn:string)=>({data:fn==='veo_page_ads_discovery_candidates'?['owner']:true}));m.bootstrap.mockResolvedValue({connected:true});
+ expect((await GET(request())).status).toBe(200);expect(m.bootstrap).toHaveBeenCalledOnce();expect(await m.bootstrap.mock.calls[0][0].authorize()).toEqual(['veo']);expect(m.refresh).toHaveBeenCalledOnce();
+});

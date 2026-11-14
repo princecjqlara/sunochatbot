@@ -8,7 +8,8 @@ import Link from 'next/link';
 
 export default function SettingsPage() {
     const { data: session } = useSession();
-    const [pages, setPages] = useState<Page[]>([]);
+    const [pages, setPages] = useState<Array<Page & { requiresReconnect?: boolean; connectionStatus?: string }>>([]);
+    const [pagesError, setPagesError] = useState('');
     const [loading, setLoading] = useState(true);
     const [webhookActionPageId, setWebhookActionPageId] = useState<string | null>(null);
     const [webhookStatus, setWebhookStatus] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
@@ -64,11 +65,12 @@ export default function SettingsPage() {
 
     const fetchPages = async () => {
         try {
-            const res = await fetch('/api/pages');
+            const res = await fetch('/api/pages?connectionDetails=1');
             const data = await res.json();
-            setPages(data.pages || []);
+            if (!res.ok) throw new Error(data.message || data.error || 'Page connections could not be loaded.');
+            setPages([...(data.pages || []), ...(data.reconnectRequiredPages || [])]); setPagesError('');
         } catch (error) {
-            console.error('Error fetching pages:', error);
+            setPagesError((error as Error).message);
         } finally {
             setLoading(false);
         }
@@ -107,10 +109,10 @@ export default function SettingsPage() {
     };
 
     return (
-        <div className="p-6 md:p-8 max-w-[1000px] mx-auto fade-in">
+        <div className="dashboard-page fade-in">
             <div className="mb-8">
                 <h1 className="text-3xl font-black uppercase mb-2">Settings</h1>
-                <p className="font-mono text-sm text-gray-500 uppercase tracking-wide">
+                <p className="max-w-2xl text-sm leading-6 text-slate-500">
                     Manage profile and connections
                 </p>
             </div>
@@ -177,14 +179,10 @@ export default function SettingsPage() {
                         <LinkIcon className="w-5 h-5" />
                         <h2 className="text-xl font-bold uppercase">Connected Pages</h2>
                     </div>
-                    <Link
-                        href="/dashboard/connect"
-                        className="btn-wireframe text-xs py-2 h-8"
-                    >
-                        + Connect Page
-                    </Link>
+                    {session?.user.role === 'owner' && <Link className="btn" href="/dashboard/connect">Add or manage Pages</Link>}
                 </div>
 
+                {pagesError && <p role="alert" className="mb-4 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-800">{pagesError}<button className="ml-3 underline" onClick={() => void fetchPages()}>Retry connections</button></p>}
                 {loading ? (
                     <div className="flex justify-center py-8">
                         <div className="animate-spin w-8 h-8 border-2 border-black border-t-transparent rounded-full" />
@@ -216,9 +214,9 @@ export default function SettingsPage() {
                                         <td className="font-bold">{page.name}</td>
                                         <td className="font-mono text-xs text-gray-500">{page.fb_page_id}</td>
                                         <td>
-                                            <span className="badge-wireframe bg-black text-white border-black">
+                                            <span className={`badge-wireframe ${page.requiresReconnect ? 'border-amber-200 bg-amber-50 text-amber-800' : page.connectionStatus === 'ready' ? 'border-emerald-200 bg-emerald-50 text-emerald-800' : 'bg-slate-50 text-slate-600'}`}>
                                                 <CheckCircle className="w-3 h-3 mr-1" />
-                                                Connected
+                                                {page.requiresReconnect ? 'Reconnect required' : page.connectionStatus === 'ready' ? 'Connected' : 'Unable to verify'}
                                             </span>
                                         </td>
                                         <td className="text-right">

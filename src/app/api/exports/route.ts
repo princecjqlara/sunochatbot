@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getSessionFromRequest } from '@/lib/get-session';
 import { getSupabaseAdmin } from '@/lib/supabase';
 import { getUserPageIds } from '@/lib/page-access';
+import { workspaceEnabled, workspaceScope } from '@/lib/veo-workspace';
 
 export const dynamic = 'force-dynamic';
 
@@ -11,10 +12,10 @@ export async function GET(request: NextRequest) {
         const userId = session?.user?.id;
         if (!userId) return NextResponse.json({ message: 'Please sign in.' }, { status: 401 });
 
-        const pageIds = await getUserPageIds(userId);
+        const pageIds = await getUserPageIds(userId, undefined, request);
         if (pageIds.length === 0) return NextResponse.json({ jobs: [] });
 
-        const { data, error } = await getSupabaseAdmin()
+        let query = getSupabaseAdmin()
             .from('conversation_export_jobs')
             .select(`
                 id, page_id, scope, status, total_items, processed_items,
@@ -25,6 +26,12 @@ export async function GET(request: NextRequest) {
             .in('page_id', pageIds)
             .order('created_at', { ascending: false })
             .limit(100);
+        if (workspaceEnabled()) {
+            const scope = await workspaceScope(userId);
+            if (!scope?.launch_at) return NextResponse.json({ message: 'Workspace access is inactive' }, { status: 403 });
+            query = query.gte('created_at', scope.launch_at);
+        }
+        const { data, error } = await query;
         if (error) throw error;
 
         const jobs = (data || []).map((job: Record<string, any>) => {

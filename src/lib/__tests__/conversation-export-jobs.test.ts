@@ -132,7 +132,7 @@ describe('conversation export background worker', () => {
             'conversation_1',
             'page_token',
             Number.MAX_SAFE_INTEGER,
-            { throwOnError: true, initialPage: { data: [] } }
+            { throwOnError: true, requireComplete: true, initialPage: { data: [] } }
         );
         const [path, body, options] = upload.mock.calls[0];
         expect(path).toBe('user_1/job_1/chunk-000000.csv');
@@ -186,6 +186,7 @@ describe('conversation export background worker', () => {
             Number.MAX_SAFE_INTEGER,
             {
                 throwOnError: true,
+                requireComplete: true,
                 initialPage: {
                     data: [{
                         id: 'embedded_message_1',

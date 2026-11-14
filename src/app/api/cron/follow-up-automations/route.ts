@@ -1,16 +1,63 @@
 import { NextRequest, NextResponse } from 'next/server';
+import {cronAuthorizationError} from '@/lib/cron-auth';
 import { getSupabaseAdmin } from '@/lib/supabase';
 import { processDueFollowUpAutomationSteps } from '@/lib/workflow-automations';
 import { processOneMessagingAutoTagPage } from '@/lib/messaging-auto-tag-worker';
 import { processDueChatbotFollowUps } from '@/lib/chatbot-follow-ups';
+import { processChatbotContinuationReviews } from '@/lib/chatbot-continuation';
+import { recoverMissingChatbotMessages } from '@/lib/chatbot-inbound-recovery';
+import { waitUntil } from '@vercel/functions';
+import { runScheduledMetaAds } from '@/lib/veo-scheduled-ads';
 
 export const dynamic = 'force-dynamic';
+export const maxDuration = 300;
 
 // GET /api/cron/follow-up-automations - Called by cron-jobs.org every minute.
 export async function GET(_request: NextRequest) {
+    const denied=cronAuthorizationError(_request);if(denied)return denied;
     const startTime = Date.now();
+    let metaAds: Record<string,unknown> = {skipped:true};
+    if (process.env.SUNO_SCHEDULER_OWNER === 'vercel') {
+        if (!process.env.CRON_SECRET || _request.headers.get('authorization') !== `Bearer ${process.env.CRON_SECRET}`) return NextResponse.json({error:'Unauthorized'},{status:401});
+        try {
+            const result = await processDueFollowUpAutomationSteps({supabase:getSupabaseAdmin(),limit:10});
+            return NextResponse.json({success:result.errors === 0,...result,chatbot_owner:'/api/cron/chatbot',campaign_owner:'/api/cron/campaign-scheduled'},
+                {status:result.errors ? 503 : 200});
+        } catch {return NextResponse.json({error:'Workflow automation needs retry'},{status:503});}
+    }
+
+    if (process.env.VEO_WORKSPACE_ENABLED === 'true') {
+        if (!process.env.CRON_SECRET || _request.headers.get('authorization') !== `Bearer ${process.env.CRON_SECRET}`) return NextResponse.json({error:'Unauthorized'},{status:401});
+        waitUntil(runScheduledMetaAds().then(result => {
+            console.info('[META_ADS_EXISTING_CRON]', {complete:result.complete,skipped:!!result.skipped,reason:result.reason||null,attempted:result.reports.filter(r=>!r.skipped).length});
+        }).catch(()=>{console.warn('[META_ADS_EXISTING_CRON] Automatic refresh needs retry');}));
+        metaAds={accepted:true,interval_minutes:60,trigger:'existing_follow_up_cron'};
+    }
 
     try {
+        let inboundRecovery: Record<string, unknown>;
+        try { inboundRecovery = await recoverMissingChatbotMessages(); }
+        catch (error) {
+            inboundRecovery = { failed: true, message: error instanceof Error ? error.message : String(error) };
+            console.warn('Messenger inbound recovery needs retry:', error);
+        }
+        // Sync handoffs on active chatbot Pages before queued messages. A stale
+        // token on an unrelated Page must not consume this stop-check slot.
+        let messagingAutoTag: Record<string, unknown> = { skipped: true };
+        try {
+            messagingAutoTag = await processOneMessagingAutoTagPage({ chatbotOnly: true });
+        } catch (error) {
+            messagingAutoTag = { ok: false, message: error instanceof Error ? error.message : String(error) };
+            console.warn('Messaging lead-stage sync failed; delivery still verifies each contact:', error);
+        }
+        // Reviewed handoffs must be resolved before any chatbot follow-up delivery.
+        let intakeReviews: Record<string, unknown>;
+        try {
+            intakeReviews = await processChatbotContinuationReviews({ limit: 2 });
+        } catch (error) {
+            intakeReviews = { failed: true, message: error instanceof Error ? error.message : String(error) };
+            console.warn('End-of-day intake review failed:', error);
+        }
         // Follow-ups are this route's primary job. Run them before the nested
         // campaign worker, which can consume almost the entire external cron
         // request timeout when campaign delivery is slow.
@@ -31,6 +78,7 @@ export async function GET(_request: NextRequest) {
             const campaignUrl = new URL('/api/cron/campaign-scheduled', _request.url);
             const campaignResponse = await fetch(campaignUrl, {
                 method: 'GET',
+                headers: { Authorization: `Bearer ${process.env.CRON_SECRET}` },
                 cache: 'no-store',
                 signal: AbortSignal.timeout(25_000)
             });
@@ -49,22 +97,15 @@ export async function GET(_request: NextRequest) {
             console.warn('Campaign continuation from follow-up cron failed:', campaignError);
         }
 
-        // The existing minute scheduler also advances one Messenger page per run.
-        // Keep this isolated so an unavailable Meta token cannot delay follow-ups.
-        let messagingAutoTag: Record<string, unknown> = { skipped: true };
-        try {
-            messagingAutoTag = await processOneMessagingAutoTagPage();
-        } catch (error) {
-            messagingAutoTag = { ok: false, message: error instanceof Error ? error.message : String(error) };
-            console.warn('Messaging auto-tag continuation failed:', error);
-        }
-
         return NextResponse.json({
             success: true,
             ...result,
             chatbotFollowUps,
             campaignWorker,
             messagingAutoTag,
+            intakeReviews,
+            inboundRecovery,
+            meta_ads: metaAds,
             duration: Date.now() - startTime
         });
     } catch (error) {

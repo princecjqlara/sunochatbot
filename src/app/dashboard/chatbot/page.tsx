@@ -1,4 +1,6 @@
 'use client';
+import { chatbotPricingEnabled, usesSalesAssistant } from '@/lib/chatbot-sales-assistant';
+import {isSunoSongConfig} from '@/lib/suno-business';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useSession } from 'next-auth/react';
@@ -30,6 +32,11 @@ import {
     Video
 } from 'lucide-react';
 import { getSupabaseClient } from '@/lib/supabase';
+import { COMMERCIAL_VIDEO_FIELDS, COMMERCIAL_VIDEO_REQUIRED_DETAILS } from '@/lib/chatbot-intake';
+import { buildChatbotTestMessages, getChatbotTestHistory, type TestChatMessage, type TestMedia, type TestSource } from '@/lib/chatbot-test-preview';
+import { COMMERCIAL_FORM_CHOICE, resolveChatbotAction, type ChatbotChoice } from '@/lib/chatbot-interactions';
+import ChatbotSalesSettings from '@/components/ChatbotSalesSettings';
+import { DEFAULT_SALES_FORM_FIELDS } from '@/lib/chatbot-guided-sales';
 
 type PageSummary = {
     id: string;
@@ -37,6 +44,10 @@ type PageSummary = {
 };
 
 type ChatbotConfig = {
+    sales_assistant_settings?: unknown;
+    pricing_enabled?: boolean;
+    guided_sales_enabled?: boolean;
+    sales_form_fields?: string[];
     page_id: string;
     knowledge_source_page_id?: string | null;
     enabled: boolean;
@@ -49,9 +60,14 @@ type ChatbotConfig = {
     follow_up_prompt: string;
     details_to_collect: string[];
     details_completion_percent: number;
+    commercial_video_intake_enabled?: boolean;
+    continuation_review_enabled?: boolean;
+    continuation_review_hour?: number;
+    continuation_review_minute?: number;
     bot_dos: string;
     bot_donts: string;
     follow_up_enabled: boolean;
+    follow_up_first_day_mode?: 'fixed' | 'adaptive';
     follow_up_quick_delays_minutes: number[];
     follow_up_best_time_days: number[];
     follow_up_messages: string[];
@@ -83,12 +99,6 @@ type KnowledgeDocument = {
     created_at: string;
 };
 
-type TestSource = {
-    document_id: string;
-    title: string;
-    similarity: number;
-};
-
 type MediaAsset = {
     id: string;
     knowledge_document_id: string | null;
@@ -116,12 +126,6 @@ type PendingMediaUpload = {
     sourceFolder: string;
     status: 'queued' | 'uploading' | 'analyzing' | 'failed';
     error?: string;
-};
-
-type TestMedia = Pick<MediaAsset, 'id' | 'title' | 'media_type'> & {
-    usage_notes?: string;
-    preview_url?: string | null;
-    target_url?: string | null;
 };
 
 type DriveFolder = {
@@ -159,8 +163,6 @@ type DriveSyncStatus = {
     message?: string;
 };
 
-type TestFolder = Pick<DriveFolder, 'id' | 'name' | 'folder_url' | 'button_text'>;
-
 type TestTokenUsage = {
     prompt_tokens: number;
     completion_tokens: number;
@@ -168,17 +170,6 @@ type TestTokenUsage = {
     context_length: number | null;
     remaining_tokens: number | null;
     model: string | null;
-};
-
-type TestChatMessage = {
-    id: string;
-    role: 'user' | 'assistant';
-    content: string;
-    label?: string;
-    sources?: TestSource[];
-    media?: TestMedia | null;
-    mediaItems?: TestMedia[];
-    folder?: TestFolder | null;
 };
 
 type LiveTrialContact = {
@@ -202,7 +193,6 @@ type LiveTrialStatus = {
         stop_reason: string | null;
         window_expires_at: string;
         last_bot_reply_at: string | null;
-        history_start_at?: string | null;
     } | null;
     pending_follow_ups: number;
 };
@@ -345,25 +335,25 @@ function MessengerCarouselPreview({ mediaItems }: { mediaItems: TestMedia[] }) {
         <div className="mt-3 border-t border-gray-300 pt-3">
             <div className="mb-2 flex items-center justify-between gap-3">
                 <p className="font-mono text-[9px] font-bold uppercase text-gray-500">
-                    Messenger carousel · swipe or use arrows
+                    {mediaItems.length > 1 ? 'Messenger carousel · swipe or use arrows' : 'Messenger sample card'}
                 </p>
-                <div className="hidden gap-1 sm:flex">
+                {mediaItems.length > 1 && <div className="hidden gap-1 sm:flex">
                     <button type="button" onClick={() => slide(-1)} className="flex h-7 w-7 items-center justify-center rounded-full border border-gray-400 bg-white hover:border-black hover:bg-gray-100" aria-label="Previous carousel card">
                         <ChevronLeft className="h-4 w-4" />
                     </button>
                     <button type="button" onClick={() => slide(1)} className="flex h-7 w-7 items-center justify-center rounded-full border border-gray-400 bg-white hover:border-black hover:bg-gray-100" aria-label="Next carousel card">
                         <ChevronRight className="h-4 w-4" />
                     </button>
-                </div>
+                </div>}
             </div>
-            <div ref={carouselRef} className="flex w-[min(72vw,540px)] touch-pan-x snap-x snap-mandatory gap-2 overflow-x-auto overscroll-x-contain pb-2" aria-label="Messenger media carousel preview">
+            <div ref={carouselRef} className={`flex ${mediaItems.length > 1 ? 'w-[min(72vw,540px)]' : 'w-[188px] max-w-full'} touch-pan-x snap-x snap-mandatory gap-2 overflow-x-auto overscroll-x-contain pb-2`} aria-label={mediaItems.length > 1 ? 'Messenger media carousel preview' : 'Messenger sample card preview'}>
                 {mediaItems.map((mediaItem) => (
                     <article key={mediaItem.id} className="min-w-[188px] max-w-[188px] snap-start overflow-hidden rounded-xl border border-gray-300 bg-white shadow-sm">
-                        {mediaItem.media_type === 'image' && mediaItem.preview_url ? (
+                        {(mediaItem.media_type === 'image' || mediaItem.source === 'google_drive') && mediaItem.preview_url ? (
                             // eslint-disable-next-line @next/next/no-img-element
-                            <img src={mediaItem.preview_url} alt={mediaItem.title} className="h-32 w-full border-b border-gray-200 object-cover" />
+                            <img src={mediaItem.preview_url} alt={mediaItem.title} loading="lazy" decoding="async" className="h-32 w-full border-b border-gray-200 object-cover" />
                         ) : mediaItem.media_type === 'video' && mediaItem.preview_url ? (
-                            <video src={mediaItem.preview_url} preload="metadata" muted playsInline className="h-32 w-full border-b border-gray-200 bg-black object-cover" />
+                            <video src={mediaItem.preview_url} controls preload="metadata" playsInline className="h-32 w-full border-b border-gray-200 bg-black object-cover" />
                         ) : (
                             <div className="flex h-32 items-center justify-center border-b border-gray-200 bg-gradient-to-br from-blue-50 to-gray-200">
                                 {mediaItem.media_type === 'image' ? <ImageIcon className="h-9 w-9 text-gray-500" /> : <Video className="h-9 w-9 text-gray-500" />}
@@ -374,8 +364,8 @@ function MessengerCarouselPreview({ mediaItems }: { mediaItems: TestMedia[] }) {
                             <p className="mt-1 line-clamp-2 min-h-8 text-[10px] leading-4 text-gray-500">
                                 {mediaItem.usage_notes || `${mediaItem.media_type === 'image' ? 'Image' : 'Video'} sample`}
                             </p>
-                            {mediaItem.preview_url ? (
-                                <a href={mediaItem.target_url || mediaItem.preview_url} target="_blank" rel="noreferrer" className="mt-2 flex h-9 items-center justify-center border-t border-gray-200 text-[11px] font-bold text-blue-700 hover:bg-blue-50">
+                            {mediaItem.target_url || mediaItem.preview_url ? (
+                                <a href={mediaItem.target_url || mediaItem.preview_url || undefined} target="_blank" rel="noreferrer" className="mt-2 flex h-9 items-center justify-center border-t border-gray-200 text-[11px] font-bold text-blue-700 hover:bg-blue-50">
                                     {mediaItem.media_type === 'image' ? 'View image' : 'Watch video'}
                                 </a>
                             ) : (
@@ -387,7 +377,7 @@ function MessengerCarouselPreview({ mediaItems }: { mediaItems: TestMedia[] }) {
                     </article>
                 ))}
             </div>
-            <p className="mt-1 font-mono text-[9px] text-gray-400">{mediaItems.length} cards · actual Messenger layout may vary slightly by device</p>
+            <p className="mt-1 font-mono text-[9px] text-gray-400">{mediaItems.length} {mediaItems.length === 1 ? 'card' : 'cards'} · actual Messenger layout may vary slightly by device</p>
         </div>
     );
 }
@@ -417,6 +407,7 @@ export default function ChatbotPage() {
     const [testContactName, setTestContactName] = useState('Test Customer');
     const [testConversation, setTestConversation] = useState<TestChatMessage[]>([]);
     const [testCollectedDetails, setTestCollectedDetails] = useState<Record<string, string>>({});
+    const [testSalesProgress, setTestSalesProgress] = useState<import('@/lib/chatbot-sales-assistant').SalesProgress>({});
     const [testTokenUsage, setTestTokenUsage] = useState<TestTokenUsage | null>(null);
     const [testFollowUpType, setTestFollowUpType] = useState<'quick' | 'human_agent'>('quick');
     const [testFollowUpCount, setTestFollowUpCount] = useState(0);
@@ -425,7 +416,6 @@ export default function ChatbotPage() {
     const [trialContactId, setTrialContactId] = useState('');
     const [liveTrialStatus, setLiveTrialStatus] = useState<LiveTrialStatus | null>(null);
     const [liveTrialLoading, setLiveTrialLoading] = useState(false);
-    const [ignorePastTrialConversation, setIgnorePastTrialConversation] = useState(true);
     const testChatEndRef = useRef<HTMLDivElement | null>(null);
     const [knowledgeDocuments, setKnowledgeDocuments] = useState<KnowledgeDocument[]>([]);
     const [knowledgeTitle, setKnowledgeTitle] = useState('');
@@ -450,6 +440,9 @@ export default function ChatbotPage() {
     const [syncingDriveFolderId, setSyncingDriveFolderId] = useState('');
     const [deletingDriveFolderId, setDeletingDriveFolderId] = useState('');
     const knowledgeLibraryPageId = config?.knowledge_source_page_id || selectedPageId;
+    const currentPage = useRef(selectedPageId), currentLibrary = useRef(knowledgeLibraryPageId), configPage = useRef(''), requestedLibrary = useRef('');
+    currentPage.current = selectedPageId;currentLibrary.current = knowledgeLibraryPageId;
+    const [libraryLoading, setLibraryLoading] = useState(false), [libraryError, setLibraryError] = useState(''), [libraryVersion, setLibraryVersion] = useState(0);
 
     useEffect(() => {
         const input = folderMediaInputRef.current;
@@ -459,55 +452,64 @@ export default function ChatbotPage() {
     }, []);
 
     useEffect(() => {
-        if (!session) return;
-        fetch('/api/pages')
+        if (!session?.user.id) return;
+        const controller = new AbortController();
+        fetch('/api/pages', { signal: controller.signal })
             .then(async (response) => {
                 const body = await readJsonResponse(response);
                 if (!response.ok) throw new Error(body.message || body.error || 'Failed to load pages');
                 return body;
             })
             .then((body) => {
+                if (controller.signal.aborted) return;
                 const nextPages = body.pages || [];
                 setPages(nextPages);
-                setSelectedPageId((current) => current || nextPages[0]?.id || '');
+                const requested = typeof window === 'undefined' ? null : new URLSearchParams(window.location?.search || '').get('pageId');
+                setSelectedPageId((current) => nextPages.some((page: PageSummary) => page.id === current) ? current : nextPages.some((page: PageSummary) => page.id === requested) ? requested! : nextPages[0]?.id || '');
             })
-            .catch((loadError) => setError(loadError.message));
-    }, [session]);
+            .catch((loadError) => { if (!controller.signal.aborted) setError(loadError.message); });
+        return () => controller.abort();
+    }, [session?.user.id]);
 
-    const loadConfig = useCallback(async () => {
+    const loadConfig = useCallback(async (signal?: AbortSignal) => {
         if (!selectedPageId) return;
         setLoading(true);
         setError('');
         setStatus('');
         setTestConversation([]);
         setTestCollectedDetails({});
+        setTestSalesProgress({});
         setTestTokenUsage(null);
         setTestFollowUpCount(0);
         setTestMessage('');
         try {
-            const response = await fetch('/api/pages/' + selectedPageId + '/chatbot');
+            const response = await fetch('/api/pages/' + selectedPageId + '/chatbot', { signal });
             const body = await readJsonResponse(response);
             if (!response.ok) throw new Error(body.message || body.error || 'Failed to load chatbot settings');
+            if (signal?.aborted || currentPage.current !== selectedPageId) return;
+            configPage.current = selectedPageId;
             setConfig(body.config);
             setTrialContactId(body.config?.trial_contact_id || '');
             setProviderConfigured(Boolean(body.provider?.configured));
         } catch (loadError) {
-            setError((loadError as Error).message);
+            if (!signal?.aborted && currentPage.current === selectedPageId) setError((loadError as Error).message);
         } finally {
-            setLoading(false);
+            if (!signal?.aborted && currentPage.current === selectedPageId) setLoading(false);
         }
     }, [selectedPageId]);
 
     useEffect(() => {
-        loadConfig();
+        const controller = new AbortController();void loadConfig(controller.signal);
+        return () => controller.abort();
     }, [loadConfig]);
 
-    const loadLiveTrialStatus = useCallback(async () => {
+    const loadLiveTrialStatus = useCallback(async (signal?: AbortSignal) => {
         if (!selectedPageId) return;
         try {
-            const response = await fetch(`/api/pages/${selectedPageId}/chatbot/trial`);
+            const response = await fetch(`/api/pages/${selectedPageId}/chatbot/trial`, { signal });
             const body = await readJsonResponse(response);
             if (!response.ok) throw new Error(body.message || body.error || 'Failed to load live trial status');
+            if (signal?.aborted || currentPage.current !== selectedPageId) return;
             const nextStatus = body.trial as LiveTrialStatus;
             setLiveTrialStatus(nextStatus);
             if (nextStatus?.contact?.id) {
@@ -517,7 +519,7 @@ export default function ChatbotPage() {
                     : [nextStatus.contact as LiveTrialContact, ...current]);
             }
         } catch (loadError) {
-            setError((loadError as Error).message);
+            if (!signal?.aborted && currentPage.current === selectedPageId) setError((loadError as Error).message);
         }
     }, [selectedPageId]);
 
@@ -525,8 +527,10 @@ export default function ChatbotPage() {
         setTrialContacts([]);
         setTrialContactSearch('');
         setLiveTrialStatus(null);
-        void loadLiveTrialStatus();
-    }, [loadLiveTrialStatus]);
+        if (activeSection !== 'test') return;
+        const controller = new AbortController();void loadLiveTrialStatus(controller.signal);
+        return () => controller.abort();
+    }, [loadLiveTrialStatus, activeSection]);
 
     useEffect(() => {
         if (!selectedPageId || activeSection !== 'test') return;
@@ -552,48 +556,51 @@ export default function ChatbotPage() {
         return () => window.clearTimeout(timeoutId);
     }, [activeSection, selectedPageId, trialContactId, trialContactSearch]);
 
-    const loadAnalytics = useCallback(async () => {
+    const loadAnalytics = useCallback(async (signal?: AbortSignal) => {
         if (!selectedPageId) return;
         setAnalyticsLoading(true);
         setAnalyticsError('');
         try {
-            const response = await fetch(`/api/pages/${selectedPageId}/chatbot/analytics?days=${analyticsDays}`);
+            const response = await fetch(`/api/pages/${selectedPageId}/chatbot/analytics?days=${analyticsDays}`, { signal });
             const body = await readJsonResponse(response);
             if (!response.ok) throw new Error(body.message || body.error || 'Failed to load chatbot analytics');
+            if (signal?.aborted || currentPage.current !== selectedPageId) return;
             setAnalytics(body.analytics);
         } catch (loadError) {
-            setAnalyticsError((loadError as Error).message);
+            if (!signal?.aborted && currentPage.current === selectedPageId) setAnalyticsError((loadError as Error).message);
         } finally {
-            setAnalyticsLoading(false);
+            if (!signal?.aborted && currentPage.current === selectedPageId) setAnalyticsLoading(false);
         }
     }, [analyticsDays, selectedPageId]);
 
-    const loadInterruptions = useCallback(async () => {
+    const loadInterruptions = useCallback(async (signal?: AbortSignal) => {
         if (!selectedPageId) return;
         setInterruptionsLoading(true);
         setInterruptionsError('');
         try {
-            const response = await fetch(`/api/pages/${selectedPageId}/chatbot/interruptions`);
+            const response = await fetch(`/api/pages/${selectedPageId}/chatbot/interruptions`, { signal });
             const body = await readJsonResponse(response);
             if (!response.ok) throw new Error(body.message || body.error || 'Failed to load bot interruptions');
+            if (signal?.aborted || currentPage.current !== selectedPageId) return;
             setInterruptions(Array.isArray(body.interruptions) ? body.interruptions : []);
         } catch (loadError) {
-            setInterruptions([]);
-            setInterruptionsError((loadError as Error).message);
+            if (!signal?.aborted && currentPage.current === selectedPageId) { setInterruptions([]);setInterruptionsError((loadError as Error).message); }
         } finally {
-            setInterruptionsLoading(false);
+            if (!signal?.aborted && currentPage.current === selectedPageId) setInterruptionsLoading(false);
         }
     }, [selectedPageId]);
 
     useEffect(() => {
         setAnalytics(null);
-        void loadAnalytics();
-    }, [loadAnalytics]);
+        if (activeSection !== 'overview') return;
+        const controller = new AbortController();void loadAnalytics(controller.signal);return () => controller.abort();
+    }, [loadAnalytics, activeSection]);
 
     useEffect(() => {
         setInterruptions([]);
-        void loadInterruptions();
-    }, [loadInterruptions]);
+        if (activeSection !== 'overview') return;
+        const controller = new AbortController();void loadInterruptions(controller.signal);return () => controller.abort();
+    }, [loadInterruptions, activeSection]);
 
     useEffect(() => {
         if (testConversation.length > 0 || testing) {
@@ -601,45 +608,53 @@ export default function ChatbotPage() {
         }
     }, [testConversation, testing]);
 
-    const loadKnowledge = useCallback(async () => {
-        if (!selectedPageId) return;
+    const loadKnowledge = useCallback(async (signal?: AbortSignal) => {
+        if (!knowledgeLibraryPageId) return false;
         try {
-            const response = await fetch('/api/pages/' + knowledgeLibraryPageId + '/chatbot/knowledge');
+            const response = await fetch('/api/pages/' + knowledgeLibraryPageId + '/chatbot/knowledge', { signal });
             const body = await readJsonResponse(response);
             if (!response.ok) throw new Error(body.message || body.error || 'Failed to load chatbot knowledge');
-            setKnowledgeDocuments(body.documents || []);
+            if (!Array.isArray(body.documents)) throw Error('Complete chatbot knowledge is unavailable');
+            if (signal?.aborted || currentLibrary.current !== knowledgeLibraryPageId) return false;
+            setKnowledgeDocuments(body.documents);return true;
         } catch (loadError) {
-            setError((loadError as Error).message);
+            if (!signal?.aborted && currentLibrary.current === knowledgeLibraryPageId) setError((loadError as Error).message);return false;
         }
-    }, [knowledgeLibraryPageId, selectedPageId]);
+    }, [knowledgeLibraryPageId]);
 
-    const loadMedia = useCallback(async () => {
-        if (!selectedPageId) return;
+    const loadMedia = useCallback(async (signal?: AbortSignal) => {
+        if (!knowledgeLibraryPageId) return false;
         try {
-            const response = await fetch('/api/pages/' + knowledgeLibraryPageId + '/chatbot/media');
+            const response = await fetch('/api/pages/' + knowledgeLibraryPageId + '/chatbot/media', { signal });
             const body = await readJsonResponse(response);
             if (!response.ok) throw new Error(body.message || body.error || 'Failed to load chatbot media');
-            setMediaAssets(body.assets || []);
+            if (!Array.isArray(body.assets)) throw Error('Complete chatbot media is unavailable');
+            if (signal?.aborted || currentLibrary.current !== knowledgeLibraryPageId) return false;
+            setMediaAssets(body.assets);return true;
         } catch (loadError) {
-            setError((loadError as Error).message);
+            if (!signal?.aborted && currentLibrary.current === knowledgeLibraryPageId) setError((loadError as Error).message);return false;
         }
-    }, [knowledgeLibraryPageId, selectedPageId]);
+    }, [knowledgeLibraryPageId]);
 
-    const loadDriveFolders = useCallback(async () => {
-        if (!selectedPageId) return;
+    const loadDriveFolders = useCallback(async (signal?: AbortSignal) => {
+        if (!knowledgeLibraryPageId) return false;
         try {
-            const response = await fetch('/api/pages/' + knowledgeLibraryPageId + '/chatbot/folders');
+            const response = await fetch('/api/pages/' + knowledgeLibraryPageId + '/chatbot/folders', { signal });
             const body = await readJsonResponse(response);
             if (!response.ok) throw new Error(body.message || body.error || 'Failed to load Drive folders');
-            setDriveFolders(body.folders || []);
-            setDriveFiles(body.files || []);
+            if (!Array.isArray(body.folders) || !Array.isArray(body.files)) throw Error('Complete Drive sources are unavailable');
+            if (signal?.aborted || currentLibrary.current !== knowledgeLibraryPageId) return false;
+            setDriveFolders(body.folders);
+            setDriveFiles(body.files);
             setDriveSyncStatus(body.drive_sync || null);
+            return true;
         } catch (loadError) {
-            setError((loadError as Error).message);
+            if (!signal?.aborted && currentLibrary.current === knowledgeLibraryPageId) setError((loadError as Error).message);return false;
         }
-    }, [knowledgeLibraryPageId, selectedPageId]);
+    }, [knowledgeLibraryPageId]);
 
     useEffect(() => {
+        requestedLibrary.current = '';setLibraryError('');setLibraryLoading(false);
         setKnowledgeDocuments([]);
         setKnowledgeTitle('');
         setKnowledgeContent('');
@@ -654,10 +669,18 @@ export default function ChatbotPage() {
         setDriveFolderUrl('');
         setDriveFolderUsage('');
         setDriveFolderButtonText('View media samples');
-        loadKnowledge();
-        loadMedia();
-        loadDriveFolders();
-    }, [loadDriveFolders, loadKnowledge, loadMedia]);
+    }, [knowledgeLibraryPageId]);
+    useEffect(() => {
+        if (activeSection !== 'knowledge' || loading || configPage.current !== selectedPageId || !knowledgeLibraryPageId || requestedLibrary.current === knowledgeLibraryPageId) return;
+        const controller = new AbortController();let finished = false;
+        requestedLibrary.current = knowledgeLibraryPageId;setLibraryLoading(true);setLibraryError('');
+        void Promise.all([loadKnowledge(controller.signal), loadMedia(controller.signal), loadDriveFolders(controller.signal)]).then(results => {
+            if (controller.signal.aborted || currentLibrary.current !== knowledgeLibraryPageId) return;
+            finished = true;setLibraryLoading(false);
+            if (!results.every(Boolean)) setLibraryError('The complete library could not be loaded. Retry to refresh all sources.');
+        });
+        return () => { controller.abort();if (!finished && requestedLibrary.current === knowledgeLibraryPageId) requestedLibrary.current = ''; };
+    }, [activeSection, loading, selectedPageId, knowledgeLibraryPageId, loadKnowledge, loadMedia, loadDriveFolders, libraryVersion]);
 
     const updateConfig = (changes: Partial<ChatbotConfig>) => {
         setConfig((current) => current ? { ...current, ...changes } : current);
@@ -732,7 +755,7 @@ export default function ChatbotPage() {
         if (!selectedPageId || !trialContactId || liveTrialLoading) return;
         const selectedContact = trialContacts.find((contact) => contact.id === trialContactId) || liveTrialStatus?.contact;
         const contactLabel = selectedContact?.name || 'the selected contact';
-        if (!window.confirm(`Reset ${contactLabel}'s collected details, stop state, pending chatbot follow-ups, and pipeline stage to Engaged? ${ignorePastTrialConversation ? 'The bot will ignore messages from before this reset.' : 'Past conversation will remain available to the bot.'}`)) return;
+        if (!window.confirm(`Reset ${contactLabel}'s collected details, stop state, pending chatbot follow-ups, and pipeline stage to Engaged? Messenger history will remain available to the AI.`)) return;
 
         setLiveTrialLoading(true);
         setError('');
@@ -741,7 +764,7 @@ export default function ChatbotPage() {
             const response = await fetch(`/api/pages/${selectedPageId}/chatbot/trial`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ action: 'reset', contact_id: trialContactId, ignore_past_conversation: ignorePastTrialConversation })
+                body: JSON.stringify({ action: 'reset', contact_id: trialContactId })
             });
             const body = await readJsonResponse(response);
             if (!response.ok) throw new Error(body.message || body.error || 'Failed to reset live trial contact');
@@ -754,19 +777,20 @@ export default function ChatbotPage() {
         }
     };
 
-    const testChatbot = async () => {
-        const message = testMessage.trim();
+    const testChatbot = async (choice?: ChatbotChoice) => {
+        const action = resolveChatbotAction(choice?.payload);
+        const message = action?.message || testMessage.trim();
         if (!selectedPageId || !message || testing) return;
-        const history = testConversation.map(({ role, content }) => ({ role, content }));
+        const history = getChatbotTestHistory(testConversation);
         const userMessage: TestChatMessage = {
             id: `user-${Date.now()}`,
             role: 'user',
-            content: message
+            content: action?.title || message
         };
         setTesting(true);
         setError('');
         setStatus('');
-        setTestMessage('');
+        if (!choice) setTestMessage('');
         setTestConversation((current) => [...current, userMessage]);
         try {
             const response = await fetch('/api/pages/' + selectedPageId + '/chatbot', {
@@ -774,36 +798,35 @@ export default function ChatbotPage() {
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     message,
+                    ...(choice ? { action_payload: choice.payload } : {}),
                     contact_name: testContactName,
                     history,
                     collected_details: testCollectedDetails,
+                    sales_progress: testSalesProgress,
                     draft_config: config
                 })
             });
             const body = await readJsonResponse(response);
             if (!response.ok) throw new Error(body.message || body.error || 'Chatbot test failed');
-            const replies = (Array.isArray(body.messages) ? body.messages : [body.reply])
-                .filter((reply: unknown): reply is string => typeof reply === 'string' && reply.trim().length > 0);
-            const sources = Array.isArray(body.sources) ? body.sources : [];
-            const assistantMessages: TestChatMessage[] = replies.map((reply: string, index: number) => ({
-                id: `assistant-${Date.now()}-${index}`,
-                role: 'assistant',
-                content: reply,
-                ...(index === replies.length - 1 ? {
-                    sources,
-                    media: body.media || null,
-                    mediaItems: Array.isArray(body.media_items) ? body.media_items : body.media ? [body.media] : [],
-                    folder: body.folder || null
-                } : {})
-            }));
-            setTestConversation((current) => [...current, ...assistantMessages]);
+            const assistantMessages = buildChatbotTestMessages(body, {
+                idPrefix: `assistant-${Date.now()}`,
+                commercialVideoIntake: config?.commercial_video_intake_enabled
+            });
+            setTestConversation((current) => [...current.map(entry => ({ ...entry, quickReplies: undefined })), ...assistantMessages]);
             setTestCollectedDetails(body.collected_details || {});
+            if (body.sales_progress) setTestSalesProgress(current => ({ ...current, ...body.sales_progress,
+                samples_sent: [...new Set([...(current.samples_sent || []), ...(body.sales_progress.samples_sent || [])])],
+                freebies_presented: [...new Set([...(current.freebies_presented || []), ...(body.sales_progress.freebies_presented || [])])] }));
             setTestTokenUsage(body.token_usage || null);
-            if (body.retrieval_warning) setStatus('Reply generated, but knowledge retrieval was unavailable: ' + body.retrieval_warning);
+            setStatus([
+                body.retrieval_warning && 'Knowledge retrieval was unavailable: ' + body.retrieval_warning,
+                body.generation_warning && 'Reply generation warning: ' + body.generation_warning,
+                body.intake_action === 'handoff' && 'Ready for team handoff. In Messenger, the bot would pause for the team.'
+            ].filter(Boolean).join(' '));
         } catch (testError) {
             setError((testError as Error).message);
             setTestConversation((current) => current.filter((entry) => entry.id !== userMessage.id));
-            setTestMessage(message);
+            if (!choice) setTestMessage(message);
         } finally {
             setTesting(false);
         }
@@ -812,6 +835,7 @@ export default function ChatbotPage() {
     const resetTestConversation = () => {
         setTestConversation([]);
         setTestCollectedDetails({});
+        setTestSalesProgress({});
         setTestTokenUsage(null);
         setTestFollowUpType('quick');
         setTestFollowUpCount(0);
@@ -839,7 +863,8 @@ export default function ChatbotPage() {
                 usage_notes: `${file.media_type === 'image' ? 'Image' : 'Video'} sample from Google Drive`,
                 media_type: file.media_type,
                 preview_url: file.thumbnail_url,
-                target_url: file.web_view_url
+                target_url: file.web_view_url,
+                source: 'google_drive'
             }));
         const readyMedia = [...indexedDriveMedia, ...uploadedMedia].slice(0, 10);
         const sampleMedia: TestMedia[] = [
@@ -857,13 +882,14 @@ export default function ChatbotPage() {
                 ? 'Here are a few samples you can browse.'
                 : 'This is how multiple media cards will appear after you upload at least two relevant assets.',
             label: readyMedia.length >= 2 ? 'Messenger carousel preview' : 'UI demo · not sent',
+            previewOnly: true,
             media: mediaItems[0],
             mediaItems
         }]);
     };
 
     const testFollowUp = async () => {
-        if (!selectedPageId || testConversation.length === 0 || testing) return;
+        if (!selectedPageId || getChatbotTestHistory(testConversation).length === 0 || testing) return;
         setTesting(true);
         setError('');
         setStatus('');
@@ -876,26 +902,29 @@ export default function ChatbotPage() {
                     contact_name: testContactName,
                     follow_up_type: testFollowUpType,
                     sequence_number: testFollowUpCount + 1,
-                    history: testConversation.map(({ role, content }) => ({ role, content })),
+                    history: getChatbotTestHistory(testConversation),
                     collected_details: testCollectedDetails,
+                    sales_progress: testSalesProgress,
                     draft_config: config
                 })
             });
             const body = await readJsonResponse(response);
             if (!response.ok) throw new Error(body.message || body.error || 'Follow-up test failed');
-            const sources = Array.isArray(body.sources) ? body.sources : [];
-            setTestConversation((current) => [...current, {
-                id: `follow-up-${Date.now()}`,
-                role: 'assistant',
-                content: body.reply,
+            const messages = buildChatbotTestMessages(body, {
+                idPrefix: `follow-up-${Date.now()}`,
                 label: body.follow_up_label || 'Follow-up preview',
-                sources,
-                media: body.media || null,
-                mediaItems: Array.isArray(body.media_items) ? body.media_items : body.media ? [body.media] : []
-            }]);
+                commercialVideoIntake: config?.commercial_video_intake_enabled
+            });
+            setTestConversation((current) => [...current.map(entry => ({ ...entry, quickReplies: undefined })), ...messages]);
             setTestTokenUsage(body.token_usage || null);
             setTestFollowUpCount((current) => current + 1);
-            if (body.retrieval_warning) setStatus('Follow-up generated, but knowledge retrieval was unavailable: ' + body.retrieval_warning);
+            if (body.sales_progress) setTestSalesProgress(current => ({ ...current, ...body.sales_progress,
+                samples_sent: [...new Set([...(current.samples_sent || []), ...(body.sales_progress.samples_sent || [])])],
+                freebies_presented: [...new Set([...(current.freebies_presented || []), ...(body.sales_progress.freebies_presented || [])])] }));
+            setStatus([
+                body.retrieval_warning && 'Knowledge retrieval was unavailable: ' + body.retrieval_warning,
+                body.generation_warning && 'Follow-up generation warning: ' + body.generation_warning
+            ].filter(Boolean).join(' '));
         } catch (followUpError) {
             setError((followUpError as Error).message);
         } finally {
@@ -1261,10 +1290,10 @@ export default function ChatbotPage() {
         : 1;
 
     return (
-        <div className="max-w-6xl mx-auto pb-20">
+        <div className="dashboard-page pb-20">
             <div className="flex flex-col gap-5 sm:flex-row sm:items-center sm:justify-between mb-6">
                 <div className="flex items-center gap-3">
-                    <div className="w-12 h-12 border-2 border-black bg-white flex items-center justify-center shadow-[3px_3px_0_#000]">
+                    <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-indigo-100 bg-indigo-50 text-indigo-700">
                         <Bot className="w-6 h-6" />
                     </div>
                     <div>
@@ -1344,7 +1373,7 @@ export default function ChatbotPage() {
                 </div>
             )}
 
-            {loading || !config ? (
+            {loading || !config || configPage.current !== selectedPageId ? (
                 <div className="border-2 border-black p-8 text-center font-mono text-sm text-gray-500">
                     {selectedPageId ? 'Loading chatbot settings...' : 'Connect a Facebook Page to configure the chatbot.'}
                 </div>
@@ -1529,6 +1558,7 @@ export default function ChatbotPage() {
 
                                     <div className="border border-black p-4">
                                         <h3 className="flex items-center gap-2 text-sm font-bold"><ListChecks className="h-4 w-4" /> Detail capture</h3>
+                                        <a href={`/dashboard/pipeline?pageId=${encodeURIComponent(selectedPageId)}&details=with_details`} className="mt-2 inline-block text-xs font-bold underline underline-offset-2">View clients with saved details, including incomplete forms</a>
                                         <div className="mt-3 grid grid-cols-2 gap-px overflow-hidden border border-gray-300 bg-gray-300 sm:grid-cols-4">
                                             {[
                                                 ['With details', analytics.conversations.contacts_with_details],
@@ -1729,17 +1759,16 @@ export default function ChatbotPage() {
 
                     <div className={`grid md:grid-cols-2 gap-4 mb-4 ${activeSection !== 'behavior' ? 'hidden' : ''}`}>
                         <div className="border-2 border-black p-5 bg-white">
-                            <label className="font-mono text-xs font-bold uppercase text-gray-500 mb-2 block">
-                                Fallback reply
-                            </label>
-                            <textarea
-                                value={config.fallback_reply}
-                                onChange={(event) => updateConfig({ fallback_reply: event.target.value })}
-                                rows={6}
-                                maxLength={1000}
-                                className="input-wireframe min-h-[150px] w-full resize-y px-4 py-3 text-sm leading-6"
-                            />
-                            <p className="mt-2 text-xs text-gray-500">Sent if AI generation fails.</p>
+                            <p className="font-mono text-xs font-bold uppercase text-gray-500 mb-2">
+                                Reply failures
+                            </p>
+                            <p className="text-sm leading-6">
+                                If the reply service is unavailable, the inquiry is saved for retry.
+                                Your team can answer it from Messenger while service is restored.
+                            </p>
+                            <p className="mt-2 text-xs text-gray-500">
+                                Resolve any connection or credit issue to resume replies. Reply failures are counted in Analytics.
+                            </p>
                         </div>
                         <div className="border-2 border-black p-5 bg-white">
                             <label className="font-mono text-xs font-bold uppercase text-gray-500 mb-2 block">
@@ -1770,6 +1799,40 @@ export default function ChatbotPage() {
                             </div>
                         </div>
 
+                        {isSunoSongConfig(config) ? <div className="mb-4 border border-blue-500 bg-blue-50 p-4"><p className="text-sm font-bold">Suno song intake</p><p className="mt-1 text-xs leading-5 text-gray-700">The seven-field song brief saves into the customer profile. Your configured profile fields, collection target, staff quotes and human handover rules remain in use.</p></div> : <label className="mb-4 flex items-start gap-3 border border-blue-500 bg-blue-50 p-4">
+                            <input type="checkbox" className="mt-1 h-4 w-4"
+                                checked={config.commercial_video_intake_enabled === true}
+                                onChange={(event) => updateConfig({
+                                    commercial_video_intake_enabled: event.target.checked,
+                                    ...(event.target.checked ? {
+                                        details_to_collect: [...COMMERCIAL_VIDEO_REQUIRED_DETAILS],
+                                        details_completion_percent: 100,
+                                        stop_when_details_collected: false,
+                                        continuation_review_enabled: true,
+                                        continuation_review_hour: 23,
+                                        continuation_review_minute: 59
+                                    } : {})
+                                })} />
+                            <span>
+                                <span className="block text-sm font-bold">Commercial video: free concept or free script</span>
+                                <span className="mt-1 block text-xs leading-5 text-gray-700">Ask about the business, send an existing sample, ask duration, then send pricing and the seven-step process before the form. Use natural Taglish, first names and no emojis. Pricing, process and form each stay in one message, followed by a relevant question. Your existing knowledge, samples and schedules stay available.</span>
+                            </span>
+                        </label>}
+
+                        {config.commercial_video_intake_enabled && !usesSalesAssistant(config) && <div className="mb-4 border border-blue-200 p-4 space-y-3">
+                            <label className="flex items-start gap-3 text-sm">
+                                <input type="checkbox" className="mt-1" checked={config.guided_sales_enabled === true}
+                                    onChange={event => updateConfig({ guided_sales_enabled: event.target.checked })} />
+                                <span><strong>Guided sales with optional form</strong><span className="block text-xs text-gray-600 mt-1">Introduce the process once in a new conversation. Customers can fill out the form or keep chatting. Both save to the same customer record.</span></span>
+                            </label>
+                            <label className="block text-sm font-bold" htmlFor="sales-form-fields">Optional form fields, one per line</label>
+                            <textarea id="sales-form-fields" rows={6} className="input-wireframe w-full px-4 py-3 text-sm"
+                                value={(config.sales_form_fields || DEFAULT_SALES_FORM_FIELDS).join('\n')}
+                                onChange={event => updateConfig({ sales_form_fields: event.target.value.split('\n').slice(0, 20) })} />
+                            <button type="button" className="text-xs underline" onClick={() => updateConfig({ sales_form_fields: [...DEFAULT_SALES_FORM_FIELDS] })}>Use the six business fields</button>
+                            <p className="text-xs text-gray-600">Add, remove, or reorder up to 20 fields. The original eight production details and customer request still control the existing handoff. Collected form and chat answers remain visible in Pipeline.</p>
+                        </div>}
+
                         <label className="font-mono text-xs font-bold uppercase text-gray-500 mb-2 block">
                             Follow-up prompt
                         </label>
@@ -1786,7 +1849,8 @@ export default function ChatbotPage() {
                             Details to collect — one per line
                         </label>
                         <textarea
-                            value={config.details_to_collect.join('\n')}
+                            value={(config.commercial_video_intake_enabled ? COMMERCIAL_VIDEO_FIELDS.map(field => field.displayLabel) : config.details_to_collect).join('\n')}
+                            disabled={config.commercial_video_intake_enabled === true}
                             onChange={(event) => updateConfig({
                                 details_to_collect: event.target.value
                                     .split('\n')
@@ -1796,8 +1860,17 @@ export default function ChatbotPage() {
                             className="input-wireframe min-h-[210px] w-full resize-y px-4 py-3 text-sm leading-6"
                             placeholder={'Full name\nMobile number\nService needed\nPreferred schedule\nBudget'}
                         />
+                        <label className="mt-5 flex items-center gap-3 font-medium">
+                            <input type="checkbox" checked={chatbotPricingEnabled(config)} onChange={event => updateConfig({ pricing_enabled: event.target.checked,
+                                ...(usesSalesAssistant(config) ? { sales_assistant_settings: { ...(config.sales_assistant_settings as Record<string, unknown>), pricing_enabled: event.target.checked } } : {}) })} />
+                            Pricing {chatbotPricingEnabled(config) ? 'ON' : 'OFF'}
+                        </label>
+                        <p className="mt-2 text-xs text-gray-600">OFF keeps prices, deposits, balances and revision charges out of automatic replies and follow-ups. The conversation flow stays the same.</p>
+                        {config.commercial_video_intake_enabled && <ChatbotSalesSettings value={config.sales_assistant_settings} onChange={settings => updateConfig({ sales_assistant_settings: settings })} onDisable={() => updateConfig({ sales_assistant_settings: {}, pricing_enabled: chatbotPricingEnabled(config) })} />}
                         <p className="mt-2 text-xs text-gray-500 font-mono">
-                            The bot remembers customer-provided values and asks for only one missing detail at a time.
+                            {config.commercial_video_intake_enabled
+                                ? 'The eight production details below retain the existing team-handoff criteria. The optional sales form above guides recommendations and never blocks customers from continuing in chat.'
+                                : 'The bot remembers customer-provided values and asks for only one missing detail at a time.'}
                         </p>
 
                         <div className="mt-4 border border-black p-3 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
@@ -1816,6 +1889,7 @@ export default function ChatbotPage() {
                                     max={100}
                                     step={5}
                                     value={config.details_completion_percent}
+                                    disabled={config.commercial_video_intake_enabled === true}
                                     onChange={(event) => updateConfig({
                                         details_completion_percent: Math.min(100, Math.max(1, Number(event.target.value) || 100))
                                     })}
@@ -1825,23 +1899,54 @@ export default function ChatbotPage() {
                             </label>
                         </div>
 
+                        <div className="mt-4 border border-black p-3">
+                            <label className="flex items-start gap-2 cursor-pointer">
+                                <input type="checkbox" className="w-4 h-4 mt-0.5"
+                                    checked={config.continuation_review_enabled === true}
+                                    onChange={(event) => updateConfig({ continuation_review_enabled: event.target.checked })} />
+                                <span><span className="block text-sm font-bold">End-of-day AI review</span>
+                                    <span className="block text-xs text-gray-500 mt-1">{config.commercial_video_intake_enabled
+                                        ? 'Staff replies immediately pause the bot and follow-ups. At 11:59 PM Philippine time, review temporary takeovers and reopen if EITHER the form is incomplete OR the customer has not clearly requested a commercial video, free concept, or free script. Completed form plus a clear request stays with the team. Explicit holds, terminal stages, refusals, orders, and opt-outs stay stopped.'
+                                        : 'Review bot-completed intake. If the customer is still undecided, resume and collect up to three more missing details. Human stage changes, refusals, purchases, and opt-outs stay stopped.'}</span></span>
+                            </label>
+                            <label className="block text-xs mt-3">Review hour (Philippine time)
+                                <select className="input-wireframe ml-2" value={config.continuation_review_hour ?? 20}
+                                    disabled={!config.continuation_review_enabled || config.commercial_video_intake_enabled === true}
+                                    onChange={(event) => updateConfig({ continuation_review_hour: Number(event.target.value) })}>
+                                    {Array.from({ length: 24 }, (_, hour) => <option key={hour} value={hour}>{String(hour).padStart(2, '0')}</option>)}
+                                </select>
+                                <span className="ml-2">minute</span>
+                                <select className="input-wireframe ml-2" value={config.continuation_review_minute ?? 0}
+                                    aria-label="Review minute (Philippine time)"
+                                    disabled={!config.continuation_review_enabled || config.commercial_video_intake_enabled === true}
+                                    onChange={(event) => updateConfig({ continuation_review_minute: Number(event.target.value) })}>
+                                    {Array.from({ length: 60 }, (_, minute) => <option key={minute} value={minute}>{String(minute).padStart(2, '0')}</option>)}
+                                </select>
+                            </label>
+                            <p className="text-xs text-gray-500 mt-2">{config.commercial_video_intake_enabled
+                                ? 'Reviews become due at exactly 23:59 Asia/Manila. Worker processing may occur later. Outside the permitted reply window, the bot waits for a new customer message.'
+                                : 'Reviews can run earlier before the reply window closes. Outside that window, the bot waits for a new customer message.'}</p>
+                        </div>
+
                         <div className="grid md:grid-cols-2 gap-4 mt-4">
                             <label className="border border-black p-3 flex items-start gap-2 cursor-pointer">
                                 <input
                                     type="checkbox"
                                     checked={config.split_messages}
-                                    onChange={(event) => updateConfig({ split_messages: event.target.checked })}
+                                    onChange={(event) => updateConfig({ split_messages: event.target.checked, max_message_parts: event.target.checked ? 0 : 1 })}
                                     className="w-4 h-4 mt-0.5"
                                 />
                                 <span>
                                     <span className="block text-sm font-bold">Natural message bubbles</span>
-                                    <span className="block text-xs text-gray-500 mt-1">Split a reply into short conversational messages.</span>
+                                    <span className="block text-xs text-gray-500 mt-1">Use short conversational messages. Replies stay brief.</span>
                                 </span>
                             </label>
                             <div className="border border-black p-3">
                                 <span className="block text-sm font-bold">Automatic bubble count</span>
                                 <span className="block text-xs text-gray-500 mt-1">
-                                    No fixed maximum. The bot uses only as many short bubbles as the reply naturally needs.
+                                    {config.commercial_video_intake_enabled
+                                        ? 'Keep the full pricing, all seven process steps with the revision note, and the complete form in separate single messages. Follow with a relevant question. Structured messages stay complete regardless of the bubble setting.'
+                                        : 'Replies use one message by default, at most two short bubbles. Follow-ups retain their configured style.'}
                                 </span>
                             </div>
                         </div>
@@ -1849,7 +1954,7 @@ export default function ChatbotPage() {
                         <div className="mt-4 border border-black bg-[#f8f8f8] p-3 flex items-start gap-2">
                             <Clock3 className="w-4 h-4 mt-0.5 flex-shrink-0" />
                             <p className="text-xs font-mono">
-                                Bot state uses a rolling seven-day activity window from the customer&apos;s latest message. Days 2–7 can queue drafts for staff review. Staff replies require Meta Human Agent access.
+                                Bot state uses a rolling seven-day activity window from the customer&apos;s latest message. Day 2–7 follow-ups require Meta Human Agent access for the connected app.
                             </p>
                         </div>
 
@@ -1864,7 +1969,9 @@ export default function ChatbotPage() {
                                 <span>
                                     <span className="block text-sm font-bold">No-reply follow-ups</span>
                                     <span className="block text-xs text-gray-500 mt-1">
-                                        Cancel immediately when the customer replies or the bot reaches a stop condition.
+                                        {config.commercial_video_intake_enabled
+                                            ? 'Keep relevant follow-ups while the form is incomplete OR a clear request is missing. A complete form alone does not stop them. Staff intervention pauses queued work.'
+                                            : 'Cancel immediately when the customer replies or the bot reaches a stop condition.'}
                                     </span>
                                 </span>
                             </label>
@@ -1885,6 +1992,22 @@ export default function ChatbotPage() {
                                 </span>
                             </label>
 
+                            <label className="block text-xs font-mono mt-4">
+                                First-day timing
+                                <select className="input-wireframe w-full mt-2 text-sm"
+                                    value={config.follow_up_first_day_mode || 'fixed'}
+                                    disabled={!config.follow_up_enabled}
+                                    onChange={event => updateConfig({ follow_up_first_day_mode: event.target.value as 'fixed' | 'adaptive' })}>
+                                    <option value="fixed">Fixed delays</option>
+                                    <option value="adaptive">Adaptive timing for silent new clients</option>
+                                </select>
+                                {config.follow_up_first_day_mode === 'adaptive' && <span className="block text-[10px] text-gray-500 mt-1">
+                                    First reminder after 45 minutes, then gaps of 3, 4.5 and up to 6 hours.
+                                    Sends fit within the original first 24 hours, from 08:00 to 21:00 Manila time.
+                                    The count varies with available time. A customer reply ends this sequence.
+                                    These are experimental timing settings.
+                                </span>}
+                            </label>
                             <div className="grid md:grid-cols-2 gap-3 mt-4">
                                 <label className="text-xs font-mono">
                                     First 24 hours — delays in minutes
@@ -1898,7 +2021,7 @@ export default function ChatbotPage() {
                                                 .sort((a, b) => a - b)
                                                 .slice(0, 10)
                                         })}
-                                        disabled={!config.follow_up_enabled}
+                                        disabled={!config.follow_up_enabled || config.follow_up_first_day_mode === 'adaptive'}
                                         className="input-wireframe w-full mt-2 text-sm"
                                         placeholder="60, 240, 720, 1380"
                                     />
@@ -1919,7 +2042,7 @@ export default function ChatbotPage() {
                                         className="input-wireframe w-full mt-2 text-sm"
                                         placeholder="2, 3, 5, 7"
                                     />
-                                    <span className="block text-[10px] text-gray-500 mt-1">{/^FOLLOW_UP_LATER_DAYS_MODE:\s*staff-review\s*$/im.test(config.instructions) ? 'Days 2–7 queue drafts for staff review at the best Philippine-time hour.' : 'Days 2–7 use the configured Human Agent workflow at the best Philippine-time hour.'}</span>
+                                    <span className="block text-[10px] text-gray-500 mt-1">Days 2–7 send automatically with HUMAN_AGENT at the contact&apos;s best Philippine-time hour.</span>
                                 </label>
                             </div>
 
@@ -1934,14 +2057,14 @@ export default function ChatbotPage() {
                             </div>
 
                             <p className="mt-3 border border-amber-500 bg-amber-50 p-2 text-[11px] text-amber-900 font-mono">
-                                First-day reminders send automatically within 24 hours. When staff review is enabled, later-day drafts appear in 7-Day Contacts for staff to review and send. HUMAN_AGENT is intended for human replies.
+                                First-day sends use RESPONSE. On days 2–7, Sunobot sends the AI-personalized follow-up automatically with HUMAN_AGENT. Meta must approve Human Agent access for the connected app.
                             </p>
                         </div>
 
                         <p className="font-mono text-xs font-bold uppercase text-gray-500 mt-5 mb-2">Stop the bot when</p>
                         <div className="grid sm:grid-cols-2 gap-2">
                             {([
-                                ['stop_when_details_collected', 'Collection percentage target is reached'],
+                                ['stop_when_details_collected', config.commercial_video_intake_enabled ? 'Form completion alone stops the bot (off for this intake)' : 'Collection percentage target is reached'],
                                 ['stop_on_opt_out', 'Customer asks the Page to stop'],
                                 ['stop_on_refusal', 'Customer clearly refuses or is not interested'],
                                 ['stop_on_qualified', 'Meta lead stage becomes Qualified', true],
@@ -1952,9 +2075,9 @@ export default function ChatbotPage() {
                                 <label key={key} className="border border-gray-400 p-2 flex items-start gap-2 text-xs cursor-pointer">
                                     <input
                                         type="checkbox"
-                                        checked={Boolean(config[key])}
+                                        checked={key === 'stop_when_details_collected' && config.commercial_video_intake_enabled ? false : Boolean(config[key])}
                                         onChange={(event) => updateConfig({ [key]: event.target.checked })}
-                                        disabled={alwaysOn}
+                                        disabled={alwaysOn || (key === 'stop_when_details_collected' && config.commercial_video_intake_enabled === true)}
                                         className="w-4 h-4 mt-0.5"
                                     />
                                     <span>{label}{alwaysOn && <span className="ml-1 font-bold text-green-700">(always on)</span>}</span>
@@ -1962,11 +2085,16 @@ export default function ChatbotPage() {
                             ))}
                         </div>
                         <p className="mt-2 text-[11px] text-gray-500 font-mono">
-                            Meta lead-stage and order stops are detected by the existing Messenger history synchronization job.
+                            Changing a lead stage in Sunobot saves the bot stop directly. Meta Business Suite does not consistently share stage-only edits,
+                            so also set the stage in Sunobot when handing a lead to a person. Staff message echoes and recent mobile replies provide additional handoff protection.
                         </p>
                     </section>
 
-                    <section id="knowledge" className={`scroll-mt-20 border-2 border-black p-5 md:p-6 mb-4 bg-white ${activeSection !== 'knowledge' ? 'hidden' : ''}`}>
+                    {activeSection === 'knowledge' && <>
+                    {(libraryLoading || requestedLibrary.current !== knowledgeLibraryPageId) && <p role="status" className="border p-5">Loading complete knowledge, media and Drive sources…</p>}
+                    {libraryError && <p role="alert" className="border border-red-200 bg-red-50 p-5">{libraryError} <button type="button" className="underline" onClick={() => { requestedLibrary.current = '';setLibraryVersion(v => v + 1); }}>Retry library</button></p>}
+                    {!libraryLoading && !libraryError && requestedLibrary.current === knowledgeLibraryPageId && <>
+                    <section id="knowledge" className="scroll-mt-20 border-2 border-black p-5 md:p-6 mb-4 bg-white">
                         <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between mb-4">
                             <div className="flex items-start gap-3">
                                 <div className="w-9 h-9 border border-black flex items-center justify-center flex-shrink-0">
@@ -2379,7 +2507,7 @@ export default function ChatbotPage() {
                                             <div className="h-40 bg-gray-100 flex items-center justify-center overflow-hidden">
                                                 {asset.preview_url && asset.media_type === 'image' ? (
                                                     // eslint-disable-next-line @next/next/no-img-element
-                                                    <img src={asset.preview_url} alt={asset.title} className="w-full h-full object-contain" />
+                                                    <img src={asset.preview_url} alt={asset.title} loading="lazy" decoding="async" className="w-full h-full object-contain" />
                                                 ) : asset.preview_url && asset.media_type === 'video' ? (
                                                     <video src={asset.preview_url} controls preload="metadata" className="w-full h-full object-contain" />
                                                 ) : asset.media_type === 'video' ? (
@@ -2419,14 +2547,17 @@ export default function ChatbotPage() {
                         </div>
                     </section>
 
+                    </>}
+                    </>}
                     <section id="test-chatbot" className={`scroll-mt-20 border-2 border-black p-5 md:p-6 bg-[#f8f8f8] ${activeSection !== 'test' ? 'hidden' : ''}`}>
                         <div className="flex items-start gap-3 mb-4">
                             <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center border border-black bg-white">
                                 <MessageSquare className="w-5 h-5" />
                             </div>
                             <div>
-                                <h2 className="font-bold text-base">Test before enabling</h2>
-                                <p className="mt-1 text-xs text-gray-500">Try a realistic customer message and review the answer, media, and knowledge sources.</p>
+                                <h2 className="font-bold text-base">Test chatbot</h2>
+                                <p className="mt-1 text-xs text-gray-500">Test the current editor settings with the same reply and follow-up logic used in Messenger. This preview does not send messages or change contacts.</p>
+                                {config.commercial_video_intake_enabled && <p className="mt-2 text-xs text-gray-600">Business → sample carousel → video-length choices → pricing and full process → Fill out form button → eight-field form and follow-up question. You can click the buttons below just like in Messenger.</p>}
                             </div>
                         </div>
 
@@ -2489,20 +2620,6 @@ export default function ChatbotPage() {
                                 </div>
                             )}
 
-                            <label className="mt-4 flex items-center gap-2 text-xs">
-                                <input
-                                    type="checkbox"
-                                    checked={ignorePastTrialConversation}
-                                    onChange={(event) => setIgnorePastTrialConversation(event.target.checked)}
-                                    disabled={liveTrialLoading}
-                                />
-                                Ignore past conversation when resetting
-                            </label>
-                            {liveTrialStatus?.contact?.id === selectedTrialContact?.id && liveTrialStatus?.state?.history_start_at && (
-                                <p className="mt-2 text-xs text-gray-600">
-                                    The bot is using only messages sent since the last fresh reset.
-                                </p>
-                            )}
                             <div className="mt-4 flex flex-wrap gap-2">
                                 <button
                                     type="button"
@@ -2533,11 +2650,23 @@ export default function ChatbotPage() {
                                 </button>
                             </div>
                             <p className="mt-3 text-[10px] leading-4 text-gray-500">
-                                After enabling, send a new message to {selectedPageName} from the selected contact&apos;s Messenger account. Reset clears collected details and stop state, cancels pending bot follow-ups, and returns the contact to Engaged. Choose whether the bot can read the earlier conversation; Messenger messages are kept.
+                                After enabling, send a new message to {selectedPageName} from the selected contact&apos;s Messenger account. Reset clears the bot&apos;s collected details and stop state, cancels pending bot follow-ups, and returns the contact to Engaged. It does not delete Messenger history.
                             </p>
                         </div>
 
                         <div className="mb-3 flex flex-wrap justify-end gap-2">
+                            {config.commercial_video_intake_enabled && (
+                                <button
+                                    type="button"
+                                    onClick={() => void testChatbot(COMMERCIAL_FORM_CHOICE)}
+                                    disabled={testing || !providerConfigured || !selectedPageId}
+                                    aria-label="Open full intake form"
+                                    className="btn-wireframe flex items-center justify-center gap-2 bg-white px-3 py-2 text-xs disabled:opacity-40"
+                                >
+                                    <FileText className="h-3.5 w-3.5" />
+                                    Fill out form
+                                </button>
+                            )}
                             <button
                                 type="button"
                                 onClick={previewTestCarousel}
@@ -2608,7 +2737,7 @@ export default function ChatbotPage() {
                                 <div className="flex flex-wrap gap-2">
                                     {Object.entries(testCollectedDetails).map(([key, value]) => (
                                         <span key={key} className="border border-gray-400 bg-gray-50 px-2 py-1 text-[11px]">
-                                            <b>{key}:</b> {value}
+                                            <b>{COMMERCIAL_VIDEO_FIELDS.find(field => field.label === key)?.displayLabel || key}:</b> {value}
                                         </span>
                                     ))}
                                 </div>
@@ -2641,14 +2770,17 @@ export default function ChatbotPage() {
                                             {chatMessage.label && (
                                                 <p className="mb-1 font-mono text-[9px] font-bold uppercase text-blue-700">{chatMessage.label}</p>
                                             )}
-                                            <p className="whitespace-pre-wrap">{chatMessage.content}</p>
-                                            {chatMessage.mediaItems && chatMessage.mediaItems.length > 1 && (
+                                            {chatMessage.content && <p className="whitespace-pre-wrap">{chatMessage.content}</p>}
+                                            {chatMessage.buttons?.map(button => (
+                                                <button key={button.payload} type="button" disabled={testing} onClick={() => void testChatbot(button)} className="mt-2 block w-full border-t border-gray-300 px-3 py-2 text-center text-xs font-bold text-blue-700 hover:bg-blue-50 disabled:opacity-40">
+                                                    {button.title}
+                                                </button>
+                                            ))}
+                                            {!!chatMessage.quickReplies?.length && <div className="mt-3 flex flex-wrap gap-2" aria-label="Test quick reply options">
+                                                {chatMessage.quickReplies.map(choice => <button key={choice.payload} type="button" disabled={testing} onClick={() => void testChatbot(choice)} className="rounded-full border border-blue-600 px-3 py-1.5 text-xs font-bold text-blue-700 hover:bg-blue-50 disabled:opacity-40">{choice.title}</button>)}
+                                            </div>}
+                                            {chatMessage.mediaItems && chatMessage.mediaItems.length > 0 && (
                                                 <MessengerCarouselPreview mediaItems={chatMessage.mediaItems} />
-                                            )}
-                                            {chatMessage.media && (!chatMessage.mediaItems || chatMessage.mediaItems.length <= 1) && (
-                                                <p className="mt-2 border-t border-gray-300 pt-2 font-mono text-[10px]">
-                                                    Would attach: {chatMessage.media.title} ({chatMessage.media.media_type})
-                                                </p>
                                             )}
                                             {chatMessage.folder && (
                                                 <div className="mt-2 border-t border-gray-300 pt-2">
@@ -2728,7 +2860,7 @@ export default function ChatbotPage() {
                             <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                                 <div>
                                     <p className="text-xs font-bold">Preview the next automated follow-up</p>
-                                    <p className="mt-1 text-[10px] text-gray-500">Uses this test conversation and your saved AI follow-up instructions. It will not schedule or send anything.</p>
+                                    <p className="mt-1 text-[10px] text-gray-500">Uses this test conversation and the current editor settings. It will not schedule or send anything.</p>
                                 </div>
                                 <div className="flex flex-col gap-2 sm:flex-row">
                                     <select
@@ -2744,7 +2876,7 @@ export default function ChatbotPage() {
                                     <button
                                         type="button"
                                         onClick={() => void testFollowUp()}
-                                        disabled={testing || !providerConfigured || testConversation.length === 0}
+                                        disabled={testing || !providerConfigured || getChatbotTestHistory(testConversation).length === 0}
                                         className="btn-wireframe flex h-10 items-center justify-center gap-2 bg-white px-4 text-xs font-bold disabled:opacity-40"
                                     >
                                         <Clock3 className="h-4 w-4" />

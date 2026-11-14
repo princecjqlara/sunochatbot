@@ -1,0 +1,81 @@
+"""Block deployments with failing tests; run checks without production credentials."""
+
+from pathlib import Path
+import os
+import subprocess
+import sys
+
+
+# These suites must travel with every deployment, even when other tests remain.
+REQUIRED_TEST_FILES = (
+    "test_suno_workspace_songs.py",
+    "test_veo_incentives.py",
+    "test_veo_availability_mode.py",
+    "test_veo_receipt_deletion.py",
+    "test_veo_reviewed_deals.py",
+    "test_veo_new_clients_only.py",
+    "test_veo_automatic_teams.py",
+    "test_veo_intake.py",
+    "test_veo_workforce.py", "test_veo_shift_reports.py",
+    "test_veo_directory.py",
+    "test_veo_workspace.py",
+    "test_poll_ready_recovery.py", "test_queue_fairness_recovery.py",
+    "test_ready_handoffs.py", "test_new_client_automation.py",
+    "test_hourly_assignments.py", "test_database_scheduler.py",
+    "test_validation_gate.py",
+    "test_veo_handovers_disabled.py",
+    "test_suno_supply.py",
+    "test_automation_controls.py",
+    "test_veo_ready_policy.py",
+    "test_page_access.py", "test_member_capacity.py",
+    "test_page_access_reminders.py",
+    "test_page_capacity_reports.py",
+    "test_nightly_reports.py",
+    "test_capacity_daily_reports.py",
+    "test_suno_capacity.py", "test_suno_team_policy.py",
+    "test_tomorrow_capacity.py",
+    "test_makata_automation.py",
+    "test_full_lists_and_sama_scope.py",
+    "test_organized_reports.py",
+    "test_recent_capacity.py",
+    "test_member_presence_and_salary_totals.py",
+    "test_veo_client_feature_switch.py",
+    "test_capacity_defaults.py",
+    "test_availability_reminders.py",
+    "test_suno_reference_defaults.py",
+    "test_report_replacement.py",
+    "test_veo_forecast.py",
+    "test_veo_person_choice.py",
+    "test_veo_hurdle.py",
+    "test_veo_advanced.py",
+    "test_veo_day.py",
+    "test_veo_offers.py",
+    "test_veo_forecast_evaluate.py",
+    "test_staffing_update.py",
+    "test_workload_capacity.py",
+    "test_production_capacity.py",
+    "test_veo_standby.py",
+    "test_member_warnings.py",
+)
+
+
+def main() -> int:
+    root = Path(__file__).resolve().parent
+    if not list((root / "tests").glob("test_*.py")):
+        print("Validation failed: regression tests are missing.", file=sys.stderr)
+        return 1
+    missing = [name for name in REQUIRED_TEST_FILES
+               if not (root / "tests" / name).is_file() or not (root / "tests" / name).stat().st_size]
+    if missing:
+        print("Validation failed: required regression suites are missing or empty: " + ", ".join(missing),
+              file=sys.stderr)
+        return 1
+    prefixes = ("TELEGRAM_", "SUPABASE_", "CRM_", "SUNO_", "INSIGHTS_", "HOURLY_", "NEW_CLIENT_", "VEO_", "ARCHIVE_", "DONE_DEAL_", "AUTOMATION_", "MEMBER_CAPACITY_", "ORGANIZED_", "AVAILABILITY_", "PAGE_ACCESS_")
+    environment = {key: value for key, value in os.environ.items()
+                   if not key.startswith(prefixes) and key not in {"ALLOWED_CHAT_IDS", "CRONJOB_API_KEY"}}
+    return subprocess.run([sys.executable, "-m", "unittest", "discover", "-s", "tests", "-q"],
+                          cwd=root, env=environment).returncode
+
+
+if __name__ == "__main__":
+    sys.exit(main())

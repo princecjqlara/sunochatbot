@@ -6,7 +6,8 @@ import {
     getConversationMessages,
     getFacebookPages,
     getPageConversationsBatch,
-    isFacebookReauthRequired
+    isFacebookReauthRequired,
+    subscribePageToAppWebhook
 } from '../facebook';
 
 function createJsonResponse(ok: boolean, payload: unknown, status: number = 200, statusText: string = 'OK') {
@@ -23,7 +24,32 @@ afterEach(() => {
     vi.unstubAllGlobals();
 });
 
+describe('webhook reconnect protection', () => {
+    it.each([{ fields: [] }, { fields: ['messages', 'messaging_postbacks'] }, { fields: ['message_reads', 'messages'] }])('always keeps echoes for supplied fields $fields', async ({ fields }) => {
+        const fetchMock = vi.fn().mockResolvedValue(createJsonResponse(true, { success: true }));
+        vi.stubGlobal('fetch', fetchMock);
+        await subscribePageToAppWebhook('page', 'token', fields);
+        const body = new URLSearchParams(fetchMock.mock.calls[0][1].body);
+        const saved = body.get('subscribed_fields')!.split(',');
+        expect(saved).toEqual(expect.arrayContaining([...fields, 'messages', 'messaging_postbacks', 'message_echoes', 'messaging_referrals']));
+        expect(new Set(saved).size).toBe(saved.length);
+    });
+});
+
 describe('getFacebookPages', () => {
+    it('does not return a partial Page list after a failed pagination request', async () => {
+        const fetcher = vi.fn().mockResolvedValueOnce(createJsonResponse(true, { data: [{ id: '100' }], paging: { next: 'https://graph.facebook.com/v21.0/me/accounts?after=next' } }))
+            .mockResolvedValueOnce(createJsonResponse(false, { error: { code: 190, message: 'Expired token' } }, 400));
+        vi.stubGlobal('fetch', fetcher);
+        await expect(getFacebookPages('token')).rejects.toMatchObject({ requiresReauth: true }); expect(fetcher).toHaveBeenCalledTimes(2);
+    });
+    it('rejects repeated Page cursors and never follows a Page-token link to another host', async () => {
+        const next = 'https://graph.facebook.com/v21.0/me/accounts?after=repeat';
+        const fetcher = vi.fn().mockResolvedValue(createJsonResponse(true, { data: [], paging: { next } })); vi.stubGlobal('fetch', fetcher);
+        await expect(getFacebookPages('token')).rejects.toThrow('pagination'); expect(fetcher).toHaveBeenCalledTimes(2);
+        fetcher.mockClear().mockResolvedValue(createJsonResponse(true, { data: [], paging: { next: 'https://other.example/accounts' } }));
+        await expect(getFacebookPages('token')).rejects.toThrow('pagination'); expect(fetcher).toHaveBeenCalledTimes(1);
+    });
     it('classifies Facebook /me permission failures as reauthorization required', async () => {
         const fetchMock = vi.fn().mockResolvedValue(
             createJsonResponse(

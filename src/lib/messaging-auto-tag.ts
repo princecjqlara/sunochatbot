@@ -1,10 +1,17 @@
-export type MessengerSystemSignal = 'order_created' | 'qualified' | 'not_qualified' | 'converted';
+export type MessengerSystemSignal = 'order_created' | 'qualified' | 'not_qualified' | 'converted' | 'manual';
 
-type MessengerHistoryMessage = {
+export type MessengerHandoffOptions = {
+    humanHandoffSince?: string | null;
+    /** Only an explicit owner reset can acknowledge older durable stage events. */
+    historyResetAt?: string | null;
+};
+
+export type MessengerHistoryMessage = {
     id?: string;
     message?: string;
-    from?: { id?: string };
+    from?: { id?: string; name?: string };
     created_time?: string;
+    tags?: { data?: Array<{ name?: string }> };
 };
 
 export type MessengerLeadStageEvent = {
@@ -13,15 +20,70 @@ export type MessengerLeadStageEvent = {
     createdTime: string | null;
 };
 
+/** Meta emits this administrative event as a Page echo; it is not a staff reply. */
+export function isMessengerAutomaticNotice(text: string): boolean {
+    return /^This message was automatically moved to spam\.?$/i.test(text.trim());
+}
+
+/** Look past the first 100 messages so old handoffs remain effective. */
+export async function loadMessengerHistoryForStopCheck(input: {
+    facebookPageId: string;
+    accessToken: string;
+    initialPage?: { data?: MessengerHistoryMessage[]; paging?: { next?: string } } | null;
+    maxPages?: number;
+    requireAvailable?: boolean;
+    requireComplete?: boolean;
+    humanHandoffSince?: string | null;
+    historyResetAt?: string | null;
+}): Promise<MessengerHistoryMessage[]> {
+    if (input.requireAvailable && !Array.isArray(input.initialPage?.data)) {
+        throw new Error('Messenger lead-stage history is unavailable; automatic delivery blocked');
+    }
+    const messages = [...(input.initialPage?.data || [])];
+    let next = input.initialPage?.paging?.next;
+    const seen = new Set<string>();
+    const deadline = Date.now() + 20_000;
+    const maxPages = input.maxPages ?? 10;
+    for (let page = 1; next && (input.requireComplete || !findLatestMessengerSystemSignal(messages, input.facebookPageId, input)); page++) {
+        if (page >= maxPages || Date.now() >= deadline) {
+            throw new Error('Messenger lead-stage history check exceeded its safe limit');
+        }
+        const url = new URL(next);
+        if (url.protocol !== 'https:' || url.hostname !== 'graph.facebook.com' || seen.has(next)) {
+            throw new Error('Unexpected Messenger lead-stage pagination URL');
+        }
+        seen.add(next);
+        url.searchParams.delete('access_token');
+        url.searchParams.set('fields', 'id,message,from,created_time,tags');
+        const response = await fetch(url, {
+            cache: 'no-store',
+            headers: { Authorization: `Bearer ${input.accessToken}` },
+            signal: AbortSignal.timeout(Math.max(1, Math.min(5000, deadline - Date.now())))
+        });
+        const body = await response.json();
+        if (!response.ok || body.error) throw new Error(body.error?.message || 'Could not verify Messenger lead-stage history');
+        if (!Array.isArray(body.data)) throw new Error('Messenger lead-stage history is unavailable');
+        messages.push(...body.data);
+        next = body.paging?.next;
+    }
+    return messages;
+}
+
 // These are Meta-generated conversation-history messages, not customer/staff prose.
 // The stage and order text was observed in the app's read-only Messenger audit.
 export function classifyMessengerSystemMessage(text: string): MessengerSystemSignal | null {
     const value = text.trim();
-    const stage = /^Lead stage set to (Qualified|Not Qualified|Disqualified|Converted|Order Created)\.?$/i.exec(value);
+    const stage = /^Lead stage set to ([^\r\n]{1,80}?)\.?$/i.exec(value);
     if (stage) {
-        const normalized = stage[1].toLowerCase().replace(/\s+/g, '_');
-        return normalized === 'disqualified' ? 'not_qualified' : normalized as MessengerSystemSignal;
+        const normalized = stage[1].trim().toLowerCase().replace(/\s+/g, '_');
+        if (normalized === 'disqualified' || normalized === 'unqualified') return 'not_qualified';
+        if (['qualified', 'not_qualified', 'converted', 'order_created'].includes(normalized)) return normalized as MessengerSystemSignal;
+        // Intake, Contacted and custom Lead Center stages are human handoffs too.
+        return 'manual';
     }
+
+    // Observed in live Onset history when a person takes over in Business Suite.
+    if (/^You took over this chat from your AI agent\.?$/i.test(value)) return 'manual';
 
     if (/^You (?:created an order for|requested) (?:PHP|\u20B1)[\d,.]+\b/i.test(value) &&
         /fb-pma:\/\/payments\/orderdetails\/\?[^\s]*invoice_id=\d+/i.test(value)) {
@@ -31,14 +93,38 @@ export function classifyMessengerSystemMessage(text: string): MessengerSystemSig
     return null;
 }
 
-/** Find the newest terminal Lead Center event written into a Messenger thread. */
+export function classifyMessengerHistoryMessage(
+    message: MessengerHistoryMessage,
+    facebookPageId: string,
+    options: MessengerHandoffOptions = {}
+): MessengerSystemSignal | null {
+    if (message.from?.id !== facebookPageId) return null;
+    if (isMessengerAutomaticNotice(message.message || '')) return null;
+    const resetAt = Date.parse(options.historyResetAt || '');
+    const messageAt = Date.parse(message.created_time || '');
+    if (Number.isFinite(resetAt) && Number.isFinite(messageAt) && messageAt < resetAt) return null;
+    const signal = typeof message.message === 'string' ? classifyMessengerSystemMessage(message.message) : null;
+    // Explicit lead stages/orders remain durable. Ordinary staff replies belong
+    // to the current intake, so an old chat does not undo an explicit bot reset.
+    const isHumanHandoff = signal === 'manual' && !/^Lead stage set to /i.test(message.message?.trim() || '');
+    if (signal && !isHumanHandoff) return signal;
+    const since = new Date(options.humanHandoffSince || '').getTime();
+    const sentAt = new Date(message.created_time || '').getTime();
+    if (Number.isFinite(since) && Number.isFinite(sentAt) && sentAt < since) return null;
+    if (signal) return signal;
+    // Live Meta reads mark staff mobile replies source:mobile, including photos.
+    // VeoBot API messages are source:web; source:web alone is not a handoff.
+    return message.tags?.data?.some(tag => tag.name === 'source:mobile') ? 'manual' : null;
+}
+
+/** Find the newest lead-stage or human-handoff event in a Messenger thread. */
 export function findLatestMessengerSystemSignal(
     messages: MessengerHistoryMessage[],
-    facebookPageId: string
+    facebookPageId: string,
+    options: MessengerHandoffOptions = {}
 ): MessengerSystemSignal | null {
     const matches = messages.flatMap((message, index) => {
-        if (message.from?.id !== facebookPageId || typeof message.message !== 'string') return [];
-        const signal = classifyMessengerSystemMessage(message.message);
+        const signal = classifyMessengerHistoryMessage(message, facebookPageId, options);
         if (!signal) return [];
         const timestamp = typeof message.created_time === 'string'
             ? new Date(message.created_time).getTime()
@@ -60,10 +146,27 @@ export function findLatestMessengerSystemSignal(
     return matches[0].signal;
 }
 
+/** Only real newer activity advances a temporary handoff; scans are not staff activity. */
+export function getMessengerHandoffMetadata(
+    messages: MessengerHistoryMessage[], facebookPageId: string,
+    options: MessengerHandoffOptions = {}
+): { pauseKind: 'human_takeover' | 'explicit_hold'; humanActivityAt?: string } {
+    const activity = messages.filter(message => classifyMessengerHistoryMessage(message, facebookPageId, options))
+        .sort((a, b) => Date.parse(b.created_time || '') - Date.parse(a.created_time || ''))[0];
+    const explicitStage = messages.some(message => message.from?.id === facebookPageId &&
+        /^Lead stage set to /i.test(message.message?.trim() || '') && classifyMessengerHistoryMessage(message, facebookPageId, options));
+    return {
+        pauseKind: explicitStage ? 'explicit_hold' : 'human_takeover',
+        ...(activity?.created_time && Number.isFinite(Date.parse(activity.created_time))
+            ? { humanActivityAt: new Date(activity.created_time).toISOString() } : {})
+    };
+}
+
 /** Find the newest explicit Lead Center stage change and keep its audit metadata. */
 export function findLatestMessengerLeadStageEvent(
     messages: MessengerHistoryMessage[],
-    facebookPageId: string
+    facebookPageId: string,
+    options: MessengerHandoffOptions = {}
 ): MessengerLeadStageEvent | null {
     const matches = messages.flatMap((message, index) => {
         if (
@@ -73,7 +176,7 @@ export function findLatestMessengerLeadStageEvent(
             typeof message.message !== 'string' ||
             !/^Lead stage set to /i.test(message.message.trim())
         ) return [];
-        const signal = classifyMessengerSystemMessage(message.message);
+        const signal = classifyMessengerHistoryMessage(message, facebookPageId, options);
         if (!signal) return [];
         const timestamp = typeof message.created_time === 'string'
             ? new Date(message.created_time).getTime()
@@ -104,3 +207,51 @@ export function findLatestMessengerLeadStageEvent(
         createdTime: latest.createdTime
     };
 }
+
+
+export function findMessengerLabelAutomationStop(
+    labels: Array<{ page_label_name: string }>
+): MessengerAutomationStopReason | null {
+    const names = labels.map(label => label.page_label_name.trim().toLowerCase().replace(/[_\s-]+/g, ' '));
+    if (names.some(name => ['converted', 'paid', 'won'].includes(name))) return 'converted';
+    if (names.some(name => ['order created', 'order placed', 'dispatched'].includes(name))) return 'order_created';
+    if (names.some(name => ['not qualified', 'disqualified', 'unqualified'].includes(name))) return 'not_qualified';
+    if (names.includes('qualified')) return 'qualified';
+    return names.some(name => name !== 'intake' && !/^ad[ _]id\./i.test(name) &&
+        !['messenger ads', 'ad response'].includes(name)) ? 'manual' : null;
+}
+
+
+export function findLatestMessengerAutomationStop(
+    messages: MessengerHistoryMessage[],
+    facebookPageId: string
+): MessengerAutomationStopReason | null {
+    const assignments = messages.flatMap((message, index) => {
+        if (message.from?.id !== facebookPageId || typeof message.message !== 'string') return [];
+        const stage = getMessengerLeadStageName(message.message);
+        if (!stage) return [];
+        return [{ message, stage, index, timestamp: Date.parse(message.created_time || '') }];
+    });
+    assignments.sort((a, b) => {
+        const aValid = Number.isFinite(a.timestamp), bValid = Number.isFinite(b.timestamp);
+        if (aValid && bValid && a.timestamp !== b.timestamp) return b.timestamp - a.timestamp;
+        if (aValid !== bValid) return aValid ? -1 : 1;
+        return a.index - b.index;
+    });
+    const latest = assignments[0];
+    if (latest && !/^intake$/i.test(latest.stage)) {
+        return classifyMessengerSystemMessage(latest.message.message!) || 'manual';
+    }
+    // Returning to Intake does not undo an actual Messenger order.
+    return messages.some(message => message.from?.id === facebookPageId &&
+        classifyMessengerSystemMessage(message.message || '') === 'order_created' &&
+        !/^Lead\s+stage\s+set\s+to\s+/i.test(message.message?.trim() || '')) ? 'order_created' : null;
+}
+
+
+export function getMessengerLeadStageName(text: string): string | null {
+    return /^Lead\s+stage\s+set\s+to\s+([^\r\n]+?)\.?$/i.exec(text.trim())?.[1].trim() || null;
+}
+
+
+export type MessengerAutomationStopReason = MessengerSystemSignal | 'manual';

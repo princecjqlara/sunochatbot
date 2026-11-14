@@ -17,6 +17,10 @@ if (!process.env.NEXTAUTH_URL_INTERNAL?.trim()) {
 
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+  // Trace this independent app, regardless of lockfiles in parent folders.
+  outputFileTracingRoot: __dirname,
+  // Keep the copied workspace build within this development machine's memory.
+  experimental: { cpus: 1, webpackBuildWorker: false },
   // Configure for ngrok
   async headers() {
     return [

@@ -1,0 +1,2765 @@
+{
+  "checked_at": "2026-11-14T13:27:37.216Z",
+  "project": "cxgynadprukyeuqbchbs",
+  "read_only": true,
+  "contains_customer_rows": false,
+  "contains_credentials": false,
+  "tables": [
+    {
+      "schemaname": "public",
+      "tablename": "business_users"
+    },
+    {
+      "schemaname": "public",
+      "tablename": "businesses"
+    },
+    {
+      "schemaname": "public",
+      "tablename": "campaign_delivery_failures"
+    },
+    {
+      "schemaname": "public",
+      "tablename": "campaign_recipients"
+    },
+    {
+      "schemaname": "public",
+      "tablename": "campaigns"
+    },
+    {
+      "schemaname": "public",
+      "tablename": "chatbot_configs"
+    },
+    {
+      "schemaname": "public",
+      "tablename": "chatbot_contact_states"
+    },
+    {
+      "schemaname": "public",
+      "tablename": "chatbot_drive_files"
+    },
+    {
+      "schemaname": "public",
+      "tablename": "chatbot_drive_folders"
+    },
+    {
+      "schemaname": "public",
+      "tablename": "chatbot_follow_up_jobs"
+    },
+    {
+      "schemaname": "public",
+      "tablename": "chatbot_interruption_events"
+    },
+    {
+      "schemaname": "public",
+      "tablename": "chatbot_knowledge_chunks"
+    },
+    {
+      "schemaname": "public",
+      "tablename": "chatbot_knowledge_documents"
+    },
+    {
+      "schemaname": "public",
+      "tablename": "chatbot_media_assets"
+    },
+    {
+      "schemaname": "public",
+      "tablename": "chatbot_message_deliveries"
+    },
+    {
+      "schemaname": "public",
+      "tablename": "chatbot_reply_events"
+    },
+    {
+      "schemaname": "public",
+      "tablename": "contact_tags"
+    },
+    {
+      "schemaname": "public",
+      "tablename": "contacts"
+    },
+    {
+      "schemaname": "public",
+      "tablename": "conversation_export_jobs"
+    },
+    {
+      "schemaname": "public",
+      "tablename": "outbound_message_events"
+    },
+    {
+      "schemaname": "public",
+      "tablename": "page_activity_history"
+    },
+    {
+      "schemaname": "public",
+      "tablename": "page_sync_leases"
+    },
+    {
+      "schemaname": "public",
+      "tablename": "pages"
+    },
+    {
+      "schemaname": "public",
+      "tablename": "tag_shares"
+    },
+    {
+      "schemaname": "public",
+      "tablename": "tags"
+    },
+    {
+      "schemaname": "public",
+      "tablename": "user_pages"
+    },
+    {
+      "schemaname": "public",
+      "tablename": "users"
+    },
+    {
+      "schemaname": "public",
+      "tablename": "welcome_messages"
+    },
+    {
+      "schemaname": "public",
+      "tablename": "workflow_automation_states"
+    },
+    {
+      "schemaname": "public",
+      "tablename": "workflow_automations"
+    }
+  ],
+  "columns": [
+    {
+      "table_name": "business_users",
+      "column_name": "id",
+      "data_type": "uuid",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "business_users",
+      "column_name": "business_id",
+      "data_type": "uuid",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "business_users",
+      "column_name": "user_id",
+      "data_type": "uuid",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "business_users",
+      "column_name": "role",
+      "data_type": "text",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "business_users",
+      "column_name": "created_at",
+      "data_type": "timestamp with time zone",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "businesses",
+      "column_name": "id",
+      "data_type": "uuid",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "businesses",
+      "column_name": "name",
+      "data_type": "text",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "businesses",
+      "column_name": "created_at",
+      "data_type": "timestamp with time zone",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "businesses",
+      "column_name": "updated_at",
+      "data_type": "timestamp with time zone",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "campaign_delivery_failures",
+      "column_name": "campaign_id",
+      "data_type": "uuid",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "campaign_delivery_failures",
+      "column_name": "contact_id",
+      "data_type": "uuid",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "campaign_delivery_failures",
+      "column_name": "error_message",
+      "data_type": "text",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "campaign_delivery_failures",
+      "column_name": "failed_at",
+      "data_type": "timestamp with time zone",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "campaign_delivery_failures",
+      "column_name": "attempt_count",
+      "data_type": "smallint",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "campaign_recipients",
+      "column_name": "campaign_id",
+      "data_type": "uuid",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "campaign_recipients",
+      "column_name": "contact_id",
+      "data_type": "uuid",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "campaign_recipients",
+      "column_name": "status",
+      "data_type": "text",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "campaign_recipients",
+      "column_name": "scheduled_at",
+      "data_type": "timestamp with time zone",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "campaign_recipients",
+      "column_name": "next_scheduled_at",
+      "data_type": "timestamp with time zone",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "campaign_recipients",
+      "column_name": "sent_at",
+      "data_type": "timestamp with time zone",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "campaign_recipients",
+      "column_name": "error_message",
+      "data_type": "text",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "campaign_recipients",
+      "column_name": "claim_token",
+      "data_type": "uuid",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "campaign_recipients",
+      "column_name": "claimed_at",
+      "data_type": "timestamp with time zone",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "campaign_recipients",
+      "column_name": "created_at",
+      "data_type": "timestamp with time zone",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "campaign_recipients",
+      "column_name": "message_sent_count",
+      "data_type": "integer",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "campaign_recipients",
+      "column_name": "last_contacted_at",
+      "data_type": "timestamp with time zone",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "campaigns",
+      "column_name": "id",
+      "data_type": "uuid",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "campaigns",
+      "column_name": "page_id",
+      "data_type": "uuid",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "campaigns",
+      "column_name": "name",
+      "data_type": "text",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "campaigns",
+      "column_name": "message_text",
+      "data_type": "text",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "campaigns",
+      "column_name": "status",
+      "data_type": "text",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "campaigns",
+      "column_name": "scheduled_at",
+      "data_type": "timestamp with time zone",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "campaigns",
+      "column_name": "audience_mode",
+      "data_type": "text",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "campaigns",
+      "column_name": "audience_start_date",
+      "data_type": "date",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "campaigns",
+      "column_name": "audience_include_tag_ids",
+      "data_type": "jsonb",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "campaigns",
+      "column_name": "audience_exclude_tag_ids",
+      "data_type": "jsonb",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "campaigns",
+      "column_name": "audience_materialized_at",
+      "data_type": "timestamp with time zone",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "campaigns",
+      "column_name": "template_media_header",
+      "data_type": "jsonb",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "campaigns",
+      "column_name": "template_media_headers",
+      "data_type": "jsonb",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "campaigns",
+      "column_name": "next_attempt_at",
+      "data_type": "timestamp with time zone",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "campaigns",
+      "column_name": "last_error",
+      "data_type": "text",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "campaigns",
+      "column_name": "background_delivery_enabled",
+      "data_type": "boolean",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "campaigns",
+      "column_name": "is_loop",
+      "data_type": "boolean",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "campaigns",
+      "column_name": "ai_prompt",
+      "data_type": "text",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "campaigns",
+      "column_name": "loop_status",
+      "data_type": "text",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "campaigns",
+      "column_name": "last_run_at",
+      "data_type": "timestamp with time zone",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "campaigns",
+      "column_name": "use_ai_message",
+      "data_type": "boolean",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "campaigns",
+      "column_name": "scheduled_date",
+      "data_type": "timestamp with time zone",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "campaigns",
+      "column_name": "use_best_time",
+      "data_type": "boolean",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "campaigns",
+      "column_name": "template_name",
+      "data_type": "text",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "campaigns",
+      "column_name": "template_language",
+      "data_type": "text",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "campaigns",
+      "column_name": "recurrence",
+      "data_type": "text",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "campaigns",
+      "column_name": "recurrence_end_at",
+      "data_type": "timestamp with time zone",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "campaigns",
+      "column_name": "started_at",
+      "data_type": "timestamp with time zone",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "campaigns",
+      "column_name": "completed_at",
+      "data_type": "timestamp with time zone",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "campaigns",
+      "column_name": "recipient_history_purged_at",
+      "data_type": "timestamp with time zone",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "campaigns",
+      "column_name": "total_recipients",
+      "data_type": "integer",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "campaigns",
+      "column_name": "sent_count",
+      "data_type": "integer",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "campaigns",
+      "column_name": "failed_count",
+      "data_type": "integer",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "campaigns",
+      "column_name": "created_by",
+      "data_type": "uuid",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "campaigns",
+      "column_name": "created_at",
+      "data_type": "timestamp with time zone",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "campaigns",
+      "column_name": "updated_at",
+      "data_type": "timestamp with time zone",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "chatbot_configs",
+      "column_name": "id",
+      "data_type": "uuid",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "chatbot_configs",
+      "column_name": "page_id",
+      "data_type": "uuid",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "chatbot_configs",
+      "column_name": "enabled",
+      "data_type": "boolean",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "chatbot_configs",
+      "column_name": "trial_mode_enabled",
+      "data_type": "boolean",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "chatbot_configs",
+      "column_name": "trial_contact_id",
+      "data_type": "uuid",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "chatbot_configs",
+      "column_name": "instructions",
+      "data_type": "text",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "chatbot_configs",
+      "column_name": "fallback_reply",
+      "data_type": "text",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "chatbot_configs",
+      "column_name": "model",
+      "data_type": "text",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "chatbot_configs",
+      "column_name": "created_at",
+      "data_type": "timestamp with time zone",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "chatbot_configs",
+      "column_name": "updated_at",
+      "data_type": "timestamp with time zone",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "chatbot_configs",
+      "column_name": "rag_enabled",
+      "data_type": "boolean",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "chatbot_configs",
+      "column_name": "follow_up_prompt",
+      "data_type": "text",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "chatbot_configs",
+      "column_name": "details_to_collect",
+      "data_type": "jsonb",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "chatbot_configs",
+      "column_name": "split_messages",
+      "data_type": "boolean",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "chatbot_configs",
+      "column_name": "max_message_parts",
+      "data_type": "integer",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "chatbot_configs",
+      "column_name": "stop_when_details_collected",
+      "data_type": "boolean",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "chatbot_configs",
+      "column_name": "stop_on_opt_out",
+      "data_type": "boolean",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "chatbot_configs",
+      "column_name": "stop_on_refusal",
+      "data_type": "boolean",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "chatbot_configs",
+      "column_name": "stop_on_qualified",
+      "data_type": "boolean",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "chatbot_configs",
+      "column_name": "stop_on_not_qualified",
+      "data_type": "boolean",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "chatbot_configs",
+      "column_name": "stop_on_converted",
+      "data_type": "boolean",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "chatbot_configs",
+      "column_name": "stop_on_order_created",
+      "data_type": "boolean",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "chatbot_configs",
+      "column_name": "details_completion_percent",
+      "data_type": "integer",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "chatbot_configs",
+      "column_name": "bot_dos",
+      "data_type": "text",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "chatbot_configs",
+      "column_name": "bot_donts",
+      "data_type": "text",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "chatbot_configs",
+      "column_name": "follow_up_enabled",
+      "data_type": "boolean",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "chatbot_configs",
+      "column_name": "follow_up_quick_delays_minutes",
+      "data_type": "jsonb",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "chatbot_configs",
+      "column_name": "follow_up_best_time_days",
+      "data_type": "jsonb",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "chatbot_configs",
+      "column_name": "follow_up_messages",
+      "data_type": "jsonb",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "chatbot_configs",
+      "column_name": "follow_up_utility_template_name",
+      "data_type": "text",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "chatbot_configs",
+      "column_name": "follow_up_utility_template_language",
+      "data_type": "text",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "chatbot_configs",
+      "column_name": "follow_up_utility_text",
+      "data_type": "text",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "chatbot_configs",
+      "column_name": "follow_up_media_asset_id",
+      "data_type": "uuid",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "chatbot_configs",
+      "column_name": "follow_up_ai_instructions",
+      "data_type": "text",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "chatbot_configs",
+      "column_name": "knowledge_source_page_id",
+      "data_type": "uuid",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "chatbot_contact_states",
+      "column_name": "id",
+      "data_type": "uuid",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "chatbot_contact_states",
+      "column_name": "page_id",
+      "data_type": "uuid",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "chatbot_contact_states",
+      "column_name": "contact_id",
+      "data_type": "uuid",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "chatbot_contact_states",
+      "column_name": "status",
+      "data_type": "text",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "chatbot_contact_states",
+      "column_name": "started_at",
+      "data_type": "timestamp with time zone",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "chatbot_contact_states",
+      "column_name": "window_expires_at",
+      "data_type": "timestamp with time zone",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "chatbot_contact_states",
+      "column_name": "collected_details",
+      "data_type": "jsonb",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "chatbot_contact_states",
+      "column_name": "missing_details",
+      "data_type": "jsonb",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "chatbot_contact_states",
+      "column_name": "stop_reason",
+      "data_type": "text",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "chatbot_contact_states",
+      "column_name": "stopped_at",
+      "data_type": "timestamp with time zone",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "chatbot_contact_states",
+      "column_name": "last_inbound_at",
+      "data_type": "timestamp with time zone",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "chatbot_contact_states",
+      "column_name": "last_bot_reply_at",
+      "data_type": "timestamp with time zone",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "chatbot_contact_states",
+      "column_name": "created_at",
+      "data_type": "timestamp with time zone",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "chatbot_contact_states",
+      "column_name": "updated_at",
+      "data_type": "timestamp with time zone",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "chatbot_contact_states",
+      "column_name": "history_start_at",
+      "data_type": "timestamp with time zone",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "chatbot_contact_states",
+      "column_name": "human_pause_status",
+      "data_type": "text",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "chatbot_contact_states",
+      "column_name": "human_takeover_at",
+      "data_type": "timestamp with time zone",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "chatbot_contact_states",
+      "column_name": "human_resume_at",
+      "data_type": "timestamp with time zone",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "chatbot_contact_states",
+      "column_name": "human_message_id",
+      "data_type": "text",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "chatbot_contact_states",
+      "column_name": "human_hold_reason",
+      "data_type": "text",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "chatbot_contact_states",
+      "column_name": "conversation_price_quote",
+      "data_type": "text",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "chatbot_contact_states",
+      "column_name": "conversation_price_quoted_at",
+      "data_type": "timestamp with time zone",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "chatbot_contact_states",
+      "column_name": "form_sent_at",
+      "data_type": "timestamp with time zone",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "chatbot_drive_files",
+      "column_name": "id",
+      "data_type": "uuid",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "chatbot_drive_files",
+      "column_name": "page_id",
+      "data_type": "uuid",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "chatbot_drive_files",
+      "column_name": "folder_id",
+      "data_type": "uuid",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "chatbot_drive_files",
+      "column_name": "knowledge_document_id",
+      "data_type": "uuid",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "chatbot_drive_files",
+      "column_name": "drive_file_id",
+      "data_type": "text",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "chatbot_drive_files",
+      "column_name": "name",
+      "data_type": "text",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "chatbot_drive_files",
+      "column_name": "mime_type",
+      "data_type": "text",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "chatbot_drive_files",
+      "column_name": "media_type",
+      "data_type": "text",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "chatbot_drive_files",
+      "column_name": "size_bytes",
+      "data_type": "bigint",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "chatbot_drive_files",
+      "column_name": "web_view_url",
+      "data_type": "text",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "chatbot_drive_files",
+      "column_name": "thumbnail_url",
+      "data_type": "text",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "chatbot_drive_files",
+      "column_name": "modified_time",
+      "data_type": "timestamp with time zone",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "chatbot_drive_files",
+      "column_name": "auto_send",
+      "data_type": "boolean",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "chatbot_drive_files",
+      "column_name": "created_by",
+      "data_type": "uuid",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "chatbot_drive_files",
+      "column_name": "created_at",
+      "data_type": "timestamp with time zone",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "chatbot_drive_files",
+      "column_name": "updated_at",
+      "data_type": "timestamp with time zone",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "chatbot_drive_files",
+      "column_name": "relative_path",
+      "data_type": "text",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "chatbot_drive_folders",
+      "column_name": "id",
+      "data_type": "uuid",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "chatbot_drive_folders",
+      "column_name": "page_id",
+      "data_type": "uuid",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "chatbot_drive_folders",
+      "column_name": "knowledge_document_id",
+      "data_type": "uuid",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "chatbot_drive_folders",
+      "column_name": "name",
+      "data_type": "text",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "chatbot_drive_folders",
+      "column_name": "folder_url",
+      "data_type": "text",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "chatbot_drive_folders",
+      "column_name": "usage_notes",
+      "data_type": "text",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "chatbot_drive_folders",
+      "column_name": "button_text",
+      "data_type": "text",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "chatbot_drive_folders",
+      "column_name": "auto_send",
+      "data_type": "boolean",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "chatbot_drive_folders",
+      "column_name": "created_by",
+      "data_type": "uuid",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "chatbot_drive_folders",
+      "column_name": "created_at",
+      "data_type": "timestamp with time zone",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "chatbot_drive_folders",
+      "column_name": "updated_at",
+      "data_type": "timestamp with time zone",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "chatbot_drive_folders",
+      "column_name": "file_count",
+      "data_type": "integer",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "chatbot_drive_folders",
+      "column_name": "last_synced_at",
+      "data_type": "timestamp with time zone",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "chatbot_drive_folders",
+      "column_name": "sync_status",
+      "data_type": "text",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "chatbot_drive_folders",
+      "column_name": "sync_error",
+      "data_type": "text",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "chatbot_follow_up_jobs",
+      "column_name": "id",
+      "data_type": "uuid",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "chatbot_follow_up_jobs",
+      "column_name": "page_id",
+      "data_type": "uuid",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "chatbot_follow_up_jobs",
+      "column_name": "contact_id",
+      "data_type": "uuid",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "chatbot_follow_up_jobs",
+      "column_name": "anchor_inbound_at",
+      "data_type": "timestamp with time zone",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "chatbot_follow_up_jobs",
+      "column_name": "schedule_type",
+      "data_type": "text",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "chatbot_follow_up_jobs",
+      "column_name": "sequence_index",
+      "data_type": "integer",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "chatbot_follow_up_jobs",
+      "column_name": "due_at",
+      "data_type": "timestamp with time zone",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "chatbot_follow_up_jobs",
+      "column_name": "message_text",
+      "data_type": "text",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "chatbot_follow_up_jobs",
+      "column_name": "status",
+      "data_type": "text",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "chatbot_follow_up_jobs",
+      "column_name": "message_id",
+      "data_type": "text",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "chatbot_follow_up_jobs",
+      "column_name": "error_message",
+      "data_type": "text",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "chatbot_follow_up_jobs",
+      "column_name": "attempt_count",
+      "data_type": "integer",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "chatbot_follow_up_jobs",
+      "column_name": "claimed_at",
+      "data_type": "timestamp with time zone",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "chatbot_follow_up_jobs",
+      "column_name": "sent_at",
+      "data_type": "timestamp with time zone",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "chatbot_follow_up_jobs",
+      "column_name": "cancelled_at",
+      "data_type": "timestamp with time zone",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "chatbot_follow_up_jobs",
+      "column_name": "created_at",
+      "data_type": "timestamp with time zone",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "chatbot_follow_up_jobs",
+      "column_name": "updated_at",
+      "data_type": "timestamp with time zone",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "chatbot_follow_up_jobs",
+      "column_name": "media_asset_id",
+      "data_type": "uuid",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "chatbot_interruption_events",
+      "column_name": "id",
+      "data_type": "uuid",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "chatbot_interruption_events",
+      "column_name": "page_id",
+      "data_type": "uuid",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "chatbot_interruption_events",
+      "column_name": "contact_id",
+      "data_type": "uuid",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "chatbot_interruption_events",
+      "column_name": "message_id",
+      "data_type": "text",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "chatbot_interruption_events",
+      "column_name": "actor_user_id",
+      "data_type": "uuid",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "chatbot_interruption_events",
+      "column_name": "actor_name",
+      "data_type": "text",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "chatbot_interruption_events",
+      "column_name": "source",
+      "data_type": "text",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "chatbot_interruption_events",
+      "column_name": "collected_detail_count",
+      "data_type": "integer",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "chatbot_interruption_events",
+      "column_name": "required_detail_count",
+      "data_type": "integer",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "chatbot_interruption_events",
+      "column_name": "missing_detail_count",
+      "data_type": "integer",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "chatbot_interruption_events",
+      "column_name": "interrupted_at",
+      "data_type": "timestamp with time zone",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "chatbot_interruption_events",
+      "column_name": "created_at",
+      "data_type": "timestamp with time zone",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "chatbot_interruption_events",
+      "column_name": "interruption_type",
+      "data_type": "text",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "chatbot_interruption_events",
+      "column_name": "lead_stage",
+      "data_type": "text",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "chatbot_knowledge_chunks",
+      "column_name": "id",
+      "data_type": "uuid",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "chatbot_knowledge_chunks",
+      "column_name": "document_id",
+      "data_type": "uuid",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "chatbot_knowledge_chunks",
+      "column_name": "page_id",
+      "data_type": "uuid",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "chatbot_knowledge_chunks",
+      "column_name": "chunk_index",
+      "data_type": "integer",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "chatbot_knowledge_chunks",
+      "column_name": "content",
+      "data_type": "text",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "chatbot_knowledge_chunks",
+      "column_name": "char_count",
+      "data_type": "integer",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "chatbot_knowledge_chunks",
+      "column_name": "embedding",
+      "data_type": "USER-DEFINED",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "chatbot_knowledge_chunks",
+      "column_name": "created_at",
+      "data_type": "timestamp with time zone",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "chatbot_knowledge_documents",
+      "column_name": "id",
+      "data_type": "uuid",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "chatbot_knowledge_documents",
+      "column_name": "page_id",
+      "data_type": "uuid",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "chatbot_knowledge_documents",
+      "column_name": "title",
+      "data_type": "text",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "chatbot_knowledge_documents",
+      "column_name": "source_type",
+      "data_type": "text",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "chatbot_knowledge_documents",
+      "column_name": "original_filename",
+      "data_type": "text",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "chatbot_knowledge_documents",
+      "column_name": "content",
+      "data_type": "text",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "chatbot_knowledge_documents",
+      "column_name": "content_hash",
+      "data_type": "text",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "chatbot_knowledge_documents",
+      "column_name": "char_count",
+      "data_type": "integer",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "chatbot_knowledge_documents",
+      "column_name": "chunk_count",
+      "data_type": "integer",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "chatbot_knowledge_documents",
+      "column_name": "status",
+      "data_type": "text",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "chatbot_knowledge_documents",
+      "column_name": "error_message",
+      "data_type": "text",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "chatbot_knowledge_documents",
+      "column_name": "created_by",
+      "data_type": "uuid",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "chatbot_knowledge_documents",
+      "column_name": "created_at",
+      "data_type": "timestamp with time zone",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "chatbot_knowledge_documents",
+      "column_name": "updated_at",
+      "data_type": "timestamp with time zone",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "chatbot_knowledge_documents",
+      "column_name": "media_asset_id",
+      "data_type": "uuid",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "chatbot_media_assets",
+      "column_name": "id",
+      "data_type": "uuid",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "chatbot_media_assets",
+      "column_name": "page_id",
+      "data_type": "uuid",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "chatbot_media_assets",
+      "column_name": "knowledge_document_id",
+      "data_type": "uuid",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "chatbot_media_assets",
+      "column_name": "title",
+      "data_type": "text",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "chatbot_media_assets",
+      "column_name": "usage_notes",
+      "data_type": "text",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "chatbot_media_assets",
+      "column_name": "media_type",
+      "data_type": "text",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "chatbot_media_assets",
+      "column_name": "mime_type",
+      "data_type": "text",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "chatbot_media_assets",
+      "column_name": "original_filename",
+      "data_type": "text",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "chatbot_media_assets",
+      "column_name": "storage_bucket",
+      "data_type": "text",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "chatbot_media_assets",
+      "column_name": "storage_path",
+      "data_type": "text",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "chatbot_media_assets",
+      "column_name": "file_size",
+      "data_type": "integer",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "chatbot_media_assets",
+      "column_name": "analysis_text",
+      "data_type": "text",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "chatbot_media_assets",
+      "column_name": "auto_send",
+      "data_type": "boolean",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "chatbot_media_assets",
+      "column_name": "status",
+      "data_type": "text",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "chatbot_media_assets",
+      "column_name": "error_message",
+      "data_type": "text",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "chatbot_media_assets",
+      "column_name": "created_by",
+      "data_type": "uuid",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "chatbot_media_assets",
+      "column_name": "created_at",
+      "data_type": "timestamp with time zone",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "chatbot_media_assets",
+      "column_name": "updated_at",
+      "data_type": "timestamp with time zone",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "chatbot_media_assets",
+      "column_name": "source_folder",
+      "data_type": "text",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "chatbot_media_assets",
+      "column_name": "source_relative_path",
+      "data_type": "text",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "chatbot_message_deliveries",
+      "column_name": "id",
+      "data_type": "uuid",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "chatbot_message_deliveries",
+      "column_name": "page_id",
+      "data_type": "uuid",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "chatbot_message_deliveries",
+      "column_name": "contact_id",
+      "data_type": "uuid",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "chatbot_message_deliveries",
+      "column_name": "history_start_at",
+      "data_type": "timestamp with time zone",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "chatbot_message_deliveries",
+      "column_name": "source_key",
+      "data_type": "text",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "chatbot_message_deliveries",
+      "column_name": "message_text",
+      "data_type": "text",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "chatbot_message_deliveries",
+      "column_name": "normalized_text",
+      "data_type": "text",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "chatbot_message_deliveries",
+      "column_name": "message_hash",
+      "data_type": "text",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "chatbot_message_deliveries",
+      "column_name": "status",
+      "data_type": "text",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "chatbot_message_deliveries",
+      "column_name": "message_id",
+      "data_type": "text",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "chatbot_message_deliveries",
+      "column_name": "created_at",
+      "data_type": "timestamp with time zone",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "chatbot_message_deliveries",
+      "column_name": "sent_at",
+      "data_type": "timestamp with time zone",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "chatbot_reply_events",
+      "column_name": "inbound_message_id",
+      "data_type": "text",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "chatbot_reply_events",
+      "column_name": "page_id",
+      "data_type": "uuid",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "chatbot_reply_events",
+      "column_name": "contact_id",
+      "data_type": "uuid",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "chatbot_reply_events",
+      "column_name": "outbound_message_id",
+      "data_type": "text",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "chatbot_reply_events",
+      "column_name": "status",
+      "data_type": "text",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "chatbot_reply_events",
+      "column_name": "error_message",
+      "data_type": "text",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "chatbot_reply_events",
+      "column_name": "created_at",
+      "data_type": "timestamp with time zone",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "chatbot_reply_events",
+      "column_name": "updated_at",
+      "data_type": "timestamp with time zone",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "contact_interactions",
+      "column_name": "id",
+      "data_type": "uuid",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "contact_interactions",
+      "column_name": "contact_id",
+      "data_type": "uuid",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "contact_interactions",
+      "column_name": "page_id",
+      "data_type": "uuid",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "contact_interactions",
+      "column_name": "interaction_at",
+      "data_type": "timestamp with time zone",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "contact_interactions",
+      "column_name": "hour_of_day",
+      "data_type": "integer",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "contact_interactions",
+      "column_name": "day_of_week",
+      "data_type": "integer",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "contact_interactions",
+      "column_name": "is_from_contact",
+      "data_type": "boolean",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "contact_interactions",
+      "column_name": "created_at",
+      "data_type": "timestamp with time zone",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "contact_tags",
+      "column_name": "id",
+      "data_type": "uuid",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "contact_tags",
+      "column_name": "contact_id",
+      "data_type": "uuid",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "contact_tags",
+      "column_name": "tag_id",
+      "data_type": "uuid",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "contact_tags",
+      "column_name": "created_by",
+      "data_type": "uuid",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "contact_tags",
+      "column_name": "created_at",
+      "data_type": "timestamp with time zone",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "contacts",
+      "column_name": "id",
+      "data_type": "uuid",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "contacts",
+      "column_name": "page_id",
+      "data_type": "uuid",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "contacts",
+      "column_name": "psid",
+      "data_type": "text",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "contacts",
+      "column_name": "name",
+      "data_type": "text",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "contacts",
+      "column_name": "profile_pic",
+      "data_type": "text",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "contacts",
+      "column_name": "last_interaction_at",
+      "data_type": "timestamp with time zone",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "contacts",
+      "column_name": "best_contact_hour",
+      "data_type": "integer",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "contacts",
+      "column_name": "best_contact_confidence",
+      "data_type": "text",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "contacts",
+      "column_name": "best_contact_hours",
+      "data_type": "jsonb",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "contacts",
+      "column_name": "interaction_count",
+      "data_type": "integer",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "contacts",
+      "column_name": "first_interaction_at",
+      "data_type": "timestamp with time zone",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "contacts",
+      "column_name": "last_inbound_at",
+      "data_type": "timestamp with time zone",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "contacts",
+      "column_name": "pipeline_stage",
+      "data_type": "text",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "contacts",
+      "column_name": "pipeline_stage_source",
+      "data_type": "text",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "contacts",
+      "column_name": "pipeline_stage_updated_at",
+      "data_type": "timestamp with time zone",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "contacts",
+      "column_name": "created_at",
+      "data_type": "timestamp with time zone",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "contacts",
+      "column_name": "updated_at",
+      "data_type": "timestamp with time zone",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "conversation_export_jobs",
+      "column_name": "id",
+      "data_type": "uuid",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "conversation_export_jobs",
+      "column_name": "page_id",
+      "data_type": "uuid",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "conversation_export_jobs",
+      "column_name": "created_by",
+      "data_type": "uuid",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "conversation_export_jobs",
+      "column_name": "format",
+      "data_type": "text",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "conversation_export_jobs",
+      "column_name": "scope",
+      "data_type": "text",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "conversation_export_jobs",
+      "column_name": "status",
+      "data_type": "text",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "conversation_export_jobs",
+      "column_name": "contact_ids",
+      "data_type": "jsonb",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "conversation_export_jobs",
+      "column_name": "next_contact_index",
+      "data_type": "integer",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "conversation_export_jobs",
+      "column_name": "next_cursor",
+      "data_type": "text",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "conversation_export_jobs",
+      "column_name": "total_items",
+      "data_type": "integer",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "conversation_export_jobs",
+      "column_name": "processed_items",
+      "data_type": "integer",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "conversation_export_jobs",
+      "column_name": "conversation_count",
+      "data_type": "integer",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "conversation_export_jobs",
+      "column_name": "message_count",
+      "data_type": "integer",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "conversation_export_jobs",
+      "column_name": "chunk_count",
+      "data_type": "integer",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "conversation_export_jobs",
+      "column_name": "filename",
+      "data_type": "text",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "conversation_export_jobs",
+      "column_name": "storage_prefix",
+      "data_type": "text",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "conversation_export_jobs",
+      "column_name": "error_message",
+      "data_type": "text",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "conversation_export_jobs",
+      "column_name": "attempt_count",
+      "data_type": "smallint",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "conversation_export_jobs",
+      "column_name": "next_attempt_at",
+      "data_type": "timestamp with time zone",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "conversation_export_jobs",
+      "column_name": "claim_token",
+      "data_type": "uuid",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "conversation_export_jobs",
+      "column_name": "claimed_at",
+      "data_type": "timestamp with time zone",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "conversation_export_jobs",
+      "column_name": "started_at",
+      "data_type": "timestamp with time zone",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "conversation_export_jobs",
+      "column_name": "completed_at",
+      "data_type": "timestamp with time zone",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "conversation_export_jobs",
+      "column_name": "expires_at",
+      "data_type": "timestamp with time zone",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "conversation_export_jobs",
+      "column_name": "created_at",
+      "data_type": "timestamp with time zone",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "conversation_export_jobs",
+      "column_name": "updated_at",
+      "data_type": "timestamp with time zone",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "outbound_message_events",
+      "column_name": "id",
+      "data_type": "uuid",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "outbound_message_events",
+      "column_name": "page_id",
+      "data_type": "uuid",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "outbound_message_events",
+      "column_name": "contact_id",
+      "data_type": "uuid",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "outbound_message_events",
+      "column_name": "message_id",
+      "data_type": "text",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "outbound_message_events",
+      "column_name": "source_type",
+      "data_type": "text",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "outbound_message_events",
+      "column_name": "source_id",
+      "data_type": "uuid",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "outbound_message_events",
+      "column_name": "source_name",
+      "data_type": "text",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "outbound_message_events",
+      "column_name": "actor_user_id",
+      "data_type": "uuid",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "outbound_message_events",
+      "column_name": "actor_name",
+      "data_type": "text",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "outbound_message_events",
+      "column_name": "message_kind",
+      "data_type": "text",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "outbound_message_events",
+      "column_name": "sent_at",
+      "data_type": "timestamp with time zone",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "outbound_message_events",
+      "column_name": "created_at",
+      "data_type": "timestamp with time zone",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "page_activity_history",
+      "column_name": "id",
+      "data_type": "uuid",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "page_activity_history",
+      "column_name": "page_id",
+      "data_type": "uuid",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "page_activity_history",
+      "column_name": "actor_user_id",
+      "data_type": "uuid",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "page_activity_history",
+      "column_name": "action_type",
+      "data_type": "text",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "page_activity_history",
+      "column_name": "entity_type",
+      "data_type": "text",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "page_activity_history",
+      "column_name": "entity_id",
+      "data_type": "uuid",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "page_activity_history",
+      "column_name": "status",
+      "data_type": "text",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "page_activity_history",
+      "column_name": "summary",
+      "data_type": "text",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "page_activity_history",
+      "column_name": "target_count",
+      "data_type": "integer",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "page_activity_history",
+      "column_name": "success_count",
+      "data_type": "integer",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "page_activity_history",
+      "column_name": "failure_count",
+      "data_type": "integer",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "page_activity_history",
+      "column_name": "details",
+      "data_type": "jsonb",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "page_activity_history",
+      "column_name": "started_at",
+      "data_type": "timestamp with time zone",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "page_activity_history",
+      "column_name": "completed_at",
+      "data_type": "timestamp with time zone",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "page_activity_history",
+      "column_name": "created_at",
+      "data_type": "timestamp with time zone",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "page_sync_leases",
+      "column_name": "page_id",
+      "data_type": "uuid",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "page_sync_leases",
+      "column_name": "owner",
+      "data_type": "text",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "page_sync_leases",
+      "column_name": "acquired_at",
+      "data_type": "timestamp with time zone",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "page_sync_leases",
+      "column_name": "expires_at",
+      "data_type": "timestamp with time zone",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "pages",
+      "column_name": "id",
+      "data_type": "uuid",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "pages",
+      "column_name": "fb_page_id",
+      "data_type": "text",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "pages",
+      "column_name": "name",
+      "data_type": "text",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "pages",
+      "column_name": "access_token",
+      "data_type": "text",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "pages",
+      "column_name": "business_id",
+      "data_type": "uuid",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "pages",
+      "column_name": "last_synced_at",
+      "data_type": "timestamp with time zone",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "pages",
+      "column_name": "messaging_auto_tag_enabled",
+      "data_type": "boolean",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "pages",
+      "column_name": "messaging_auto_tag_checked_at",
+      "data_type": "timestamp with time zone",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "pages",
+      "column_name": "messaging_auto_tag_cursor",
+      "data_type": "text",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "pages",
+      "column_name": "messaging_auto_tag_attempted_at",
+      "data_type": "timestamp with time zone",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "pages",
+      "column_name": "messaging_auto_tag_last_error",
+      "data_type": "text",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "pages",
+      "column_name": "created_at",
+      "data_type": "timestamp with time zone",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "pages",
+      "column_name": "updated_at",
+      "data_type": "timestamp with time zone",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "tag_shares",
+      "column_name": "id",
+      "data_type": "uuid",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "tag_shares",
+      "column_name": "tag_id",
+      "data_type": "uuid",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "tag_shares",
+      "column_name": "shared_with_user_id",
+      "data_type": "uuid",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "tag_shares",
+      "column_name": "created_at",
+      "data_type": "timestamp with time zone",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "tags",
+      "column_name": "id",
+      "data_type": "uuid",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "tags",
+      "column_name": "name",
+      "data_type": "text",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "tags",
+      "column_name": "color",
+      "data_type": "text",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "tags",
+      "column_name": "owner_type",
+      "data_type": "text",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "tags",
+      "column_name": "owner_id",
+      "data_type": "uuid",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "tags",
+      "column_name": "page_id",
+      "data_type": "uuid",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "tags",
+      "column_name": "is_shared",
+      "data_type": "boolean",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "tags",
+      "column_name": "is_default",
+      "data_type": "boolean",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "tags",
+      "column_name": "created_at",
+      "data_type": "timestamp with time zone",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "tags",
+      "column_name": "updated_at",
+      "data_type": "timestamp with time zone",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "tags",
+      "column_name": "system_key",
+      "data_type": "text",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "user_pages",
+      "column_name": "id",
+      "data_type": "uuid",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "user_pages",
+      "column_name": "user_id",
+      "data_type": "uuid",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "user_pages",
+      "column_name": "page_id",
+      "data_type": "uuid",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "user_pages",
+      "column_name": "created_at",
+      "data_type": "timestamp with time zone",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "users",
+      "column_name": "id",
+      "data_type": "uuid",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "users",
+      "column_name": "email",
+      "data_type": "text",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "users",
+      "column_name": "name",
+      "data_type": "text",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "users",
+      "column_name": "image",
+      "data_type": "text",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "users",
+      "column_name": "facebook_id",
+      "data_type": "text",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "users",
+      "column_name": "password_hash",
+      "data_type": "text",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "users",
+      "column_name": "role",
+      "data_type": "text",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "users",
+      "column_name": "is_active",
+      "data_type": "boolean",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "users",
+      "column_name": "created_at",
+      "data_type": "timestamp with time zone",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "users",
+      "column_name": "updated_at",
+      "data_type": "timestamp with time zone",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "welcome_messages",
+      "column_name": "id",
+      "data_type": "uuid",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "welcome_messages",
+      "column_name": "page_id",
+      "data_type": "uuid",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "welcome_messages",
+      "column_name": "enabled",
+      "data_type": "boolean",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "welcome_messages",
+      "column_name": "message_text",
+      "data_type": "text",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "welcome_messages",
+      "column_name": "buttons",
+      "data_type": "jsonb",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "welcome_messages",
+      "column_name": "created_at",
+      "data_type": "timestamp with time zone",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "welcome_messages",
+      "column_name": "updated_at",
+      "data_type": "timestamp with time zone",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "workflow_automation_states",
+      "column_name": "id",
+      "data_type": "uuid",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "workflow_automation_states",
+      "column_name": "automation_id",
+      "data_type": "uuid",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "workflow_automation_states",
+      "column_name": "contact_id",
+      "data_type": "uuid",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "workflow_automation_states",
+      "column_name": "status",
+      "data_type": "text",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "workflow_automation_states",
+      "column_name": "current_step_index",
+      "data_type": "integer",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "workflow_automation_states",
+      "column_name": "next_step_at",
+      "data_type": "timestamp with time zone",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "workflow_automation_states",
+      "column_name": "stopped_at",
+      "data_type": "timestamp with time zone",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "workflow_automation_states",
+      "column_name": "stopped_reason",
+      "data_type": "text",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "workflow_automation_states",
+      "column_name": "last_triggered_at",
+      "data_type": "timestamp with time zone",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "workflow_automation_states",
+      "column_name": "last_sent_at",
+      "data_type": "timestamp with time zone",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "workflow_automation_states",
+      "column_name": "last_contact_reply_at",
+      "data_type": "timestamp with time zone",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "workflow_automation_states",
+      "column_name": "completed_at",
+      "data_type": "timestamp with time zone",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "workflow_automation_states",
+      "column_name": "created_at",
+      "data_type": "timestamp with time zone",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "workflow_automation_states",
+      "column_name": "updated_at",
+      "data_type": "timestamp with time zone",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "workflow_automations",
+      "column_name": "id",
+      "data_type": "uuid",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "workflow_automations",
+      "column_name": "page_id",
+      "data_type": "uuid",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "workflow_automations",
+      "column_name": "name",
+      "data_type": "text",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "workflow_automations",
+      "column_name": "enabled",
+      "data_type": "boolean",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "workflow_automations",
+      "column_name": "trigger_type",
+      "data_type": "text",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "workflow_automations",
+      "column_name": "message_text",
+      "data_type": "text",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "workflow_automations",
+      "column_name": "stop_keywords",
+      "data_type": "jsonb",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "workflow_automations",
+      "column_name": "steps",
+      "data_type": "jsonb",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "workflow_automations",
+      "column_name": "reply_action",
+      "data_type": "text",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "workflow_automations",
+      "column_name": "page_stop_code",
+      "data_type": "text",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "workflow_automations",
+      "column_name": "cooldown_minutes",
+      "data_type": "integer",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "workflow_automations",
+      "column_name": "created_by",
+      "data_type": "uuid",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "workflow_automations",
+      "column_name": "created_at",
+      "data_type": "timestamp with time zone",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "workflow_automations",
+      "column_name": "updated_at",
+      "data_type": "timestamp with time zone",
+      "is_nullable": "YES"
+    }
+  ],
+  "functions": [
+    "acquire_page_sync_lease",
+    "cancel_campaign_delivery",
+    "claim_campaign_recipients",
+    "claim_conversation_export_job",
+    "cleanup_terminal_campaign_recipients",
+    "create_default_page_tags",
+    "create_filtered_tracked_bulk_campaign",
+    "finish_campaign_recipient",
+    "finish_campaign_recipient_batch",
+    "finish_chatbot_message",
+    "finish_loop_campaign_recipient",
+    "get_campaign_delivery_progress",
+    "get_chatbot_activity_analytics",
+    "get_chatbot_contact_analytics",
+    "get_chatbot_contact_metrics",
+    "get_contact_pipeline_counts",
+    "get_database_health",
+    "match_chatbot_knowledge",
+    "materialize_dynamic_campaign_audience",
+    "pause_campaign_delivery",
+    "preserve_contact_last_inbound_at",
+    "record_chatbot_conversation_quote",
+    "record_chatbot_form_sent",
+    "record_chatbot_human_takeover",
+    "release_page_sync_lease",
+    "reserve_chatbot_message",
+    "reset_chatbot_form_delivery",
+    "update_updated_at_column"
+  ],
+  "triggers": [
+    {
+      "event_object_table": "campaign_recipients",
+      "trigger_name": "mirror_campaign_delivery_failure",
+      "action_timing": "AFTER",
+      "event_manipulation": "INSERT"
+    },
+    {
+      "event_object_table": "campaign_recipients",
+      "trigger_name": "mirror_campaign_delivery_failure",
+      "action_timing": "AFTER",
+      "event_manipulation": "UPDATE"
+    },
+    {
+      "event_object_table": "campaigns",
+      "trigger_name": "update_campaigns_updated_at",
+      "action_timing": "BEFORE",
+      "event_manipulation": "UPDATE"
+    },
+    {
+      "event_object_table": "chatbot_configs",
+      "trigger_name": "update_chatbot_configs_updated_at",
+      "action_timing": "BEFORE",
+      "event_manipulation": "UPDATE"
+    },
+    {
+      "event_object_table": "chatbot_contact_states",
+      "trigger_name": "chatbot_reset_form_delivery",
+      "action_timing": "BEFORE",
+      "event_manipulation": "UPDATE"
+    },
+    {
+      "event_object_table": "chatbot_contact_states",
+      "trigger_name": "update_chatbot_contact_states_updated_at",
+      "action_timing": "BEFORE",
+      "event_manipulation": "UPDATE"
+    },
+    {
+      "event_object_table": "chatbot_drive_files",
+      "trigger_name": "update_chatbot_drive_files_updated_at",
+      "action_timing": "BEFORE",
+      "event_manipulation": "UPDATE"
+    },
+    {
+      "event_object_table": "chatbot_drive_folders",
+      "trigger_name": "update_chatbot_drive_folders_updated_at",
+      "action_timing": "BEFORE",
+      "event_manipulation": "UPDATE"
+    },
+    {
+      "event_object_table": "chatbot_follow_up_jobs",
+      "trigger_name": "update_chatbot_follow_up_jobs_updated_at",
+      "action_timing": "BEFORE",
+      "event_manipulation": "UPDATE"
+    },
+    {
+      "event_object_table": "chatbot_knowledge_documents",
+      "trigger_name": "update_chatbot_knowledge_documents_updated_at",
+      "action_timing": "BEFORE",
+      "event_manipulation": "UPDATE"
+    },
+    {
+      "event_object_table": "chatbot_media_assets",
+      "trigger_name": "update_chatbot_media_assets_updated_at",
+      "action_timing": "BEFORE",
+      "event_manipulation": "UPDATE"
+    },
+    {
+      "event_object_table": "contact_interactions",
+      "trigger_name": "record_contact_interaction",
+      "action_timing": "INSTEAD OF",
+      "event_manipulation": "INSERT"
+    },
+    {
+      "event_object_table": "contacts",
+      "trigger_name": "preserve_contact_last_inbound_at",
+      "action_timing": "BEFORE",
+      "event_manipulation": "UPDATE"
+    },
+    {
+      "event_object_table": "contacts",
+      "trigger_name": "update_contacts_updated_at",
+      "action_timing": "BEFORE",
+      "event_manipulation": "UPDATE"
+    },
+    {
+      "event_object_table": "conversation_export_jobs",
+      "trigger_name": "update_conversation_export_jobs_updated_at",
+      "action_timing": "BEFORE",
+      "event_manipulation": "UPDATE"
+    },
+    {
+      "event_object_table": "pages",
+      "trigger_name": "create_default_page_tags_on_insert",
+      "action_timing": "AFTER",
+      "event_manipulation": "INSERT"
+    },
+    {
+      "event_object_table": "pages",
+      "trigger_name": "update_pages_updated_at",
+      "action_timing": "BEFORE",
+      "event_manipulation": "UPDATE"
+    },
+    {
+      "event_object_table": "tags",
+      "trigger_name": "update_tags_updated_at",
+      "action_timing": "BEFORE",
+      "event_manipulation": "UPDATE"
+    },
+    {
+      "event_object_table": "users",
+      "trigger_name": "update_users_updated_at",
+      "action_timing": "BEFORE",
+      "event_manipulation": "UPDATE"
+    },
+    {
+      "event_object_table": "workflow_automation_states",
+      "trigger_name": "update_workflow_automation_states_updated_at",
+      "action_timing": "BEFORE",
+      "event_manipulation": "UPDATE"
+    },
+    {
+      "event_object_table": "workflow_automations",
+      "trigger_name": "update_workflow_automations_updated_at",
+      "action_timing": "BEFORE",
+      "event_manipulation": "UPDATE"
+    }
+  ],
+  "database_crons": [
+    {
+      "jobname": "tokko-database-maintenance",
+      "schedule": "17 * * * *",
+      "active": true
+    }
+  ],
+  "external_schedule_status": "Not inspected; local configuration and code references only",
+  "workspace_enabled": false,
+  "chatbot_workspace_opt_in": false
+}

@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { NextRequest } from 'next/server';
 
 const mocks = vi.hoisted(() => ({
@@ -33,7 +33,7 @@ type CampaignRow = {
 
 function createRequest(): NextRequest {
     return new Request('http://localhost:3000/api/cron/campaign-scheduled', {
-        method: 'GET'
+        method: 'GET', headers:{Authorization:'Bearer private-cron'}
     }) as NextRequest;
 }
 
@@ -182,6 +182,7 @@ async function loadRoute() {
 
 describe('GET /api/cron/campaign-scheduled', () => {
     beforeEach(() => {
+        vi.stubEnv('CRON_SECRET','private-cron');
         vi.clearAllMocks();
     });
 
@@ -352,3 +353,5 @@ describe('GET /api/cron/campaign-scheduled', () => {
         expect(mocks.sendCampaignById).not.toHaveBeenCalled();
     });
 });
+
+afterEach(()=>{vi.unstubAllEnvs();});

@@ -1,0 +1,133 @@
+import { getChatbotDetailProgress } from '@/lib/chatbot-form-progress';
+import { contactControls } from '@/lib/contact-controls';
+import { hoursBetween, purchaseMetrics, type PurchaseRecord, type VerifiedPayment } from '@/lib/contact-profile-evidence';
+import { profileAdFields } from '@/lib/contact-profile-sources';
+import { workspaceEnabled, workspaceScope } from './veo-workspace';
+import { bestContactTime, contactIntelligence, mergeContactDetailLayers, profileFieldDefinitions, profileFieldKey } from './veo-contact-intelligence';
+import {isSunoSongConfig,sunoAssignmentProgress} from './suno-business';
+
+type Db = { from: (table: string) => any; rpc: (name: string, args: Record<string, unknown>) => any };
+const jobFields = 'status,reason,requested_version,working_version,scan_started,history_complete,message_count,analyzed_count,error_message,requested_at,updated_at';
+
+export async function getContactProfile(db: Db, pageId: string, contactId: string, actorId?: string) {
+    const results = await Promise.all([
+        db.from('contacts').select('*,contact_tags(tags(id,name,color,system_key,is_default))').eq('id', contactId).eq('page_id', pageId).maybeSingle(),
+        db.from('pages').select('id,name,fb_page_id,messaging_auto_tag_checked_at,messaging_auto_tag_last_error').eq('id', pageId).maybeSingle(),
+        db.from('chatbot_configs').select('*').eq('page_id', pageId).maybeSingle(),
+        db.from('chatbot_contact_states').select('*').eq('page_id', pageId).eq('contact_id', contactId).maybeSingle(),
+        db.from('contact_profile_snapshots').select('*').eq('page_id', pageId).eq('contact_id', contactId).order('generation', { ascending: false }).limit(1).maybeSingle(),
+        db.from('contact_conversation_metrics').select('source_cutoff_at,message_count,customer_message_count,page_message_count,customer_messages_replied,attachment_count,image_count,complete_history').eq('page_id', pageId).eq('contact_id', contactId).maybeSingle(),
+        db.from('contact_profile_jobs').select(jobFields).eq('page_id', pageId).eq('contact_id', contactId).maybeSingle(),
+        db.from('ad_contact_sources').select('*').eq('page_id', pageId).eq('contact_id', contactId).maybeSingle(),
+        db.rpc('get_contact_finance_records', { p_page_id: pageId, p_contact_id: contactId }),
+        db.from('messenger_lead_stage_events').select('id,label,stage,occurred_at,observed_at,message_id,applied').eq('page_id', pageId).eq('contact_id', contactId).order('occurred_at').limit(1000),
+        db.from('ad_lead_stage_events').select('id,previous_stage,stage,source,stage_timestamp,recorded_at').eq('page_id', pageId).eq('contact_id', contactId).order('recorded_at').limit(1000),
+        db.from('ad_referral_events').select('event_key,event_at,event_kind,ad_id').eq('page_id', pageId).eq('contact_id', contactId).order('event_at').limit(500)
+    ]);
+    if (results.some(result => result.error)) throw new Error('Contact profile sources are temporarily unavailable');
+    const [contactResult, pageResult, configResult, stateResult, snapshotResult, conversationMetricsResult, jobResult, adResult, financeResult, metaResult, stageResult, touchesResult] = results;
+    const contact = contactResult.data;
+    if (!contact || !pageResult.data) return null;
+    const snapshot = snapshotResult.data, conversation = snapshot?.payload?.conversation || null;
+    const finance = financeResult.data || { purchases: [], payments: [] };
+    let manual: Record<string, string> = {};
+    let profileDetails: any = null;
+    if (workspaceEnabled()) {
+        const scope = actorId ? await workspaceScope(actorId) : null;
+        if (!scope?.page_ids.includes(pageId)) throw new Error('Contact access is unavailable');
+        const details = await db.rpc('veo_profile_detail_access', { p_actor: actorId, p_contact: contactId });
+        if (details.error || !details.data) throw new Error('Workspace contact details unavailable');
+        profileDetails = details.data; manual = profileDetails.manual_fields || {};
+        const workers = profileDetails.branch_worker_ids || scope.worker_ids;
+        if (scope.role !== 'owner') {
+            finance.purchases = finance.purchases.filter((o: any) => workers.includes(o.recorded_by));
+            finance.payments = finance.payments.filter((p: any) => workers.includes(p.verified_by));
+        }
+        const orders = await db.from('veo_orders').select('*').eq('page_id', pageId).eq('contact_id', contactId).in('seller_id', workers);
+        if (orders.error) throw new Error('Workspace contact history unavailable');
+        const payments = orders.data?.length ? await db.from('veo_payments').select('*').in('order_id', orders.data.map((o: any) => o.id)) : { data: [], error: null };
+        if (payments.error) throw new Error('Workspace payment history unavailable');
+        finance.purchases = [...finance.purchases, ...(orders.data || []).map((o: any) => ({ ...o, purchased_at: o.created_at, recorded_by: o.created_by }))];
+        const currencies = new Map((orders.data || []).map((o: any) => [o.id, o.currency]));
+        finance.payments = [...finance.payments, ...(payments.data || []).map((p: any) => ({ ...p, purchase_id: p.order_id, currency: currencies.get(p.order_id), verified_at: p.created_at }))];
+    }
+    const verifiedOriginAt = /^(?:live_|audited_|verified_)/.test(adResult.data?.inquiry_basis || '') ? adResult.data.first_inquiry_at : null;
+    const firstCandidates = [conversation?.first_inquiry_at, verifiedOriginAt].filter((value): value is string => Boolean(value) && Number.isFinite(Date.parse(value)));
+    const firstInquiryAt = firstCandidates.sort((a, b) => Date.parse(a) - Date.parse(b))[0] || null;
+    const metrics = purchaseMetrics(finance.purchases as PurchaseRecord[], finance.payments as VerifiedPayment[], firstInquiryAt);
+    const meta: any[] = metaResult.data || [], stages: any[] = stageResult.data || [];
+    // A late historical notice remains evidence even when a newer local stage
+    // meant it did not overwrite the pipeline when imported.
+    const conversions = [...meta.filter(event => event.stage === 'converted').map(event => event.occurred_at),
+        ...stages.filter(event => event.stage === 'converted' && event.previous_stage && event.previous_stage !== 'converted' && event.source !== 'messenger').map(event => event.stage_timestamp)]
+        .filter((value): value is string => Boolean(value)).sort((a, b) => Date.parse(a) - Date.parse(b));
+    const firstConvertedAt = conversions[0] || null;
+    const followUps: any[] = conversation?.tracked_follow_ups || [];
+    const countBefore = (date: string | null) => date && conversation
+        ? followUps.filter(event => Date.parse(event.at) < Date.parse(date) && (!firstInquiryAt || Date.parse(event.at) >= Date.parse(firstInquiryAt))).length : null;
+    const before = [metrics.first_payment_at, conversation?.first_payment_ack_at].filter((value): value is string => Boolean(value)).sort((a, b) => Date.parse(a) - Date.parse(b))[0];
+    const controls = (await contactControls(db, pageId, [contactId])).get(contactId) || {};
+    let priorPrediction: any = null, ad: any = null;
+    if (before) {
+        const prior = await db.from('contact_conversion_prediction_issues').select('prediction,issued_at,source_cutoff_at,model_version')
+            .eq('page_id', pageId).eq('contact_id', contactId).lt('issued_at', before).lt('source_cutoff_at', before).order('issued_at', { ascending: false }).limit(1).maybeSingle();
+        if (prior.error) throw new Error('Could not verify the historical forecast');
+        priorPrediction = prior.data;
+    }
+    if (adResult.data?.origin_ad_id && adResult.data?.attribution_status === 'verified_inline') {
+        const result = await db.from('ad_source_catalog').select(profileAdFields).eq('page_id', pageId).eq('ad_id', adResult.data.origin_ad_id).maybeSingle();
+        if (result.error) throw new Error('Could not load verified ad attribution');
+        ad = { ...result.data, ad_id: adResult.data.origin_ad_id, attribution_status: 'verified_inline', evidence_key: adResult.data.origin_evidence_key };
+    }
+    const events: any[] = [];
+    if (firstInquiryAt) events.push({ id: 'first-inquiry', type: 'inquiry', at: firstInquiryAt, title: 'First known customer inquiry', basis: firstInquiryAt === conversation?.first_inquiry_at ? 'Conversation source' : 'Verified inquiry attribution' });
+    for (const event of meta) events.push({ id: `meta-${event.id}`, type: 'stage', at: event.occurred_at, title: `Meta stage: ${event.label}`, message_id: event.message_id, basis: event.applied ? 'Applied stage event' : 'Historical event; newer decision retained' });
+    for (const event of stages) {
+        if (event.source === 'messenger' && meta.some(item => item.stage === event.stage && Math.abs(Date.parse(item.observed_at) - Date.parse(event.recorded_at)) < 5000)) continue;
+        events.push({ id: `crm-${event.id}`, type: 'stage', at: event.stage_timestamp || event.recorded_at, title: `Pipeline: ${event.stage.replaceAll('_', ' ')}`, basis: event.source || 'Recorded stage' });
+    }
+    for (const order of metrics.orders) events.push({ id: `purchase-${order.id}`, type: 'purchase', at: order.purchased_at, title: `Recorded order: ${order.description}`, amount_minor: order.total_minor, currency: order.currency, basis: 'Staff-entered order; payment tracked separately' });
+    for (const payment of finance.payments) events.push({ id: `payment-${payment.id}`, type: 'payment', at: payment.occurred_at, title: `${payment.voided_at ? 'Voided ' : ''}${payment.kind} payment`, amount_minor: payment.amount_minor, currency: payment.currency, basis: payment.voided_at ? payment.void_reason : 'Staff verified against payment records' });
+    for (const evidence of conversation?.payment_evidence || []) {
+        const label = evidence.payment_type === 'downpayment' ? 'Downpayment' : evidence.payment_type === 'full_payment' ? 'Full payment' : 'Payment';
+        events.push({ id: `evidence-${evidence.message_id}`, type: 'chat_payment', at: evidence.at,
+            title: `${label} ${evidence.acknowledgment ? 'acknowledged' : 'mentioned'} in chat`, message_id: evidence.message_id,
+            amount_minor: evidence.amount == null ? null : Math.round(evidence.amount * 100),
+            basis: evidence.amount == null ? 'Chat evidence only; amount and settlement are unverified' : 'Chat-stated amount; not staff-verified' });
+    }
+    for (const invoice of conversation?.invoice_requests || []) events.push({ id: `invoice-${invoice.reference}`, type: 'invoice', at: invoice.at, title: `Invoice requested: ${invoice.reference}`, message_id: invoice.message_id, basis: 'Payment request, not proof of payment' });
+    for (const followUp of followUps) events.push({ id: `followup-${followUp.message_id}`, type: 'follow_up', at: followUp.at, title: 'Follow-up sent', message_id: followUp.message_id, basis: followUp.source });
+    for (const touch of touchesResult.data || []) events.push({ id: `ad-${touch.event_key}`, type: 'ad', at: touch.event_at, title: touch.ad_id ? `Ad touch: ${touch.ad_id}` : 'Referral touch', basis: touch.event_kind, source_event_key: touch.event_key });
+    events.sort((a, b) => Date.parse(a.at) - Date.parse(b.at));
+    const extracted = Object.fromEntries((snapshot?.payload?.extracted_answers || []).map((answer: any) => [answer.field, answer.value]));
+    const saved = getChatbotDetailProgress(configResult.data, profileDetails?.saved_fields || stateResult.data?.collected_details);
+    const intelligence = profileDetails ? contactIntelligence(profileDetails, snapshot?.payload?.facts || []) : null;
+    const displayDefinitions = [...profileFieldDefinitions(configResult.data?.details_to_collect, profileDetails?.requested_fields),
+        ...(Array.isArray(configResult.data?.details_to_collect) ? configResult.data.details_to_collect.filter((v: any) => typeof v === 'string').map((label: string) => ({ key: profileFieldKey(label), label })) : [])];
+    const filledProfileFields = Object.fromEntries((intelligence?.fields || []).filter(f => f.source !== 'unknown' && f.value !== 'Unknown'
+        && (!['buying_purpose', 'problems_encountered', 'best_contact_time'].includes(f.key) || displayDefinitions.some(d => d.key === f.key && configResult.data?.details_to_collect?.includes(d.label))))
+        .map(f => [f.label, f.value]));
+    const combinedDetails = mergeContactDetailLayers(displayDefinitions, extracted, filledProfileFields, saved.collected_details, manual);
+    const answerEvidence = Object.fromEntries(Object.keys(combinedDetails).map(label => [label, intelligence?.fields.find(f => f.key === profileFieldKey(label))?.evidence || []]));
+    const answerSources = Object.fromEntries(Object.keys(combinedDetails).map(label => [label,
+        Object.keys(manual).some(k => profileFieldKey(k) === profileFieldKey(label)) ? 'manual' : Object.keys(saved.collected_details).some(k => profileFieldKey(k) === profileFieldKey(label)) ? 'saved' : 'extracted']));
+    const conflicts = (snapshot?.payload?.extracted_answers || []).filter((answer: any) => saved.collected_details[answer.field] && saved.collected_details[answer.field] !== answer.value);
+    return { workspace_enabled: workspaceEnabled(), contact: { ...contact, tags: (contact.contact_tags || []).map((assignment: any) => assignment.tags).filter(Boolean), contact_tags: undefined },
+        page: pageResult.data, state: stateResult.data, detail_progress: getChatbotDetailProgress(configResult.data, combinedDetails),
+        song_assignment_progress:isSunoSongConfig(configResult.data)?sunoAssignmentProgress(configResult.data,combinedDetails):null,
+        saved_detail_keys: [...new Set([...Object.keys(saved.collected_details), ...Object.keys(manual)])], manual_detail_keys: Object.keys(manual), answer_conflicts: conflicts,
+        snapshot, facts: intelligence?.facts || snapshot?.payload?.facts || [], auto_fill: intelligence, ai_answer_evidence: answerEvidence, answer_sources: answerSources,
+        best_contact_time: bestContactTime(contact, intelligence?.fields.find(f => f.key === 'best_contact_time')),
+        conversation_metrics: conversationMetricsResult.data, job: jobResult.data, processing_mode: process.env.SUNO_CONTACT_PROFILE_MODE === 'remote' ? 'remote' : 'local', source_stale: Boolean(snapshot && [contact.last_interaction_at, contact.pipeline_stage_updated_at].some(value => value && Date.parse(value) > Date.parse(snapshot.source_cutoff_at))),
+        first_inquiry_at: firstInquiryAt, first_recorded_conversion_at: firstConvertedAt,
+        inquiry_to_conversion_hours: hoursBetween(firstInquiryAt, firstConvertedAt),
+        finance: { ...finance, metrics },
+        follow_up_metrics: { tracked_total: followUps.length, before_first_order: countBefore(metrics.orders[0]?.purchased_at || null), before_first_payment: countBefore(metrics.first_payment_at),
+            before_deposit: countBefore(metrics.first_deposit_at), before_converted_stage: countBefore(firstConvertedAt),
+            coverage: conversation ? 'Only messages with recorded follow-up attribution are counted' : 'Conversation analysis is not ready' },
+        ad: ad || { attribution_status: adResult.data?.attribution_status || 'unknown' }, ad_touches: touchesResult.data || [],
+        timeline: events, timeline_limited: meta.length >= 1000 || stages.length >= 1000 || (touchesResult.data || []).length >= 500,
+        controls, projection_comparison: { prior: priorPrediction, actual_payment_at: metrics.first_payment_at,
+            acknowledgment_at: conversation?.first_payment_ack_at || null,
+            comparison_basis: 'The existing model forecasts a chat payment/deposit acknowledgment. It does not predict bank settlement or repeat purchases. Only forecasts issued before the outcome are eligible for comparison.' } };
+}

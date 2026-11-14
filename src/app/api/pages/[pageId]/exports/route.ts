@@ -81,6 +81,7 @@ export async function POST(
                 page_id: pageId,
                 created_by: userId,
                 scope,
+                history_source: process.env.SUNO_HISTORY_SOURCE === 'meta' ? 'meta' : process.env.VEO_WORKSPACE_ENABLED === 'true' ? 'event_inbox' : 'meta',
                 status: 'queued',
                 contact_ids: contactIds,
                 total_items: totalItems,

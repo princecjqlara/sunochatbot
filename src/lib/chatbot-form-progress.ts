@@ -1,0 +1,59 @@
+import { getChatbotContactState, getMissingChatbotDetails, normalizeCollectedChatbotDetails, normalizeDetailsToCollect, saveChatbotContactState, type ChatbotContactState } from '@/lib/chatbot-control';
+import { COMMERCIAL_VIDEO_REQUIRED_DETAILS, extractCommercialVideoFormDetails, getMissingCommercialVideoDetails, normalizeCommercialVideoDetails } from '@/lib/chatbot-intake';
+import { updateContactPipelineStage } from '@/lib/contact-pipeline';
+import { usesSalesAssistant, salesSettings, salesDetailProgress } from '@/lib/chatbot-sales-assistant';
+import { mergeGuidedSalesDetails, normalizeGuidedSalesDetails } from '@/lib/chatbot-guided-sales';
+import { isSunoSongConfig, normalizeSunoDetails, sunoDetailKey, SUNO_DETAIL_FIELDS } from '@/lib/suno-business';
+
+type DetailConfig = { business_domain?: 'song' | 'commercial_video'; instructions?: string; commercial_video_intake_enabled?: boolean; details_to_collect?: unknown; sales_assistant_settings?: unknown };
+
+/** Form completion is independent of the lead stage and cached missing list. */
+export function getChatbotDetailProgress(config: DetailConfig | null, details: unknown) {
+    if (isSunoSongConfig(config)) {
+        const collected = normalizeSunoDetails(details);
+        const fields = Array.isArray(config?.details_to_collect) ? [...new Set(config.details_to_collect.filter((v): v is string => typeof v === 'string').map(label => sunoDetailKey(label) || label))] : SUNO_DETAIL_FIELDS;
+        const missing = fields.filter(label => !collected[label]);
+        const other = Object.fromEntries(Object.entries(normalizeCollectedChatbotDetails(details)).filter(([label])=>!sunoDetailKey(label)));
+        const displayed = {...other,...collected};
+        return { collected_details: displayed, collected_count: fields.length - missing.length,
+            saved_count: Object.keys(displayed).length, required_count: fields.length, missing_details: missing, complete: fields.length > 0 && !missing.length };
+    }
+    if (config && usesSalesAssistant(config)) {
+        const progress = salesDetailProgress(details, salesSettings(config.sales_assistant_settings));
+        const displayed = { ...normalizeCollectedChatbotDetails(details), ...progress.collected_details };
+        return { ...progress, collected_details: displayed, saved_count: Object.keys(displayed).length };
+    }
+    const commercial = config?.commercial_video_intake_enabled === true;
+    const saved = normalizeCollectedChatbotDetails(details);
+    const collected = commercial ? normalizeCommercialVideoDetails(details) : saved;
+    // Older conversations can contain useful answers beyond today's form.
+    // Display them while counting only valid required answers for completion.
+    const displayed = commercial ? {
+        ...Object.fromEntries(Object.entries(saved).filter(([key, value]) => !Object.keys(normalizeCommercialVideoDetails({ [key]: value })).length)),
+        ...collected
+    } : collected;
+    const required = commercial ? [...COMMERCIAL_VIDEO_REQUIRED_DETAILS] : normalizeDetailsToCollect(config?.details_to_collect);
+    const missing = commercial ? getMissingCommercialVideoDetails(collected) : getMissingChatbotDetails(required, collected);
+    return { collected_details: displayed, collected_count: required.filter(label => !missing.includes(label)).length,
+        saved_count: Object.keys(displayed).length, required_count: required.length, missing_details: missing,
+        complete: required.length > 0 && missing.length === 0 };
+}
+
+/** Save form answers before generation/delivery, without introducing a stop. */
+export async function captureCommercialVideoFormProgress(db: { from: (table: string) => any }, input: {
+    pageId: string; contactId: string; existingState: ChatbotContactState | null; customerText: string; inboundAt: string;
+    guidedSales?: boolean; salesFormFields?: string[];
+}): Promise<ChatbotContactState | null> {
+    const submitted = input.guidedSales ? mergeGuidedSalesDetails({}, {}, [input.customerText], input.customerText, input.salesFormFields) : extractCommercialVideoFormDetails(input.customerText);
+    if (!Object.keys(submitted).length) return input.existingState;
+    const collectedDetails = { ...(input.guidedSales ? normalizeGuidedSalesDetails(input.existingState?.collected_details, input.salesFormFields) : normalizeCommercialVideoDetails(input.existingState?.collected_details)), ...submitted };
+    await saveChatbotContactState(db, { pageId: input.pageId, contactId: input.contactId, existingState: input.existingState,
+        collectedDetails, missingDetails: getMissingCommercialVideoDetails(collectedDetails), inboundAt: input.inboundAt });
+    // A delivery rejection must not hide partial answers from the client list.
+    // Existing manual/Messenger stages and every stopped state retain ownership.
+    if (input.existingState?.status !== 'stopped') {
+        try { await updateContactPipelineStage(db, { pageId: input.pageId, contactId: input.contactId, stage: 'collecting_details', source: 'chatbot' }); }
+        catch (error) { console.warn('[CHATBOT_FORM_PROGRESS_PIPELINE]', error instanceof Error ? error.message : 'Could not update pipeline'); }
+    }
+    return await getChatbotContactState(db, input.pageId, input.contactId);
+}

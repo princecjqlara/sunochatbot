@@ -1,11 +1,24 @@
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
     classifyMessengerSystemMessage,
     findLatestMessengerLeadStageEvent,
-    findLatestMessengerSystemSignal
+    findLatestMessengerSystemSignal,
+    loadMessengerHistoryForStopCheck
 } from './messaging-auto-tag';
 
 describe('classifyMessengerSystemMessage', () => {
+    it('acknowledges historical stages only after an explicit reset', () => {
+        const oldStage = { id: 'old-stage', message: 'Lead stage set to Not qualified',
+            from: { id: 'page-1' }, created_time: '2025-09-15T19:37:44Z' };
+        const options = { humanHandoffSince: '2026-10-17T07:00:00Z', historyResetAt: '2026-10-17T07:00:00Z' };
+        expect(findLatestMessengerSystemSignal([oldStage], 'page-1', { humanHandoffSince: options.humanHandoffSince })).toBe('not_qualified');
+        expect(findLatestMessengerSystemSignal([oldStage], 'page-1', options)).toBeNull();
+        expect(findLatestMessengerLeadStageEvent([oldStage], 'page-1', options)).toBeNull();
+        const newStage = { ...oldStage, id: 'new-stage', created_time: options.historyResetAt };
+        expect(findLatestMessengerSystemSignal([newStage, oldStage], 'page-1', options)).toBe('not_qualified');
+        expect(findLatestMessengerLeadStageEvent([newStage, oldStage], 'page-1', options)?.messageId).toBe('new-stage');
+        expect(findLatestMessengerSystemSignal([{ ...oldStage, created_time: undefined }], 'page-1', options)).toBe('not_qualified');
+    });
     it('accepts qualified, not-qualified, and converted stage records', () => {
         expect(classifyMessengerSystemMessage('Lead stage set to Qualified')).toBe('qualified');
         expect(classifyMessengerSystemMessage('Lead stage set to Not Qualified')).toBe('not_qualified');
@@ -19,9 +32,56 @@ describe('classifyMessengerSystemMessage', () => {
         expect(classifyMessengerSystemMessage('You requested PHP699. View: fb-pma://payments/orderdetails/?invoice_id=12345')).toBe('order_created');
     });
 
+    it.each(['Intake', 'Contacted', 'Interested', 'Custom Stage'])(
+        'treats an explicit %s stage as a durable human handoff', (stage) => {
+            expect(classifyMessengerSystemMessage(`Lead stage set to ${stage}`)).toBe('manual');
+            expect(findLatestMessengerLeadStageEvent([{ id: 'stage-event', message: `Lead stage set to ${stage}`,
+                from: { id: 'page-1' } }], 'page-1')?.signal).toBe('manual');
+        }
+    );
+
+    it('recognizes the Unqualified alias without matching ordinary stage discussion', () => {
+        expect(classifyMessengerSystemMessage('Lead stage set to Unqualified.')).toBe('not_qualified');
+        expect(classifyMessengerSystemMessage('Please set the lead stage to Contacted')).toBeNull();
+    });
+
     it('does not mistake payment claims or ordinary text for a qualifying event', () => {
         expect(classifyMessengerSystemMessage('I paid PHP699')).toBeNull();
         expect(classifyMessengerSystemMessage('You created an order for PHP699')).toBeNull();
+    });
+
+    it('recognizes the actual Business Suite AI takeover notification', () => {
+        expect(classifyMessengerSystemMessage('You took over this chat from your AI agent.')).toBe('manual');
+        expect(classifyMessengerSystemMessage('Can you take over this chat?')).toBeNull();
+    });
+
+    it('detects a staff reply from Messenger mobile even without a lead-stage notification', () => {
+        expect(findLatestMessengerSystemSignal([{
+            id: 'staff-reply', message: 'We will handle your order from here.',
+            from: { id: 'page-1' }, tags: { data: [{ name: 'source:mobile' }] }
+        }], 'page-1')).toBe('manual');
+    });
+
+    it('does not mistake customer mobile messages or API web messages for a staff handoff', () => {
+        expect(findLatestMessengerSystemSignal([
+            { id: 'customer', message: 'Hello', from: { id: 'customer-1' }, tags: { data: [{ name: 'source:mobile' }] } },
+            { id: 'bot', message: 'How can we help?', from: { id: 'page-1' }, tags: { data: [{ name: 'source:web' }] } }
+        ], 'page-1')).toBeNull();
+    });
+
+    it('ignores ordinary staff replies before the current intake or explicit reset', () => {
+        const options = { humanHandoffSince: '2026-10-10T00:00:00Z' };
+        expect(findLatestMessengerSystemSignal([{
+            id: 'old-staff', message: 'We will help.', from: { id: 'page-1' }, created_time: '2026-09-01T00:00:00Z',
+            tags: { data: [{ name: 'source:mobile' }] }
+        }], 'page-1', options)).toBeNull();
+        expect(findLatestMessengerSystemSignal([{
+            id: 'recent-staff', message: '', from: { id: 'page-1' }, created_time: '2026-10-10T01:00:00Z',
+            tags: { data: [{ name: 'source:mobile' }] }
+        }], 'page-1', options)).toBe('manual');
+        expect(findLatestMessengerSystemSignal([{
+            id: 'qualified', message: 'Lead stage set to Qualified', from: { id: 'page-1' }, created_time: '2026-09-01T00:00:00Z'
+        }], 'page-1', options)).toBe('qualified');
     });
 
     it('finds the newest Lead Center stage written by the Page', () => {
@@ -72,5 +132,41 @@ describe('classifyMessengerSystemMessage', () => {
             signal: 'converted',
             createdTime: '2026-09-29T10:00:00Z'
         });
+    });
+});
+
+afterEach(() => { vi.unstubAllGlobals(); });
+
+describe('Messenger lead-stage pagination', () => {
+    it('rejects an unavailable initial history page when checking automatic delivery', async () => {
+        await expect(loadMessengerHistoryForStopCheck({ facebookPageId: 'page-1', accessToken: 'token',
+            initialPage: null, requireAvailable: true })).rejects.toThrow('history is unavailable');
+    });
+    it('finds an older handoff outside the newest history page without sending anything', async () => {
+        const fetchMock = vi.fn().mockResolvedValue({ ok: true, json: async () => ({ data: [{
+            message: 'Lead stage set to Converted', from: { id: 'page-1' }
+        }] }) });
+        vi.stubGlobal('fetch', fetchMock);
+        const messages = await loadMessengerHistoryForStopCheck({
+            facebookPageId: 'page-1', accessToken: 'secret',
+            initialPage: { data: [{ message: 'Thanks', from: { id: 'customer' } }], paging: { next: 'https://graph.facebook.com/thread/messages?after=older&access_token=old-secret' } }
+        });
+        expect(findLatestMessengerSystemSignal(messages, 'page-1')).toBe('converted');
+        expect(fetchMock).toHaveBeenCalledWith(expect.any(URL), expect.objectContaining({ headers: { Authorization: 'Bearer secret' } }));
+        expect(fetchMock.mock.calls[0][0].searchParams.has('access_token')).toBe(false);
+    });
+
+    it('fails closed if older history cannot be checked completely', async () => {
+        await expect(loadMessengerHistoryForStopCheck({
+            facebookPageId: 'page-1', accessToken: 'token', maxPages: 1,
+            initialPage: { data: [], paging: { next: 'https://graph.facebook.com/thread/messages?after=older' } }
+        })).rejects.toThrow('safe limit');
+    });
+
+    it('rejects pagination to other hosts', async () => {
+        await expect(loadMessengerHistoryForStopCheck({
+            facebookPageId: 'page-1', accessToken: 'token',
+            initialPage: { data: [], paging: { next: 'https://other.example/messages' } }
+        })).rejects.toThrow('pagination URL');
     });
 });

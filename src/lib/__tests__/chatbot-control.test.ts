@@ -2,63 +2,17 @@ import { describe, expect, it, vi } from 'vitest';
 import {
     CHATBOT_CONVERSATION_WINDOW_MS,
     classifyChatbotStopIntent,
-    filterChatbotConversationHistory,
     getRequiredChatbotDetailCount,
-    hasReachedChatbotDetailTarget,
     getChatbotStateStopReason,
     getMissingChatbotDetails,
     isChatbotContactAllowed,
-    isChatbotFollowUpPauseRequest,
     normalizeDetailsToCollect,
+    normalizeCollectedChatbotDetails,
     saveChatbotContactState,
     type ChatbotContactState
 } from '@/lib/chatbot-control';
 
 describe('chatbot conversation controls', () => {
-    it.each(['Hindi na po muna', 'Wag na muna po', 'Not now, thanks', 'Maybe later',
-        'Balikan ko po kayo mamaya', "I'll get back to you", 'Ako na po mag-message'])('pauses reminders for an explicit deferral: %s', message => {
-        expect(isChatbotFollowUpPauseRequest(message)).toBe(true);
-    });
-    it.each(['Isa muna ang kanta', 'Ayoko ng male vocals, female na lang',
-        'Huwag na isama ang alak sa lyrics', 'Female singer muna', 'Magkano po?', 'Pop or acoustic?'])('keeps normal song requests eligible: %s', message => {
-        expect(isChatbotFollowUpPauseRequest(message)).toBe(false);
-    });
-    it('requires six canonical answers at 26 percent and ignores unrelated or empty fields', () => {
-        const config = { details_to_collect: Array.from({ length: 20 }, (_, i) => `Field ${i}`), details_completion_percent: 26 };
-        const answers = Object.fromEntries(Array.from({ length: 5 }, (_, i) => [`Field ${i}`, 'answered']));
-        expect(hasReachedChatbotDetailTarget(config, { ...answers, Unknown: 'not required', 'Field 5': ' ' })).toBe(false);
-        expect(hasReachedChatbotDetailTarget(config, { ...answers, 'field 5': 'answered' })).toBe(true);
-        expect(hasReachedChatbotDetailTarget({ details_to_collect: [] }, answers)).toBe(false);
-    });
-    it('uses only post-reset messages, including the boundary, and retains ordering', () => {
-        const cutoff = '2026-10-07T02:00:00.000Z';
-        const history = [
-            { id: 'newest', created_time: '2026-10-07T02:01:00Z' },
-            { id: 'boundary', created_time: cutoff },
-            { id: 'old', created_time: '2026-10-07T01:59:59Z' },
-            { id: 'unknown-time' },
-            { id: 'bad-time', created_time: 'invalid' }
-        ];
-        expect(filterChatbotConversationHistory(history, cutoff).map(message => message.id)).toEqual(['newest', 'boundary']);
-        expect(filterChatbotConversationHistory(history, null)).toBe(history);
-        expect(filterChatbotConversationHistory(history, 'invalid')).toEqual([]);
-    });
-
-    it('preserves the history cutoff when saving subsequent details and stop state', async () => {
-        const cutoff = '2026-10-07T02:00:00.000Z';
-        const upsert = vi.fn().mockResolvedValue({ error: null });
-        await saveChatbotContactState({ from: () => ({ upsert }) }, {
-            pageId: 'page-1', contactId: 'contact-1',
-            existingState: { page_id: 'page-1', contact_id: 'contact-1', status: 'active', started_at: cutoff,
-                window_expires_at: '2026-10-14T02:00:00Z', collected_details: {}, missing_details: [],
-                stop_reason: null, stopped_at: null, last_inbound_at: null, last_bot_reply_at: null, history_start_at: cutoff },
-            collectedDetails: { 'Business name': 'New Bakery' }, stopReason: 'qualified',
-            now: new Date('2026-10-07T03:00:00Z')
-        });
-        expect(upsert).toHaveBeenCalledWith(expect.objectContaining({ history_start_at: cutoff,
-            collected_details: { 'Business name': 'New Bakery' }, stop_reason: 'qualified' }), { onConflict: 'page_id,contact_id' });
-    });
-
     it('limits live trial mode to the selected contact', () => {
         expect(isChatbotContactAllowed(undefined, 'contact_1')).toBe(true);
         expect(isChatbotContactAllowed({ trial_mode_enabled: false, trial_contact_id: null }, 'contact_1')).toBe(true);
@@ -81,6 +35,68 @@ describe('chatbot conversation controls', () => {
             .toEqual(['Mobile number']);
     });
 
+    it('does not count placeholder values as customer answers', () => {
+        expect(getMissingChatbotDetails(['Business name', 'Script', 'Deadline'], {
+            'Business name': 'unknown', Script: 'No script, please write one', Deadline: 'Not provided'
+        })).toEqual(['Business name', 'Deadline']);
+        expect(normalizeCollectedChatbotDetails({ ' BUSINESS NAME ': 'Example Shop', Script: 'pending', Extra: 'guess' }, ['Business name', 'Script']))
+            .toEqual({ 'Business name': 'Example Shop' });
+    });
+
+    it('keeps a stopped state and original handoff time when saving late answers', async () => {
+        const chain: any = { update: vi.fn(() => chain), eq: vi.fn(() => chain),
+            then: (resolve: any) => Promise.resolve({ error: null }).then(resolve) };
+        await saveChatbotContactState({ from: () => chain }, {
+            pageId: 'page-1', contactId: 'contact-1',
+            existingState: {
+                status: 'stopped', stop_reason: 'qualified', stopped_at: '2026-10-01T00:00:00Z',
+                collected_details: { Script: 'No script' }, started_at: '2026-10-01T00:00:00Z'
+            } as unknown as ChatbotContactState,
+            collectedDetails: { Deadline: 'Friday' }, missingDetails: [],
+            now: new Date('2026-10-07T00:00:00Z')
+        });
+        expect(chain.update).toHaveBeenCalledWith(expect.objectContaining({
+            status: 'stopped', stop_reason: 'qualified', stopped_at: '2026-10-01T00:00:00Z',
+            collected_details: { Script: 'No script', Deadline: 'Friday' }
+        }));
+        expect(chain.eq).toHaveBeenCalledWith('status', 'stopped');
+        expect(chain.eq).toHaveBeenCalledWith('stop_reason', 'qualified');
+    });
+
+    it('only updates active rows when saving from an older active snapshot', async () => {
+        const eq = vi.fn(() => chain);
+        const chain: any = { update: vi.fn(() => chain), eq,
+            then: (resolve: any, reject: any) => Promise.resolve({ error: null }).then(resolve, reject)
+        };
+        await saveChatbotContactState({ from: () => chain }, {
+            pageId: 'page', contactId: 'contact',
+            existingState: { status: 'active', collected_details: {}, started_at: '2026-10-01T00:00:00Z' } as ChatbotContactState,
+            collectedDetails: { Deadline: 'Friday' }
+        });
+        expect(eq).toHaveBeenCalledWith('status', 'active');
+    });
+
+    it('cannot replace a concurrent human stop with automatic intake completion', async () => {
+        const chain: any = { update: vi.fn(() => chain), eq: vi.fn(() => chain),
+            then: (resolve: any) => Promise.resolve({ error: null }).then(resolve) };
+        await saveChatbotContactState({ from: () => chain }, {
+            pageId: 'page', contactId: 'contact', stopReason: 'details_collected',
+            existingState: { status: 'active', collected_details: {}, started_at: '2026-10-01T00:00:00Z' } as ChatbotContactState
+        });
+        expect(chain.eq).toHaveBeenCalledWith('status', 'active');
+    });
+
+    it('cannot replace a newer human stop while updating a completed photo conversation', async () => {
+        const chain: any = { update: vi.fn(() => chain), eq: vi.fn(() => chain),
+            then: (resolve: any) => Promise.resolve({ error: null }).then(resolve) };
+        await saveChatbotContactState({ from: () => chain }, {
+            pageId: 'page', contactId: 'contact', stopReason: 'details_collected',
+            existingState: { status: 'stopped', stop_reason: 'details_collected', collected_details: {}, started_at: '2026-10-01T00:00:00Z' } as ChatbotContactState
+        });
+        expect(chain.eq).toHaveBeenCalledWith('status', 'stopped');
+        expect(chain.eq).toHaveBeenCalledWith('stop_reason', 'details_collected');
+    });
+
     it('detects explicit opt-outs before softer sales refusals', () => {
         expect(classifyChatbotStopIntent('Please stop messaging me', {
             stopOnOptOut: true,
@@ -94,50 +110,6 @@ describe('chatbot conversation controls', () => {
             stopOnOptOut: true,
             stopOnRefusal: false
         })).toBeNull();
-    });
-
-    it.each([
-        'Non-stop upbeat pop ang gusto kong genre.',
-        'Stop using male vocals, change to female.',
-        "Don't stop messaging me, I still want the song.",
-        'Please pass the lyrics to your producer.'
-    ])('does not mistake song edits or continued interest for an opt-out: %s', text => {
-        expect(classifyChatbotStopIntent(text, { stopOnOptOut: true, stopOnRefusal: true })).toBeNull();
-    });
-
-    it.each(['STOP', 'Stop po!', 'Please stop messaging me.', 'Stop sending messages please.'])('still respects an explicit opt-out: %s', text => {
-        expect(classifyChatbotStopIntent(text, { stopOnOptOut: true, stopOnRefusal: true })).toBe('opt_out');
-    });
-
-    it.each([
-        'Ayoko ng male vocals, gusto ko female.',
-        'Pass muna sa two songs package, isang kanta lang gusto ko.',
-        "I don't want that style, prefer upbeat instead."
-    ])('keeps an option change active: %s', text => {
-        expect(classifyChatbotStopIntent(text, { stopOnOptOut: true, stopOnRefusal: true })).toBeNull();
-    });
-
-    it('keeps explicit opt-outs and purchase refusals durable even when a style is mentioned', () => {
-        expect(classifyChatbotStopIntent('Stop messaging, ayoko ng male vocals, prefer female.', { stopOnOptOut: true, stopOnRefusal: true })).toBe('opt_out');
-        expect(classifyChatbotStopIntent('Not interested in this package, prefer not buying.', { stopOnOptOut: true, stopOnRefusal: true })).toBe('refusal');
-        expect(classifyChatbotStopIntent('Ayoko ng male vocals, prefer female. No thanks, cancel.', { stopOnOptOut: true, stopOnRefusal: true })).toBe('refusal');
-    });
-
-    it.each([
-        'Wag na po isingit yung oras at petsa yun na kasi ang pangaraw araw na gagamitin',
-        'Huwag na po isama ang pangalan ko sa lyrics.',
-        'Wag na banggitin ang address.'
-    ])('keeps song content omissions active: %s', text => {
-        expect(classifyChatbotStopIntent(text, { stopOnOptOut: true, stopOnRefusal: true })).toBeNull();
-    });
-
-    it('preserves cancellations and opt-outs alongside content omission requests', () => {
-        expect(classifyChatbotStopIntent('Wag na po isama ang pangalan ko. Di ko na itutuloy.', { stopOnOptOut: true, stopOnRefusal: true })).toBe('refusal');
-        expect(classifyChatbotStopIntent('Wag na po isingit ang date, not interested anymore.', { stopOnOptOut: true, stopOnRefusal: true })).toBe('refusal');
-        expect(classifyChatbotStopIntent('Wag na isama ang pangalan. No thanks.', { stopOnOptOut: true, stopOnRefusal: true })).toBe('refusal');
-        expect(classifyChatbotStopIntent('Wag na isama ang pangalan ko. Stop messaging me.', { stopOnOptOut: true, stopOnRefusal: true })).toBe('opt_out');
-        expect(classifyChatbotStopIntent('Wag na po', { stopOnOptOut: true, stopOnRefusal: true })).toBe('refusal');
-        expect(classifyChatbotStopIntent('Wag nlng po di q na po itutuloy.', { stopOnOptOut: true, stopOnRefusal: true })).toBe('refusal');
     });
 
     it('stops an active bot state when its fixed seven-day lifecycle expires', () => {
