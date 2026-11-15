@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-11-14T17:45:27.797277+00:00",
+  "generated_at": "2026-11-15T01:24:32.864214+00:00",
   "scope": "Source coverage and planning only; no functional parity claim",
   "features": {
     "F01": "Sign-in, personal profile and access boundary",
@@ -2391,7 +2391,7 @@
       "route": "/",
       "feature": "F01",
       "source": "src/app/page.tsx",
-      "source_sha256": "87092a9682585861bfb9c0cd30089123755f9101a5e5444c73e185f6982452c0",
+      "source_sha256": "5e762755f5720049375b7914816c35a7ed552aa455a5e7abc0c06cb06f5ad0e7",
       "compatibility_verified": false
     },
     {

@@ -14,7 +14,10 @@ const pages = JSON.parse(fs.readFileSync(path.join(root, 'src/config/veo-pages.j
 const result = {
     workspace: { project_matches: new URL(process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://missing.invalid').hostname === 'cxgynadprukyeuqbchbs.supabase.co',
         owner_matches: process.env.VEO_OWNER_USER_ID === '1e56fd95-56af-4aca-b50f-89a48c083249', approved_pages: pages.length,
-        enabled: process.env.VEO_WORKSPACE_ENABLED === 'true', financial_policy_confirmed: process.env.SUNO_FINANCIAL_POLICY_CONFIRMED === 'true' },
+        enabled: process.env.VEO_WORKSPACE_ENABLED === 'true', financial_policy_confirmed: process.env.SUNO_FINANCIAL_POLICY_CONFIRMED === 'true',
+        deployment_stage: process.env.SUNO_DEPLOYMENT_STAGE || 'unconfigured',
+        suno_mode: process.env.SUNO_SYSTEM_ENABLED === 'true', auth_secret_configured: Boolean(process.env.NEXTAUTH_SECRET),
+        history_source: process.env.SUNO_HISTORY_SOURCE || null, profile_mode: process.env.SUNO_CONTACT_PROFILE_MODE || null },
     bot: { expected_username: 'dannysunobot', token_configured: Boolean(bot.TELEGRAM_BOT_TOKEN),
         separate_archive_configured: Boolean(bot.SUPABASE_URL && bot.SUPABASE_SERVICE_ROLE_KEY),
         approved_group_count: (bot.ALLOWED_CHAT_IDS || '').split(',').filter(x => x.trim()).length,

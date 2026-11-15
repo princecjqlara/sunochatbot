@@ -9,6 +9,18 @@ export async function middleware(request: NextRequest) {
         return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
     if (/^\/api\/(test-|check-oauth)/.test(path)) return NextResponse.json({ error: 'Unavailable' }, { status: 404 });
+    // Publishing the replacement is separate from activating its data and jobs.
+    // This guard runs before JWT checks, database reads and webhook ingestion.
+    if (process.env.SUNO_DEPLOYMENT_STAGE === 'setup') {
+        const publicAuth = ['/api/auth/providers', '/api/auth/session', '/api/auth/csrf', '/api/auth/signout'].includes(path);
+        if (!publicAuth) {
+            const headers = { 'Cache-Control': 'no-store', 'Retry-After': '60' };
+            if (path.startsWith('/api/cron/')) return NextResponse.json({ success: true, skipped: true, reason: 'suno_setup_pending' }, { headers });
+            if (path === '/api/auth/callback/credentials') return NextResponse.json({ url: new URL('/?error=SunoSetupPending', request.nextUrl.origin).toString() }, { status: 503, headers });
+            return NextResponse.json({ error: 'Suno workspace setup is not complete yet.', code: 'SUNO_SETUP_PENDING', retryable: true }, { status: 503, headers });
+        }
+        return NextResponse.next();
+    }
     if (process.env.VEO_DATABASE_RECOVERY_MODE === 'true') {
         const safeAuth = ['/api/auth/providers', '/api/auth/csrf', '/api/auth/signout'].includes(path);
         // Verification is read-free; event ingestion writes to the same database

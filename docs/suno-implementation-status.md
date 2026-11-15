@@ -1,6 +1,6 @@
 # Suno implementation status — November 15, 2026
 
-Work is in `sunobot/suno-system`. The original Suno app and both Veo source checkouts were preserved. Live schema, customer data, deployments, Telegram webhook, group approvals and schedules have not been changed.
+Work is in `sunobot/suno-system`. The original Suno app and both Veo source checkouts were preserved. Hosted previews have passed their regression/build gates. The separate `suno-system` web project supports production publication in explicit setup mode; this is separate from operational activation. The existing CRM schema/customer data, Telegram webhook and group approvals remain unchanged.
 
 ## Implemented in the new checkout
 
@@ -16,6 +16,7 @@ Work is in `sunobot/suno-system`. The original Suno app and both Veo source chec
 - Legacy Suno group definitions retained for recovery. This does not approve any group or enable a second assignment sender.
 - All seventeen cron paths require authentication in their handlers as well as through middleware, in preparation, workspace and recovery modes. The copied deployment now declares sixteen schedules; legacy `/cron/sync` has an explicit manual/recovery disposition. Dedicated workflow scheduling delegates chatbot and campaign work to their own workers. Existing nested fallback calls carry bearer authorization.
 - Deployment configuration runs the complete app regression gate before building. The Python service retains its deployment validation gate and includes the Suno song-work regression file.
+- `SUNO_DEPLOYMENT_STAGE=setup` publishes an honest setup screen, keeps session bootstrap available and pauses API access, ingestion, login writes and scheduled work before database access. Scheduled requests retain authentication and return a recorded skip. This allows separate production hosting while the live cutover remains incomplete. Release tests isolate hosted application credentials/flags so their own fixtures exercise both setup and active behavior.
 - A read-only snapshot of the actual CRM schema and an isolated incremental upgrade rehearsal. Full filename/checksum receipts avoid numeric version collisions; the generated baseline is never replayed. The rehearsal preserves all 443 existing table columns and synthetic retained identities, settings, quotes, holds, pending follow-ups and acknowledged deliveries. Settings restoration prevents upstream model/default changes from overwriting Suno choices.
 
 ## Live acceptance and remaining work
