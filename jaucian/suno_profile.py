@@ -16,6 +16,11 @@ def enabled() -> bool:
     return os.environ.get("SUNO_SYSTEM_ENABLED", "").strip().lower() == "true"
 
 
+def setup_pending() -> bool:
+    # An absent or misspelled stage must never activate a newly hosted Suno bot.
+    return enabled() and os.environ.get("SUNO_DEPLOYMENT_STAGE", "").strip().lower() != "active"
+
+
 def workspace_groups() -> dict[int, dict]:
     return {
         -1002894511895: {"name": "Suno Trabawho", "general": 1, "announcements": 16,

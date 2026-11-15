@@ -34,6 +34,7 @@ app.update(NEXTAUTH_URL="http://localhost:3100", PUBLIC_APP_URL="http://localhos
            SUNO_DEPLOYMENT_STAGE="setup", SUNO_SYSTEM_ENABLED="true", SUNO_FORECAST_MODEL_VALIDATED="false",
            SUNO_CONTACT_PROFILE_MODE="remote", SUNO_HISTORY_SOURCE="meta", SUNO_SCHEDULER_OWNER="vercel", VEO_CHATBOT_ENABLED="true")
 bot = {"SUNO_SYSTEM_ENABLED": "true", "TELEGRAM_BOT_TOKEN": token,
+       "SUNO_DEPLOYMENT_STAGE": "setup", "CRON_SECRET": secrets.token_urlsafe(48),
        "TELEGRAM_WEBHOOK_SECRET": secrets.token_urlsafe(48), "INSIGHTS_API_KEY": secrets.token_urlsafe(48),
        "SUPABASE_URL": "", "SUPABASE_SERVICE_ROLE_KEY": "", "SUPABASE_DB_URL": "", "ARCHIVE_TRANSPORT": "http",
        "ALLOWED_CHAT_IDS": "", "AUTOMATION_CHAT_IDS": "", "SUNO_REPORTS_CHAT_ID": "", "SUNO_JAUCIAN_URL": "",

@@ -159,6 +159,18 @@ class WebhookTests(unittest.TestCase):
             self.assertEqual(self.post("correct"), 200)
             save.assert_called_once()
 
+    def test_legacy_webhook_also_stops_before_storage_during_suno_setup(self):
+        with patch.dict(os.environ, {"SUNO_SYSTEM_ENABLED": "true", "SUNO_DEPLOYMENT_STAGE": "setup",
+                                    "TELEGRAM_WEBHOOK_SECRET": "correct", "ALLOWED_CHAT_IDS": "-100123"}), \
+                patch("api.webhook.save_update") as save:
+            self.assertEqual(self.post("correct"), 503)
+        save.assert_not_called()
+
+    def test_nonascii_wrong_webhook_secret_returns_unauthorized(self):
+        with patch.dict(os.environ, {"TELEGRAM_WEBHOOK_SECRET": "correct"}), patch("api.webhook.save_update") as save:
+            self.assertEqual(self.post("caf\u00e9"), 401)
+        save.assert_not_called()
+
 
 if __name__ == "__main__":
     unittest.main()

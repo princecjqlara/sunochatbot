@@ -11,6 +11,7 @@ from http import HTTPStatus
 from urllib.parse import parse_qs
 
 from cloud_http import authorized
+from suno_profile import enabled as suno_system_enabled, setup_pending as suno_setup_pending
 from cloud_store import (
     allowed_chat_ids,
     archive_messages,
@@ -72,7 +73,7 @@ from trabawho_songs import confirm_song_reply, is_song_notice, queue_song_follow
 
 
 MAX_BODY_BYTES = 1_000_000
-AUTOMATION_VERSION = "2026-10-31.4"
+AUTOMATION_VERSION = "2026-11-15.suno.1"
 SCHEDULE_STATUSES = {"pending", "processing", "sent", "failed", "cancelled"}
 
 
@@ -123,21 +124,29 @@ def status_route(environ, start_response):
                                         "done_deal_tracking": done_deal_tracking.mode()}
     if os.environ.get("VEO_WORKSPACE_ENABLED", "").lower() == "true":
         from veo_mode import availability_enabled
+        workspace_name = "Suno" if suno_system_enabled() else "VEO"
         payload.update(
             daily_reports={"times_pht": ["08:00", "16:00", "00:10"], "timezone": "Asia/Manila",
-                           "frequency": "three_per_day", "source": "VEO authoritative ledger", "live_updates": False,
+                           "frequency": "three_per_day", "source": workspace_name + " authoritative ledger", "live_updates": False,
                            "closeout": "00:10 covers the previous Philippine financial date; client status and warnings are current"},
-            member_warnings={"enabled": True, "source": "VEO current staff warnings", "delivery": "same three team snapshots",
+            member_warnings={"enabled": True, "source": workspace_name + " current staff warnings", "delivery": "same three team snapshots",
                              "covers": ["unanswered availability polls", "receipt salary holds", "overdue projects without reasons", "missing Telegram mappings"],
                              "missing_or_stale_poll_data": "unknown; never establishes a missed vote"},
             availability_reminders={"enabled": availability_enabled(), "source": "Jaucian non-anonymous active-for-tomorrow poll", "polls_after_pht": "16:00",
                                     "reminders": "current warnings in team snapshots"},
-            page_access_reminders={"enabled": False, "source": "VEO account Page assignments"},
-            done_deal_tracking="VEO authoritative ledger; Telegram messages never create another sale")
+            page_access_reminders={"enabled": False, "source": workspace_name + " account Page assignments"},
+            done_deal_tracking=workspace_name + " authoritative ledger; Telegram messages never create another sale")
+    if suno_system_enabled():
+        payload.update(deployment_stage="setup" if suno_setup_pending() else "active",
+                       automation_paused=suno_setup_pending())
     return response(start_response, 200, payload)
 
 
 def health_route(environ, start_response):
+    if suno_setup_pending():
+        return response(start_response, 503, {"ok": False, "reason": "suno_setup_pending"})
+    if suno_system_enabled() and not os.environ.get("SUPABASE_DB_URL"):
+        return response(start_response, 503, {"ok": False, "reason": "scheduler_not_configured"})
     if os.environ.get("VEO_WORKSPACE_ENABLED", "").lower() == "true":
         try:
             from veo_workspace import review_required
@@ -959,6 +968,9 @@ def _deliver_claimed_actions(actions: list[dict], allowed: set[int]) -> tuple[in
 
 
 def dispatch_route(environ, start_response):
+    if not (authorized(environ.get("HTTP_AUTHORIZATION"), "CRON_SECRET")
+            or authorized(environ.get("HTTP_AUTHORIZATION"), "INSIGHTS_API_KEY")):
+        return response(start_response, 401, {"ok": False})
     from veo_workspace import enabled, dispatch
     if enabled():
         return dispatch(environ, start_response, response)
@@ -1318,6 +1330,26 @@ def warnings_route(environ, start_response):
 
 
 def app(environ, start_response):
+    if suno_setup_pending():
+        path = environ.get("PATH_INFO", "")
+        method = environ.get("REQUEST_METHOD", "GET").upper()
+        if path == "/api/health" and method == "GET":
+            return health_route(environ, start_response)
+        # These authenticated archive reads remain useful while deployment is paused.
+        if path not in {"/api/status", "/api/groups", "/api/messages"} or method != "GET":
+            if path.startswith("/api/"):
+                if path == "/api/webhook":
+                    secret = os.environ.get("TELEGRAM_WEBHOOK_SECRET", "")
+                    supplied = environ.get("HTTP_X_TELEGRAM_BOT_API_SECRET_TOKEN", "")
+                    authenticated = bool(secret and hmac.compare_digest(secret.encode(), supplied.encode()))
+                else:
+                    keys = ("CRON_SECRET", "INSIGHTS_API_KEY") if path == "/api/cron/dispatch" else (
+                        ("VEO_JAUCIAN_SECRET",) if path in {"/api/veo/handoff", "/api/veo/workspace"}
+                        else ("INSIGHTS_API_KEY",))
+                    authenticated = any(authorized(environ.get("HTTP_AUTHORIZATION"), key) for key in keys)
+                if not authenticated:
+                    return response(start_response, 401, {"ok": False})
+                return response(start_response, 503, {"ok": False, "reason": "suno_setup_pending"})
     if environ.get("PATH_INFO") == "/api/veo/workspace":
         from veo_directory import route
         return route(environ, start_response, response)
@@ -1329,7 +1361,7 @@ def app(environ, start_response):
     if os.environ.get("VEO_WORKSPACE_ENABLED", "").lower() == "true" and (
             path.startswith("/api/suno/") or path == "/api/new-clients/suno-supply" or
             path in {"/api/workers/capacity", "/api/reports/plan", "/api/reports/replace", "/api/reports/members"}):
-        return response(start_response, 410, {"ok": False, "error": "Archived workflow", "source": "Use the VEO workspace verified sales and capacity views"})
+        return response(start_response, 410, {"ok": False, "error": "Archived workflow", "source": "Use the " + ("Suno" if suno_system_enabled() else "VEO") + " workspace verified sales and capacity views"})
     if path == "/api/status" and method == "GET":
         return status_route(environ, start_response)
     if path == "/api/health" and method == "GET":

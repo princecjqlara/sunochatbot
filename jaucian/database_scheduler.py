@@ -160,12 +160,16 @@ def scheduler_status(allowed: set[int] | None = None) -> dict:
 
 
 def _dispatch_command(conn) -> str:
+    secret = os.environ.get("CRON_SECRET") or os.environ.get("INSIGHTS_API_KEY")
+    if not secret:
+        raise SchedulerError("dispatcher_authentication_not_configured")
     return sql.SQL(
         "update public.scheduled_actions set payload = jsonb_build_object("
-        "'request_id', net.http_get(url := {url}, timeout_milliseconds := 55000), "
+        "'request_id', net.http_get(url := {url}, headers := {headers}::jsonb, timeout_milliseconds := 55000), "
         "'requested_at', now(), 'previous_request_id', payload->'request_id'), updated_at = now() "
         "where dedupe_key = {checkpoint} and status = 'cancelled'"
-    ).format(url=sql.Literal(DISPATCH_URL), checkpoint=sql.Literal(CHECKPOINT)).as_string(conn)
+    ).format(url=sql.Literal(DISPATCH_URL), checkpoint=sql.Literal(CHECKPOINT),
+             headers=sql.Literal(json.dumps({"Authorization": "Bearer " + secret}))).as_string(conn)
 
 
 def _watchdog_command(conn, chat_id: int, command: str) -> str:

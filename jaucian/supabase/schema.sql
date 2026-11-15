@@ -79,6 +79,8 @@ alter table public.daily_polls enable row level security;
 alter table public.daily_poll_answers enable row level security;
 revoke all on public.chats, public.messages, public.scheduled_actions, public.daily_polls, public.daily_poll_answers from public, anon, authenticated;
 grant select, insert, update on public.chats, public.messages, public.scheduled_actions, public.daily_polls, public.daily_poll_answers to service_role;
+-- Withdrawing a poll answer must remove the prior vote.
+grant delete on public.daily_poll_answers to service_role;
 grant usage, select on sequence public.scheduled_actions_id_seq to service_role;
 
 create or replace function public.insights_ingest_update(

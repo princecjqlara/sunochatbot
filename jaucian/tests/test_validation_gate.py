@@ -43,7 +43,7 @@ class ValidationGateTests(unittest.TestCase):
             for code in (0, 1):
                 with self.subTest(code=code), \
                         patch.object(validate_project, "__file__", str(root / "validate_project.py")), \
-                        patch.dict("os.environ", {"TELEGRAM_BOT_TOKEN": "test-private", "CRM_SUPABASE_SERVICE_ROLE_KEY": "test-private", "ALLOWED_CHAT_IDS": "-100123"}), \
+                        patch.dict("os.environ", {"TELEGRAM_BOT_TOKEN": "test-private", "CRON_SECRET": "test-private", "CRM_SUPABASE_SERVICE_ROLE_KEY": "test-private", "ALLOWED_CHAT_IDS": "-100123"}), \
                         patch.object(validate_project.subprocess, "run") as run:
                     run.return_value.returncode = code
                     self.assertEqual(validate_project.main(), code)
@@ -52,4 +52,5 @@ class ValidationGateTests(unittest.TestCase):
                     self.assertIn("discover", args[0])
                     self.assertNotIn("TELEGRAM_BOT_TOKEN", kwargs["env"])
                     self.assertNotIn("CRM_SUPABASE_SERVICE_ROLE_KEY", kwargs["env"])
+                    self.assertNotIn("CRON_SECRET", kwargs["env"])
                     self.assertNotIn("ALLOWED_CHAT_IDS", kwargs["env"])

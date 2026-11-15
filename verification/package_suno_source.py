@@ -6,6 +6,7 @@ import json
 import re
 import subprocess
 import zipfile
+from urllib.parse import urlsplit, unquote
 
 root=Path(__file__).resolve().parent.parent
 folder=root.parent/'outputs'/'suno-system-implementation-2026-11-15'
@@ -15,8 +16,12 @@ private=[]
 for env_path in (root/'.env.local',root/'jaucian/.env.local'):
     for line in env_path.read_text(encoding='utf-8').splitlines():
         name,sep,value=line.partition('=')
-        if sep and re.search(r'SECRET|TOKEN|PRIVATE_KEY|SERVICE_ROLE_KEY|API_KEY|DATABASE.*URL',name) and 'ANON' not in name and len(value.strip('"'))>12:
+        if sep and re.search(r'PASSWORD|SECRET|TOKEN|PRIVATE_KEY|SERVICE_ROLE_KEY|API_KEY|(?:DATABASE|DB).*URL',name) and 'ANON' not in name and len(value.strip('"'))>12:
             private.append(value.strip('"').encode())
+            if re.search(r'(?:DATABASE|DB).*URL', name):
+                password = urlsplit(value.strip('"')).password
+                if password and len(password) > 12:
+                    private.append(unquote(password).encode())
 entries=[]
 for name in sorted(set(filter(None,files))):
     path=root/name

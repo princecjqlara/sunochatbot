@@ -144,7 +144,7 @@ class FeatureAuditTests(unittest.TestCase):
         self.assertEqual(params["updated_at"], ["eq." + claim["updated_at"]])
 
     def test_daily_queue_failure_does_not_stop_existing_due_deliveries(self):
-        with patch.dict(os.environ, {"ALLOWED_CHAT_IDS": "-100123", "CRM_SUPABASE_SERVICE_ROLE_KEY": ""}), patch(
+        with patch.dict(os.environ, {"INSIGHTS_API_KEY": "correct", "ALLOWED_CHAT_IDS": "-100123", "CRM_SUPABASE_SERVICE_ROLE_KEY": ""}), patch(
             "app.run_due_daily_automation", side_effect=RuntimeError("Unavailable")
         ), patch("app.deliver_due_actions", return_value=(1, 1, 0)) as deliver:
             status, body = call("/api/cron/dispatch")

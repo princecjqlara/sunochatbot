@@ -9,6 +9,7 @@ from http.server import BaseHTTPRequestHandler
 
 from cloud_http import send_json
 from cloud_store import allowed_chat_ids, save_update
+from suno_profile import setup_pending
 
 
 MAX_BODY_BYTES = 1_000_000
@@ -21,8 +22,11 @@ class handler(BaseHTTPRequestHandler):
         if not secret:
             send_json(self, 503, {"ok": False, "error": "webhook not configured"})
             return
-        if not supplied or not hmac.compare_digest(supplied, secret):
+        if not supplied or not hmac.compare_digest(supplied.encode(), secret.encode()):
             send_json(self, 401, {"ok": False})
+            return
+        if setup_pending():
+            send_json(self, 503, {"ok": False, "reason": "suno_setup_pending"})
             return
         try:
             length = int(self.headers.get("Content-Length", "0"))

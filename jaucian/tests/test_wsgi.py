@@ -8,6 +8,11 @@ from app import app
 
 
 def call_app(path, *, method="GET", headers=None, body=b"", query=""):
+    # Delivery regressions exercise an authenticated scheduler. Passing explicit
+    # headers (including {}) bypasses this fixture for authentication tests.
+    if path == "/api/cron/dispatch" and headers is None:
+        with patch.dict(os.environ, {"CRON_SECRET": "test-dispatch"}):
+            return call_app(path, method=method, headers={"Authorization": "Bearer test-dispatch"}, body=body, query=query)
     environ = {
         "REQUEST_METHOD": method,
         "PATH_INFO": path,

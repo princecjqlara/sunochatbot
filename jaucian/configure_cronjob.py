@@ -75,16 +75,17 @@ def job_payload(base_url: str, insights_api_key: str) -> dict:
     }
 
 
-def dispatch_job_payload(base_url: str) -> dict:
-    desired = job_payload(base_url, "")
+def dispatch_job_payload(base_url: str, insights_api_key: str) -> dict:
+    if not insights_api_key:
+        raise ValueError("Dispatcher authentication is required")
+    desired = job_payload(base_url, insights_api_key)
     desired.update(title=DISPATCH_JOB_TITLE, url=base_url.rstrip("/") + "/api/cron/dispatch")
     desired["schedule"]["minutes"] = [-1]
-    desired["extendedData"]["headers"] = {}
     return desired
 
 
 def configure(api_key: str, base_url: str, insights_api_key: str, *, dispatch: bool = False) -> tuple[str, int]:
-    desired = dispatch_job_payload(base_url) if dispatch else job_payload(base_url, insights_api_key)
+    desired = dispatch_job_payload(base_url, insights_api_key) if dispatch else job_payload(base_url, insights_api_key)
     jobs = api_request(api_key, "GET", "/jobs").get("jobs", [])
     existing = next((job for job in jobs if (
         job.get("url") == desired["url"] if dispatch else job.get("title") == JOB_TITLE
@@ -108,7 +109,7 @@ def main() -> None:
 
     load_local_env()
     insights_api_key = os.environ.get("INSIGHTS_API_KEY", "")
-    if not insights_api_key and not args.dispatch:
+    if not insights_api_key:
         raise SystemExit("INSIGHTS_API_KEY is missing from .env.local")
 
     api_key = os.environ.get("CRONJOB_API_KEY") or getpass.getpass("cron-job.org API key: ")

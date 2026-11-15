@@ -8,6 +8,7 @@ import sys
 
 # These suites must travel with every deployment, even when other tests remain.
 REQUIRED_TEST_FILES = (
+    "test_suno_deployment.py",
     "test_suno_workspace_songs.py",
     "test_veo_incentives.py",
     "test_veo_availability_mode.py",
@@ -70,7 +71,7 @@ def main() -> int:
         print("Validation failed: required regression suites are missing or empty: " + ", ".join(missing),
               file=sys.stderr)
         return 1
-    prefixes = ("TELEGRAM_", "SUPABASE_", "CRM_", "SUNO_", "INSIGHTS_", "HOURLY_", "NEW_CLIENT_", "VEO_", "ARCHIVE_", "DONE_DEAL_", "AUTOMATION_", "MEMBER_CAPACITY_", "ORGANIZED_", "AVAILABILITY_", "PAGE_ACCESS_")
+    prefixes = ("TELEGRAM_", "SUPABASE_", "CRM_", "SUNO_", "INSIGHTS_", "CRON_", "HOURLY_", "NEW_CLIENT_", "VEO_", "ARCHIVE_", "DONE_DEAL_", "AUTOMATION_", "MEMBER_CAPACITY_", "ORGANIZED_", "AVAILABILITY_", "PAGE_ACCESS_")
     environment = {key: value for key, value in os.environ.items()
                    if not key.startswith(prefixes) and key not in {"ALLOWED_CHAT_IDS", "CRONJOB_API_KEY"}}
     return subprocess.run([sys.executable, "-m", "unittest", "discover", "-s", "tests", "-q"],

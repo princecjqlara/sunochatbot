@@ -6,6 +6,7 @@ from http.server import BaseHTTPRequestHandler
 
 from cloud_http import authorized, send_json
 from cloud_store import allowed_chat_ids, archive_status
+from suno_profile import enabled, setup_pending
 
 
 class handler(BaseHTTPRequestHandler):
@@ -20,4 +21,7 @@ class handler(BaseHTTPRequestHandler):
             print(f"Status query failed: {type(error).__name__}")
             send_json(self, 503, {"ok": False})
             return
-        send_json(self, 200, {"ok": True, "groups": groups})
+        send_json(self, 200, {"ok": True, "groups": groups, **({
+            "deployment_stage": "setup" if setup_pending() else "active",
+            "automation_paused": setup_pending(),
+        } if enabled() else {})})

@@ -27,12 +27,12 @@ class CronJobTests(unittest.TestCase):
         self.assertEqual(result, ("created", 99))
         self.assertEqual(request.call_args_list[1].args[:3], ("cron-key", "PUT", "/jobs"))
 
-    def test_dispatch_payload_runs_every_minute_without_archive_credentials(self):
-        job = dispatch_job_payload("https://example.vercel.app/")
+    def test_dispatch_payload_runs_every_minute_with_dispatch_authentication(self):
+        job = dispatch_job_payload("https://example.vercel.app/", "dispatch-secret")
         self.assertEqual(job["url"], "https://example.vercel.app/api/cron/dispatch")
         self.assertEqual(job["schedule"]["minutes"], [-1])
         self.assertEqual(job["schedule"]["hours"], [-1])
-        self.assertEqual(job["extendedData"]["headers"], {})
+        self.assertEqual(job["extendedData"]["headers"], {"Authorization": "Bearer dispatch-secret"})
         self.assertTrue(job["enabled"])
 
     @patch("configure_cronjob.api_request")
@@ -41,7 +41,7 @@ class CronJobTests(unittest.TestCase):
             {"jobId": 42, "title": JOB_TITLE, "url": "https://example.vercel.app/api/status"},
             {"jobId": 77, "title": "Custom dispatch name", "url": "https://example.vercel.app/api/cron/dispatch"},
         ]}, {}]
-        result = configure("cron-key", "https://example.vercel.app", "", dispatch=True)
+        result = configure("cron-key", "https://example.vercel.app", "dispatch-secret", dispatch=True)
         self.assertEqual(result, ("updated", 77))
         self.assertEqual(request.call_args.args[:3], ("cron-key", "PATCH", "/jobs/77"))
 
