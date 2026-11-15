@@ -69,5 +69,15 @@
     "bot_routes": 28,
     "current_data_column_records": 411,
     "unclassified": 0
+  },
+  "post_push_release_environment": {
+    "runner": "scripts/run-release-tests.mjs",
+    "parent_node_env": "production",
+    "parent_vercel_env": "preview",
+    "parent_ci": true,
+    "targeted_files": 3,
+    "targeted_passed": 14,
+    "targeted_failed": 0,
+    "application_source_changed": false
   }
 }

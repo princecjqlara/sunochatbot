@@ -1,5 +1,11 @@
 # Suno verification
 
+## Post-push release environment check — November 15, 2026
+
+The original pushed source matched all 1,506 audited files, with no private settings committed. GitHub's Vercel preview then exposed a deployment-only regression: `NODE_ENV=production` caused React UI tests to load React's production implementation, where `act()` is unavailable. This failed the regression gate before the Next.js build.
+
+`npm run test:release` now uses `scripts/run-release-tests.mjs` to select `NODE_ENV=test` only for the Vitest subprocess. The parent build process retains its production environment, and the full regression gate remains required. Fourteen tests across the calendar, sign-in and chatbot UI suites pass when the parent has `NODE_ENV=production`, `VERCEL=1`, `VERCEL_ENV=preview` and `CI=1`. The application source is unchanged by this correction. Inspect the exact branch commit's hosted checks for the current preview result; a preview is not a production cutover.
+
 ## Second audit — November 15, 2026
 
 - Final complete app regression: **2,645 passed across 336 files, zero failures** using the patched dependencies and corrected runner configuration. The earlier audit-wide run identified the JSX configuration problem and two offline report-test time budgets; the final run includes all affected tests and the current mock types.
