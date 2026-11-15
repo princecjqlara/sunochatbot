@@ -1,6 +1,8 @@
 """Deployment boundaries must hold before any archive or Telegram work starts."""
 import os
+import json
 import unittest
+from pathlib import Path
 from unittest.mock import patch
 
 import database_scheduler
@@ -9,6 +11,14 @@ from test_wsgi import call_app
 
 
 class SunoDeploymentTests(unittest.TestCase):
+    def test_deployment_explicitly_selects_the_plain_wsgi_python_framework(self):
+        root = Path(__file__).resolve().parent.parent
+        config = json.loads((root / "vercel.json").read_text())
+        self.assertEqual(config["framework"], "python")
+        self.assertEqual(config["buildCommand"], "uv run --frozen python validate_project.py")
+        self.assertEqual(config["regions"], ["sin1"])
+        self.assertEqual(config["functions"]["app.py"]["maxDuration"], 300)
+
     def setUp(self):
         env = patch.dict(os.environ, {
             "SUNO_SYSTEM_ENABLED": "true", "SUNO_DEPLOYMENT_STAGE": "setup",
