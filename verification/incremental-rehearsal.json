@@ -716,6 +716,10 @@
     {
       "name": "202611150103_suno_atomic_takeover_recovery.sql",
       "sha256": "457df8d0e73bf992aa78617c78249e6e7c78138f8e288b71833d88f6a6a24def"
+    },
+    {
+      "name": "202611150104_suno_tenant_launch.sql",
+      "sha256": "e91377cbfe5ff70d6c0c12a9ee93e22be6bfbcb206b20fe5e8d479adb18d59ed"
     }
   ],
   "applied_offline": [
@@ -868,9 +872,17 @@
     "202611140103_suno_runtime_compatibility.sql",
     "202611150101_suno_song_work.sql",
     "202611150102_suno_controls_and_retention.sql",
-    "202611150103_suno_atomic_takeover_recovery.sql"
+    "202611150103_suno_atomic_takeover_recovery.sql",
+    "202611150104_suno_tenant_launch.sql"
   ],
   "passed": true,
+  "tenant_launch_rehearsal": {
+    "passed": true,
+    "retained_schema": true,
+    "pending_profile_jobs_preserved": true,
+    "launch_retry_verified": true,
+    "savepoint_rolled_back": true
+  },
   "retained_field_changes": [],
   "reconciled_tables": [
     "users",

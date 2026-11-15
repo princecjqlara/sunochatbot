@@ -9,7 +9,7 @@ import re
 ROOT = Path(__file__).resolve().parent.parent
 FEATURES = {
     'F01': 'Sign-in, personal profile and access boundary',
-    'F02': 'Accounts, teams, supervisors and offboarding',
+    'F02': 'Tenant isolation, accounts, teams, supervisors and offboarding',
     'F03': 'Facebook Pages, OAuth and connection ownership',
     'F04': 'Dashboard and workspace context',
     'F05': 'Contacts, search, filters and bulk contact operations',

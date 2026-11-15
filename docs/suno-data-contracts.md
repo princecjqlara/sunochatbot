@@ -25,6 +25,7 @@ The [field preservation register](suno-current-data-field-register.md) catalogue
 
 | Domain | Preserve/map | Writer and refresh owner | Acceptance evidence |
 | --- | --- | --- | --- |
+| Tenant ownership and launch | Owner/tenant IDs, Page ownership, immutable launch cutoff and tenant-scoped archives | Server-only tenant launch and Owner-authorized Page connections | Two-tenant launch retains foreign ownership/history, existing grants/campaigns/profile jobs; foreign legacy grants cannot authorize Page takeover; retries preserve the cutoff |
 | Users, accounts and Page access | Retained owner/staff IDs, existing logins, Page grants, team/supervisor mappings | Auth/account service; deliberate enrollment and scoped grant changes | Existing identities can sign in through the intended path; no unauthorized branch/Page access or accidental lockout |
 | Page and business configuration | Names/IDs, instructions, fallback/model choices, enabled state, required fields, detail thresholds, collection scope, welcome/templates and app ownership | Owner-authorized settings APIs | Every existing Page configuration is compared before/after; all 13 Pages are accounted for individually |
 | Contact identity and controls | Name/profile aliases, Page+PSID key, contact notes/metadata, contact bot permission, manual stop, stage/tag state | Current-event identity collector plus audited manual edits | No cross-Page merge, no overwrite of manual corrections, no opt-out/hold loss |

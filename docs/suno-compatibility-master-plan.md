@@ -45,7 +45,7 @@ All rows are planned requirements, not completed acceptance checks. The route re
 | ID | Feature scope to preserve/provide | Suno compatibility and completion check |
 | --- | --- | --- |
 | F01 | Sign-in, personal account/profile, Telegram profile confirmation and session handling | Retain Suno identities; verify intended login transition and recovery; personal profile is separate from customer profile; test revoked/disabled access |
-| F02 | Owner/team-leader/manager/member accounts, supervisor hierarchy, Page grants, team groups, offboarding | Map real Suno staff and branches; prevent role escalation; no accidental owner/staff lockout; access removal applies to cached reads and queued work |
+| F02 | Tenant isolation, Owner/team-leader/manager/member accounts, supervisor hierarchy, Page grants, team groups, offboarding | Tenant launch must retain other workspaces and existing jobs/grants; reject foreign Page ownership; map real Suno staff and branches; prevent role escalation; no accidental owner/staff lockout; access removal applies to cached reads and queued work |
 | F03 | Pages, Facebook connection/OAuth, subscriptions, app ownership and token renewal | Preserve all 13 Suno Page identities/settings and the correct Meta app; reconnect only the intended Page; stale or wrong-app ownership cannot send |
 | F04 | Team/worker dashboard, totals, context loading and available navigation | Every role sees appropriate Suno work and totals; no fabricated empty state during source failure; consistent Page/date/branch filters |
 | F05 | Contacts, 7-day contacts, search, filtering, pagination and bulk operations | Retain historical contacts/IDs; read complete authorized results; old and new records remain usable; partial bulk failures are visible |

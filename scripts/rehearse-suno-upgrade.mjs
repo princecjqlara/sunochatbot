@@ -34,6 +34,19 @@ try {
  await saveSunoSettings(db);
  for(const item of plan.pending){name=item.name;await db.exec(item.sql.replace(/CREATE EXTENSION IF NOT EXISTS pg_cron WITH SCHEMA pg_catalog;/g,'-- isolated scheduler stub'));report.applied_offline.push(item.name);}
  await restoreSunoSettings(db,snapshot.columns);
+ stage='tenant_launch_rehearsal';name=null;
+ // Exercise the replacement against the real retained schema, using fixtures
+ // only. The savepoint restores the pre-launch state before retention checks.
+ await db.exec('SAVEPOINT suno_tenant_launch_check');
+ await db.exec(`INSERT INTO contact_profile_jobs(page_id,contact_id) VALUES('00000000-0000-4000-8000-000000000002','00000000-0000-4000-8000-000000000003') ON CONFLICT(contact_id) DO NOTHING;`);
+ const profileJobs=(await db.query('SELECT to_jsonb(j) AS data FROM contact_profile_jobs j ORDER BY contact_id')).rows;
+ const launched=(await db.query('SELECT veo_launch($1,$2) AS id',['00000000-0000-4000-8000-000000000001',['00000000-0000-4000-8000-000000000002']])).rows[0].id;
+ const tenant=(await db.query('SELECT name,launch_at FROM veo_tenants WHERE id=$1',[launched])).rows[0];
+ if(tenant.name!=='Suno'||!tenant.launch_at)throw Error('Tenant preparation did not retain the Suno workspace identity');
+ if(JSON.stringify((await db.query('SELECT to_jsonb(j) AS data FROM contact_profile_jobs j ORDER BY contact_id')).rows)!==JSON.stringify(profileJobs))throw Error('Tenant launch changed pending profile work');
+ if((await db.query('SELECT veo_launch($1,$2) AS id',['00000000-0000-4000-8000-000000000001',['00000000-0000-4000-8000-000000000002']])).rows[0].id!==launched)throw Error('Tenant launch retry changed workspace identity');
+ await db.exec('ROLLBACK TO SAVEPOINT suno_tenant_launch_check; RELEASE SAVEPOINT suno_tenant_launch_check;');
+ report.tenant_launch_rehearsal={passed:true,retained_schema:true,pending_profile_jobs_preserved:true,launch_retry_verified:true,savepoint_rolled_back:true};
  stage='reconcile';name=null;
  const changes=[];
  for(const table of tables){const after=(await db.query('SELECT row_to_json(t) AS data FROM '+table+' t')).rows;

@@ -14,6 +14,8 @@ Do not change the stage to active as a standalone step. First complete the compa
 
 The maintained register covers 125 API routes, 22 pages, 56 principal components, both calendars, contact profiles/history, song intake, quotations, teams, assignments, receipt review, reporting, campaigns, exports and 17 cron routes. The seven-field customer form, twenty-field saved song profile and existing 26% assignment threshold are retained. File coverage is complete for the compared Veo source; functional compatibility remains subject to the acceptance checks in the master plan.
 
+[Tenant isolation](suno-tenancy.md) includes a corrected launch RPC which retains other workspaces and existing grants, campaigns and profile jobs. It is included in the rehearsed incremental upgrade. Its production database installation remains pending the live cutover.
+
 Open items include Suno's actual pay/unit rules, approved Telegram destinations, historical token/pre-order/freebie/referral/Makata reconciliation, Page runtime ownership and live role/profile/calendar checks. Six legacy bot paths remain explicitly mode-blocked until their approved replacements/data handover are complete. Do not describe these as completed by renaming or publishing the app.
 
 ## Dedicated bot infrastructure

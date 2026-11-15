@@ -4,6 +4,8 @@ Work is in `sunobot/suno-system`. The original Suno app and both Veo source chec
 
 ## Implemented in the new checkout
 
+- Tenant launch isolation: a Suno-specific replacement for the inherited launch RPC validates active ownership, rejects foreign Page bindings, scopes historical snapshots to the selected Pages and retains existing grants/campaigns/profile jobs. Two-tenant SQL regressions cover cross-workspace isolation and rollback. See `docs/suno-tenancy.md`. This source migration has not been applied to the live CRM.
+
 - Full Veo source baseline: 125 API routes, 22 page routes, 56 principal components, both calendars, customer profiles, accounts/teams, assignments, production, receipt review, campaigns, media, reporting and operational workers. The route register still classifies every path; presence alone does not establish live acceptance.
 - Suno song conversation engine, owner-selected knowledge, seven-field customer form, twenty-field saved profile, partial answers/corrections, form delivery tracking and customer-specific staff quotes. Existing Page settings were inspected read-only: twelve chatbot configurations use the twenty-field song profile and 26% completion threshold. One is disabled; its setting is preserved.
 - Shared Suno field aliases for forms, profiles and SQL assignment checks. Six meaningful distinct answers out of twenty meet the current saved 26% gate. Full-form completion remains separate. Other saved/manual profile fields remain visible.

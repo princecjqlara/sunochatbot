@@ -1,9 +1,11 @@
 {
-  "verified_at": "2026-11-14T17:45:57.460982+00:00",
+  "verified_at": "2026-11-15T14:33:48.315677+00:00",
   "app_regression": {
-    "files": 336,
-    "passed": 2645,
-    "failed": 0
+    "files": 337,
+    "passed": 2652,
+    "failed": 0,
+    "source_commit": "dcb04c60bd4ce1b88e1026dd3dac961e2c3b715d",
+    "context": "Previously published production build; tenant-change full hosted gate is recorded in the deployment verification report."
   },
   "final_targeted_compatibility": {
     "files": 7,
@@ -11,8 +13,9 @@
     "failed": 0
   },
   "bot": {
-    "passed": 1392,
-    "failed": 0
+    "passed": 1405,
+    "failed": 0,
+    "sources_unchanged_by_tenant_update": true
   },
   "typecheck_passed": true,
   "production_build_passed": true,
@@ -24,17 +27,17 @@
   },
   "incremental_schema": {
     "passed": true,
-    "pending_files": 150,
+    "pending_files": 151,
     "retained_table_columns": 443,
     "customer_rows_extracted": 0,
     "retained_types_verified": true,
     "retained_not_null_verified": true
   },
-  "production_deployed": false,
+  "production_deployed": true,
   "production_migrated": false,
   "remaining": [
     "Suno earnings rules and adapter",
-    "dedicated bot archive and hosting routes",
+    "tenant and remaining CRM schema installation during the verified live cutover",
     "approved groups and Page routes",
     "retained job/token/archive handover",
     "owner login and interactive/profile/calendar live acceptance",
@@ -79,5 +82,16 @@
     "targeted_passed": 14,
     "targeted_failed": 0,
     "application_source_changed": false
+  },
+  "production_stage": "setup",
+  "tenant_isolation": {
+    "new_sql_cases_passed": 9,
+    "focused_boundary_tests_passed": 31,
+    "retained_schema_launch_rehearsal_passed": true,
+    "prepared_upgrade_files": 151,
+    "typecheck_passed": true,
+    "changed_source_lint_passed": true,
+    "live_crm_migration_applied": false,
+    "live_tenant_created_or_launched": false
   }
 }
