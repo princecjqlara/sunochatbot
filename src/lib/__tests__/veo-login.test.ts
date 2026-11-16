@@ -20,6 +20,34 @@ beforeEach(() => {
 });
 afterEach(() => { vi.unstubAllEnvs(); });
 describe('stored roles and administrator-created sign-in', () => {
+    it('uses a Suno owner login alias without changing the legacy account email or its rate-limit identity', async () => {
+        vi.stubEnv('SUNO_SYSTEM_ENABLED', 'true'); vi.stubEnv('SUNO_OWNER_LOGIN_EMAIL', 'head@example.com'); vi.stubEnv('SUNO_OWNER_ACCOUNT_EMAIL', 'legacy@example.com');
+        m.rpc.mockResolvedValue({ data: { id: CJ_OWNER_USER_ID, email: 'legacy@example.com', name: 'Owner', password_hash: 'hashed' } });
+        expect(await credentials({ email: ' Head@Example.com ', password: 'valid' })).toMatchObject({ id: CJ_OWNER_USER_ID, email: 'head@example.com' });
+        expect(m.rpc).toHaveBeenCalledWith('veo_login_context', { p_email: 'legacy@example.com' });
+        expect(m.matches).toHaveBeenCalledWith('valid', 'hashed'); expect(m.update).not.toHaveBeenCalled();
+        m.rpc.mockResolvedValue({ data: { limited: true } });
+        await expect(credentials({ email: 'head@example.com', password: 'valid' })).rejects.toThrow('TooManyAttempts');
+    });
+    it('never authenticates a different account through the configured owner alias or skips password comparison', async () => {
+        vi.stubEnv('SUNO_SYSTEM_ENABLED', 'true'); vi.stubEnv('SUNO_OWNER_LOGIN_EMAIL', 'head@example.com'); vi.stubEnv('SUNO_OWNER_ACCOUNT_EMAIL', 'legacy@example.com');
+        expect(await credentials({ email: 'head@example.com', password: 'valid' })).toBeNull(); expect(m.matches).not.toHaveBeenCalled();
+        m.rpc.mockResolvedValue({ data: { id: CJ_OWNER_USER_ID, email: 'legacy@example.com', password_hash: 'hashed' } }); m.matches.mockResolvedValue(false);
+        expect(await credentials({ email: 'head@example.com', password: 'incorrect' })).toBeNull();
+    });
+    it('does not fall back to an unrelated login when the Suno owner alias configuration is incomplete', async () => {
+        vi.stubEnv('SUNO_SYSTEM_ENABLED', 'true'); vi.stubEnv('SUNO_OWNER_LOGIN_EMAIL', 'head@example.com'); vi.stubEnv('SUNO_OWNER_ACCOUNT_EMAIL', '');
+        await expect(credentials({ email: 'head@example.com', password: 'valid' })).rejects.toThrow('DatabaseUnavailable');
+        expect(m.rpc).not.toHaveBeenCalled(); expect(m.matches).not.toHaveBeenCalled();
+    });
+    it('leaves other deployments and ordinary staff login lookups unchanged', async () => {
+        vi.stubEnv('SUNO_SYSTEM_ENABLED', 'false'); vi.stubEnv('SUNO_OWNER_LOGIN_EMAIL', 'head@example.com'); vi.stubEnv('SUNO_OWNER_ACCOUNT_EMAIL', 'legacy@example.com');
+        expect(await credentials({ email: 'head@example.com', password: 'valid' })).toMatchObject({ id: 'member' });
+        expect(m.rpc).toHaveBeenLastCalledWith('veo_login_context', { p_email: 'head@example.com' });
+        vi.stubEnv('SUNO_SYSTEM_ENABLED', 'true');
+        expect(await credentials({ email: 'member@any-provider.example', password: 'valid' })).toMatchObject({ id: 'member' });
+        expect(m.rpc).toHaveBeenLastCalledWith('veo_login_context', { p_email: 'member@any-provider.example' });
+    });
     it('retains a valid signed identity during outages while withholding role authorization', async () => {
         m.rpc.mockResolvedValueOnce({ data: null, error: { code: 'SUPABASE_CIRCUIT_OPEN' } });
         const session = await (authOptions.callbacks!.session as any)({ session: { user: {} }, token: { id: 'member' } });

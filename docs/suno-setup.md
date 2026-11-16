@@ -8,7 +8,7 @@ Current implementation and incomplete live requirements are in [suno-implementat
 
 - Suno Supabase project: `cxgynadprukyeuqbchbs`.
 - Retained Suno owner: `1e56fd95-56af-4aca-b50f-89a48c083249` (Cj Lara).
-- The requested head-admin credentials were configured on this retained identity on November 17 PHT. Its thirteen Page grants and Facebook identity are preserved. Workspace Owner membership and dashboard login remain pending the compatible tenant/database cutover; no password is stored in this repository.
+- The requested head-admin credentials were configured on this retained identity on November 17 PHT. A server-configured login alias preserves its original email for the older Facebook-based app. Its thirteen Page grants and Facebook identity are preserved. Workspace Owner membership and dashboard login remain pending the compatible tenant/database cutover; no password is stored in this repository.
 - Page allowlist: the 13 Pages read from Suno's existing database on preparation. `src/config/veo-pages.json` contains their Facebook identities; no Veo Page is approved.
 - Telegram service: `@dannysunobot`, bot ID `9210209211`. The token is server-only in the ignored Jaucian environment.
 - App and bot have a newly generated shared handoff secret. It is different from Veo's secret.

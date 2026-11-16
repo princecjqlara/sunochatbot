@@ -4,6 +4,7 @@ import { getSupabaseAdmin } from './supabase';
 import { passwordMatches, workspaceEnabled, workspaceScope, type WorkspaceRole } from './veo-workspace';
 import { requestDeadline } from './request-deadline';
 import { isSupabaseUnavailable } from './supabase-errors';
+import { CJ_OWNER_USER_ID } from '@/config/veo-owner';
 
 export const authOptions: NextAuthOptions = {
     providers: [
@@ -12,12 +13,18 @@ export const authOptions: NextAuthOptions = {
                 if (!credentials || !credentials.password || !credentials.email) return null;
                 try {
                     return await requestDeadline(async signal => {
-                        const db = getSupabaseAdmin(signal), email = credentials.email.trim().toLowerCase();
-                        const row = await db.rpc('veo_login_context', { p_email: email });
+                        const email = credentials.email.trim().toLowerCase();
+                        const alias = process.env.SUNO_OWNER_LOGIN_EMAIL?.trim().toLowerCase();
+                        const ownerAlias = process.env.SUNO_SYSTEM_ENABLED === 'true' && Boolean(alias) && email === alias;
+                        const accountEmail = process.env.SUNO_OWNER_ACCOUNT_EMAIL?.trim().toLowerCase();
+                        if (ownerAlias && (!accountEmail || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(accountEmail))) throw new Error('DatabaseUnavailable');
+                        const db = getSupabaseAdmin(signal);
+                        const row = await db.rpc('veo_login_context', { p_email: ownerAlias ? accountEmail : email });
                         if (row.error) throw new Error(row.error.message === 'TooManyAttempts' ? 'TooManyAttempts' : 'DatabaseUnavailable');
                         if (row.data?.limited === true) throw new Error('TooManyAttempts');
+                        if (ownerAlias && row.data?.id !== CJ_OWNER_USER_ID) return null;
                         if (!row.data?.id || !await passwordMatches(credentials.password!, row.data.password_hash)) return null;
-                        return { id: row.data.id, name: row.data.name, email: row.data.email, image: row.data.image };
+                        return { id: row.data.id, name: row.data.name, email: ownerAlias ? alias : row.data.email, image: row.data.image };
                     }, 12_000);
                 } catch (error) {
                     if (isSupabaseUnavailable(error)) throw new Error('DatabaseUnavailable');
