@@ -27,8 +27,8 @@ def workspace_groups() -> dict[int, dict]:
                         "active": 7581, "contact_thread": 7673, "done": 4, "close": 4,
                         "receipts": 4, "songs": 7692, "crm_pages": {}, "pages": {}},
         -1004498344479: {"name": "Suno Makata", "general": 1, "announcements": 4,
-                        "contact_thread": 13, "done": 8, "close": 8,
-                        "receipts": 8, "crm_pages": {}, "pages": {}},
+                        "active": 132, "contact_thread": 13, "done": 8, "close": 8,
+                        "receipts": 8, "songs": 133, "crm_pages": {}, "pages": {}},
     }
 
 

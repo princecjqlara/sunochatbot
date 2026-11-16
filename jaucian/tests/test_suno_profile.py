@@ -1,3 +1,4 @@
+import datetime as dt
 import json
 import os
 from pathlib import Path
@@ -9,6 +10,30 @@ import suno_profile
 
 
 class SunoProfileTests(unittest.TestCase):
+    def test_each_suno_team_can_deliver_and_register_availability_in_its_own_topic(self):
+        import veo_shift_reports as shifts
+        groups = suno_profile.workspace_groups()
+        tomorrow = str(dt.datetime.now(shifts.MANILA).date() + dt.timedelta(days=1))
+        for chat, topic in [(-1002894511895, 7581), (-1004498344479, 132)]:
+            with self.subTest(chat=chat):
+                action = {"chat_id": chat, "payload": {"veo_tenant_id": "tenant",
+                    "veo_availability_date": tomorrow}}
+                directory = {"teams": [{"telegram_groups_managed": True,
+                    "telegram_groups": [{"chat_id": chat}]}]}
+                with patch.object(shifts, "GROUPS", groups), \
+                        patch("veo_directory.workspace_directory", return_value=directory), \
+                        patch("veo_directory.teams", return_value={chat}), \
+                        patch("telegram_sender.telegram_call", return_value={"message_id": 55, "poll": {"id": "poll"}}) as send, \
+                        patch.object(shifts, "register_daily_poll", return_value=True) as register:
+                    result = shifts.send_availability(action)
+                    self.assertEqual(send.call_args.args[0], "sendPoll")
+                    self.assertEqual(send.call_args.args[1]["chat_id"], chat)
+                    self.assertEqual(send.call_args.args[1]["message_thread_id"], topic)
+                    action["payload"].update(_veo_poll_id=result["poll"]["id"], _veo_message_id=result["message_id"])
+                    shifts.register_availability(action)
+                    self.assertEqual(register.call_args.kwargs["chat_id"], chat)
+                    self.assertEqual(register.call_args.kwargs["thread_id"], topic)
+
     def test_crm_projects_cannot_be_used_as_the_new_bot_archive(self):
         with patch.dict(os.environ, {"SUNO_SYSTEM_ENABLED": "true"}):
             for project in suno_profile.BLOCKED_ARCHIVE_PROJECTS:
