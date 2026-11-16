@@ -1,4 +1,4 @@
--- REVIEW ONLY. Existing Suno upgrade; 156 file/hash identities.
+-- REVIEW ONLY. Existing Suno upgrade; 160 file/hash identities.
 -- Requires a restorable backup, completed Suno policy and maintenance cutover.
 -- Omit the full baseline installer. This transaction retains saved chatbot settings.
 BEGIN;
@@ -12658,6 +12658,145 @@ NOTIFY pgrst,'reload schema';
 
 
 INSERT INTO app_private.suno_workspace_migration_files(filename,sha256) VALUES('202611160002_veo_dashboard_summary.sql','768038e65c7dabfeaa0f4459581af2c22004bb7c6988fd1ad90ef670d487329a');
+
+-- FILE: 202611160003_veo_completed_project_warnings.sql SHA256: e0fbc047c89763506c9bdcf03d739300c8aa2b93368539bb48578ccd967e52f2
+
+SET LOCAL lock_timeout='5s';
+SET LOCAL statement_timeout='30s';
+
+-- Approved Done Deal evidence verifies completion independently of Telegram
+-- delivery. A full upfront payment alone must keep its production deadline.
+CREATE INDEX veo_submission_completed_project ON public.veo_submissions(order_id)
+ WHERE status='delivered' AND receipt_kind='done';
+DO $migration$
+DECLARE definition text;columns text;
+BEGIN
+ definition:=rtrim(pg_get_viewdef('public.veo_work_facts'::regclass,true),E';\n ');
+ SELECT string_agg(CASE attname
+  WHEN 'overdue' THEN 'f.overdue AND NOT completion.verified_done_deal AS overdue'
+  WHEN 'overdue_hours' THEN 'CASE WHEN completion.verified_done_deal THEN 0 ELSE f.overdue_hours END AS overdue_hours'
+  ELSE format('f.%I',attname) END,',' ORDER BY attnum) INTO columns
+ FROM pg_attribute WHERE attrelid='public.veo_work_facts'::regclass AND attnum>0 AND NOT attisdropped;
+ EXECUTE 'CREATE OR REPLACE VIEW public.veo_work_facts AS SELECT '||columns||',completion.verified_done_deal FROM ('||definition||') f
+ CROSS JOIN LATERAL (SELECT f.order_created AND (
+  EXISTS(SELECT 1 FROM public.veo_deal_reviews r WHERE r.order_id=f.id AND r.receipt_kind=''done'' AND r.status=''approved'')
+  OR (f.done_at IS NOT NULL AND EXISTS(SELECT 1 FROM public.veo_submissions s WHERE s.order_id=f.id AND s.receipt_kind=''done'' AND s.status=''delivered''))
+ ) AS verified_done_deal) completion';
+END $migration$;
+ALTER FUNCTION public.veo_finance_days(uuid,date,date,uuid,uuid) SET statement_timeout='15s';
+INSERT INTO app_private.schema_migrations(version,description) VALUES('202611160003','Clear production overdue warnings for verified completed Done Deals; preserve upfront payment deadlines') ON CONFLICT(version) DO NOTHING;
+NOTIFY pgrst,'reload schema';
+
+
+INSERT INTO app_private.suno_workspace_migration_files(filename,sha256) VALUES('202611160003_veo_completed_project_warnings.sql','e0fbc047c89763506c9bdcf03d739300c8aa2b93368539bb48578ccd967e52f2');
+
+-- FILE: 202611160004_veo_login_context.sql SHA256: 7e8f806d83784cc37549d1537c20464cd4b8a353a2ab60f843ab2c6693db444c
+
+SET LOCAL lock_timeout='5s';
+SET LOCAL statement_timeout='30s';
+-- Login needs an enabled identity, not every descendant and Page permission.
+-- Credentials stay service-only and password comparison remains on the server.
+CREATE FUNCTION public.veo_login_context(p_email text) RETURNS jsonb
+LANGUAGE plpgsql SECURITY DEFINER SET search_path=pg_catalog,public SET statement_timeout='5s' AS $$
+DECLARE matches jsonb;
+BEGIN
+ p_email:=lower(btrim(p_email));
+ IF p_email IS NULL OR length(p_email) NOT BETWEEN 3 AND 254 THEN RETURN NULL;END IF;
+ IF NOT public.veo_login_attempt(encode(sha256(convert_to(p_email,'UTF8')),'hex')) THEN
+  RETURN jsonb_build_object('limited',true);
+ END IF;
+ SELECT jsonb_agg(jsonb_build_object('id',u.id,'name',u.name,'email',u.email,'image',u.image,'password_hash',u.password_hash)) INTO matches
+ FROM public.users u JOIN public.veo_accounts a ON a.user_id=u.id
+ JOIN public.veo_tenants t ON t.id=a.tenant_id
+ WHERE lower(btrim(u.email))=p_email AND u.is_active AND a.active AND a.departed_at IS NULL
+ AND a.role IN('owner','team_leader','manager','member') AND t.launch_at IS NOT NULL;
+ IF jsonb_array_length(matches)>1 THEN RAISE EXCEPTION 'Ambiguous account sign-in';END IF;
+ RETURN matches->0;
+END $$;
+REVOKE ALL ON FUNCTION public.veo_login_context(text) FROM PUBLIC,anon,authenticated;
+GRANT EXECUTE ON FUNCTION public.veo_login_context(text) TO service_role;
+INSERT INTO app_private.schema_migrations(version,description) VALUES('202611160004','Bounded service-only login context without full permission graph hydration') ON CONFLICT(version) DO NOTHING;
+NOTIFY pgrst,'reload schema';
+
+
+INSERT INTO app_private.suno_workspace_migration_files(filename,sha256) VALUES('202611160004_veo_login_context.sql','7e8f806d83784cc37549d1537c20464cd4b8a353a2ab60f843ab2c6693db444c');
+
+-- FILE: 202611160005_veo_stage_contact_audit.sql SHA256: 36e1657c68231ec4d872c1d37f5d51f206237fb5d15222651742a3665a4c33f2
+
+SET LOCAL lock_timeout='5s';
+SET LOCAL statement_timeout='30s';
+-- Conversation updated_time follows messages. Revisit known contacts in a
+-- bounded rotation as well, so an older thread can expose a missed stage notice.
+ALTER TABLE public.veo_autotag_page_state ADD COLUMN audit_cursor uuid;
+ALTER TABLE public.veo_autotag_page_state ADD COLUMN audit_checked_at timestamptz;
+CREATE FUNCTION public.veo_autotag_audit_contact(p_page uuid,p_lease uuid) RETURNS jsonb
+LANGUAGE plpgsql STABLE SECURITY DEFINER SET search_path=pg_catalog,public AS $$
+DECLARE s veo_autotag_page_state;result jsonb;
+BEGIN
+ SELECT state.* INTO s FROM public.veo_autotag_page_state state JOIN public.pages p ON p.id=state.page_id
+ WHERE state.page_id=p_page AND state.lease_token=p_lease AND state.lease_until>now() AND p.veo_enabled AND p.messaging_auto_tag_enabled;
+ IF NOT FOUND THEN RAISE EXCEPTION 'Scan lease lost';END IF;
+ SELECT jsonb_build_object('id',c.id,'psid',c.psid) INTO result FROM public.contacts c
+ WHERE c.page_id=p_page AND c.psid IS NOT NULL AND (s.audit_cursor IS NULL OR c.id>s.audit_cursor) ORDER BY c.id LIMIT 1;
+ IF result IS NULL AND s.audit_cursor IS NOT NULL THEN
+  SELECT jsonb_build_object('id',c.id,'psid',c.psid) INTO result FROM public.contacts c WHERE c.page_id=p_page AND c.psid IS NOT NULL ORDER BY c.id LIMIT 1;
+ END IF;
+ RETURN result;
+END $$;
+DO $migration$
+DECLARE definition text;needle text:='lease_token=NULL,lease_until=NULL WHERE page_id=p_page;';
+BEGIN
+ definition:=pg_get_functiondef('public.veo_finish_autotag_page(uuid,uuid,jsonb)'::regprocedure);
+ IF strpos(definition,needle)=0 THEN RAISE EXCEPTION 'Auto-tag checkpoint definition changed';END IF;
+ definition:=replace(definition,needle,$patch$audit_cursor=CASE WHEN err IS NULL AND EXISTS(SELECT 1 FROM contacts c WHERE c.id=(p_result->>'audit_contact')::uuid AND c.page_id=p_page) THEN (p_result->>'audit_contact')::uuid ELSE audit_cursor END,
+ audit_checked_at=CASE WHEN err IS NULL AND p_result->>'audit_contact' IS NOT NULL THEN clock_timestamp() ELSE audit_checked_at END,
+ lease_token=NULL,lease_until=NULL WHERE page_id=p_page;$patch$);
+ EXECUTE definition;
+END $migration$;
+REVOKE ALL ON FUNCTION public.veo_autotag_audit_contact(uuid,uuid) FROM PUBLIC,anon,authenticated;
+GRANT EXECUTE ON FUNCTION public.veo_autotag_audit_contact(uuid,uuid) TO service_role;
+INSERT INTO app_private.schema_migrations(version,description) VALUES('202611160005','Rotate known-contact stage reads independently of conversation message checkpoints') ON CONFLICT(version) DO NOTHING;
+NOTIFY pgrst,'reload schema';
+
+
+INSERT INTO app_private.suno_workspace_migration_files(filename,sha256) VALUES('202611160005_veo_stage_contact_audit.sql','36e1657c68231ec4d872c1d37f5d51f206237fb5d15222651742a3665a4c33f2');
+
+-- FILE: 202611160006_veo_salary_snapshot_report.sql SHA256: bc2eb50fd65df5396cdafbed7f17bf0e4c3a40f1c214ef532f10c00efbe36330
+
+SET LOCAL lock_timeout='5s';
+SET LOCAL statement_timeout='30s';
+-- Salary filters read the recorded quota snapshots. Replanning every employee
+-- here takes shared row locks and can prevent other reports from completing.
+-- Keep the original finance/planning function for existing maintenance flows.
+DO $migration$
+DECLARE definition text;needle text;
+BEGIN
+ definition:=pg_get_functiondef('public.veo_finance_days(uuid,date,date,uuid,uuid)'::regprocedure);
+ definition:=replace(definition,'FUNCTION public.veo_finance_days(','FUNCTION public.veo_salary_report(');
+ needle:=' IF veo_today() BETWEEN p_from AND p_to THEN PERFORM veo_target(user_id,veo_today()) FROM veo_accounts WHERE active AND role IN(''member'',''manager'') AND user_id IN(SELECT veo_descendants(p_actor)) AND(p_worker IS NULL OR user_id=p_worker); END IF;';
+ IF strpos(definition,needle)=0 OR strpos(definition,'FUNCTION public.veo_salary_report(')=0 THEN RAISE EXCEPTION 'Salary report integration point changed';END IF;
+ definition:=replace(definition,needle,$patch$ IF veo_today() BETWEEN p_from AND p_to AND EXISTS(
+ SELECT 1 FROM veo_accounts a WHERE a.active AND a.role IN('member','manager') AND a.user_id IN(SELECT veo_descendants(p_actor))
+ AND(p_worker IS NULL OR a.user_id=p_worker) AND NOT EXISTS(SELECT 1 FROM veo_daily_targets t WHERE t.user_id=a.user_id AND t.work_date=veo_today()))
+ THEN RAISE EXCEPTION 'Today''s salary quota snapshots are still being prepared. Retry shortly or choose completed dates.' USING ERRCODE='55000';END IF;$patch$);
+ -- Evaluate live Page access once per Page, then reuse it for each milestone
+ -- and currency allocation without changing the worker's all-Page quota rate.
+ needle:=' WITH workers AS MATERIALIZED(';
+ IF strpos(definition,needle)=0 THEN RAISE EXCEPTION 'Salary authorization integration point changed';END IF;
+ definition:=replace(definition,needle,' WITH allowed_pages AS MATERIALIZED(SELECT p.id FROM pages p WHERE p.veo_tenant_id=actor.tenant_id AND p.veo_enabled AND veo_can_page(p_actor,p.id)),workers AS MATERIALIZED(');
+ definition:=replace(definition,'veo_can_page(p_actor,page_id)','page_id IN(SELECT id FROM allowed_pages)');
+ EXECUTE definition;
+END $migration$;
+ALTER FUNCTION public.veo_salary_report(uuid,date,date,uuid,uuid) SET jit=off;
+ALTER FUNCTION public.veo_salary_report(uuid,date,date,uuid,uuid) SET plan_cache_mode='force_custom_plan';
+ALTER FUNCTION public.veo_salary_report(uuid,date,date,uuid,uuid) SET statement_timeout='15s';
+REVOKE ALL ON FUNCTION public.veo_salary_report(uuid,date,date,uuid,uuid) FROM PUBLIC,anon,authenticated;
+GRANT EXECUTE ON FUNCTION public.veo_salary_report(uuid,date,date,uuid,uuid) TO service_role;
+INSERT INTO app_private.schema_migrations(version,description) VALUES('202611160006','Salary reports reuse recorded quotas without planning writes or shared target row locks') ON CONFLICT(version) DO NOTHING;
+NOTIFY pgrst,'reload schema';
+
+
+INSERT INTO app_private.suno_workspace_migration_files(filename,sha256) VALUES('202611160006_veo_salary_snapshot_report.sql','bc2eb50fd65df5396cdafbed7f17bf0e4c3a40f1c214ef532f10c00efbe36330');
 
 -- FILE: 202611160105_suno_jaucian_brief_controls.sql SHA256: cd72cbc4c66dd43f6347603dc4b247400d654315d9504c03beab5d45f2382dce
 

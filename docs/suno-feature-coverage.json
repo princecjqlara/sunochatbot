@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-11-16T02:18:36.107632+00:00",
+  "generated_at": "2026-11-16T13:43:54.432352+00:00",
   "scope": "Source coverage and planning only; no functional parity claim",
   "features": {
     "F01": "Sign-in, personal profile and access boundary",
@@ -2034,7 +2034,7 @@
       "declared_schedule_utc": null,
       "direct_rpc_names": [],
       "direct_table_names": [],
-      "source_sha256": "40a68f36e579c48ea532f249b562a9a4758f6501ec626f068256b75fe023a4a9",
+      "source_sha256": "e2d95fa4b2f033aa569b374fc0ee5ef2c759476260695977b7b5853b8bc957b2",
       "implementation_status": "planning_only",
       "compatibility_verified": false
     },
@@ -2519,7 +2519,7 @@
       "component": "VeoAutoTagStatus.tsx",
       "feature": "F22",
       "source": "src/components/VeoAutoTagStatus.tsx",
-      "source_sha256": "1cf3f0ddc4f81b69bacc8a399a7bb1f9ad229274440136253cab85b53fa9dd80",
+      "source_sha256": "37528c31de5dc1ba9c9e34a73c70f03830e3b6499be17ab3ed49d0b81d50edc2",
       "compatibility_verified": false
     },
     {
@@ -2575,7 +2575,7 @@
       "component": "VeoContactTags.tsx",
       "feature": "F22",
       "source": "src/components/VeoContactTags.tsx",
-      "source_sha256": "52f725793a1594633cf631de41d1e548a563175b0314936bab75617a9b45fbcf",
+      "source_sha256": "22a39ec98c5df33e21b1a17e939350117e9c55a0841ef0a174b9eccbe4a544ff",
       "compatibility_verified": false
     },
     {
@@ -2652,7 +2652,7 @@
       "component": "VeoOperationsPanel.tsx",
       "feature": "F24",
       "source": "src/components/VeoOperationsPanel.tsx",
-      "source_sha256": "ca53147b5f31f096d7475296b1421579d669cc2e2910e3cc45a526d3023b4a30",
+      "source_sha256": "3f1e3f27619a384e40e13a4f172cfe9b594d9675b1a637baf612fe8bdba5689c",
       "compatibility_verified": false
     },
     {
@@ -2701,14 +2701,14 @@
       "component": "VeoSalaryStatement.tsx",
       "feature": "F26",
       "source": "src/components/VeoSalaryStatement.tsx",
-      "source_sha256": "3f9e0e7b7546f1adbebdd5e3e13fafedcb825f3c4bb09f3efeb0da1076602d21",
+      "source_sha256": "2312be4a5f79ff086f3075bbb02e62eaad35d55e650a0482d0d6d26ab67afaf4",
       "compatibility_verified": false
     },
     {
       "component": "VeoSignIn.tsx",
       "feature": "F01",
       "source": "src/components/VeoSignIn.tsx",
-      "source_sha256": "808d593f94c1b8196f90b9a7b865c127e260916ffb336b2b98bee14c1475320c",
+      "source_sha256": "135431cc2abdfe6ef6741a07e3aad2aa185006dd0a1c41c8285e1d1d12e49334",
       "compatibility_verified": false
     },
     {
@@ -2729,7 +2729,7 @@
       "component": "VeoStaffWarnings.tsx",
       "feature": "F28",
       "source": "src/components/VeoStaffWarnings.tsx",
-      "source_sha256": "ac005f0516ed5a7c167ae5855e0c9d6f320337e97f02bf81020e6ff8e45486cf",
+      "source_sha256": "0278256ffee23c4fd373a481db2cb43e5d702e36fed7017d64875ae303ae2081",
       "compatibility_verified": false
     },
     {

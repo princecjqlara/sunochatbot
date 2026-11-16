@@ -1,6 +1,6 @@
 # Jaucian update adapted for Suno
 
-The source checkouts and their fetched tracking branches agree at these commits:
+The initial November 16 sync used these source commits:
 
 | Source | Previously copied | Updated source |
 | --- | --- | --- |
@@ -34,3 +34,15 @@ The copied upstream SQL files retain their own identities. `202611160105_suno_ja
 The Python deployment retains its full validation gate, including `test_suno_jaucian_update.py`. The app tests cover the paired API/SQL changes, controlled read retries, Suno links, dynamic brief status and tenant isolation. The isolated upgrade rehearses all pending files against retained schema metadata and rolls back fixture-only tenant launch checks. Deployment and targeted test receipts are stored under the ignored local `verification/` directory.
 
 This update does not migrate the live CRM, create or launch a tenant, approve groups, register a Telegram webhook or enable intake. Both services stay in setup mode; the existing Suno earnings, routing and historical handover requirements remain open. No dispatcher or Telegram delivery is invoked manually.
+
+## Latest recheck: paired app `39ffb87`
+
+The next source check and fetch found Jaucian unchanged at `fc78db9ea8a5817c01eec47c161141658a605d99`. The paired app advanced from `b0840df6b051a3c9108f9c230b59e409ec23e138` to `39ffb879251c432ee010ebd4a5a31bdbcf463575`, with five additional committed updates. The following changes are adapted to Suno:
+
+- Salary filters use a dedicated snapshot report instead of rebuilding quotas or locking shared planning rows. Employee/date/currency totals remain separate, and staff filters remain restricted to the current user or permitted branch. Missing current-day snapshots produce a retryable state. These changes do not approve Veo's commission rules for Suno; the financial adapter must cover both finance and snapshot-report entry points before activation.
+- Verified completed-project evidence clears obsolete production-overdue warnings; upfront payment alone does not establish completed work. Warning views add employee/type/severity filters, compact rows and protection against responses for a previously selected employee.
+- Sign-in uses one bounded, service-only account lookup, retains rate limiting and server-side password comparison, and rechecks workspace permissions in the session. A retry action can recover a temporary permission-service outage. Suno branding and credentials-only authentication are retained.
+- Contact-stage recovery audits one known contact per Page in a bounded rotation, verifies the selected conversation's identity and saves its cursor only under the current lease. Stage evidence is limited to the operational launch period. Manual/shared tag displays refresh without treating a tag as verified payment.
+- `scripts/repair-suno-data-api-schema-cache.mjs` is scoped by this checkout's Suno project/credential guards. It exposes explicit preflight/apply modes; an optional reconnect refreshes only identified PostgREST connections in that database. It is not invoked by deployment, and no live role settings or connections were changed during this sync.
+
+All 28 changed upstream files were reviewed, including the maintenance tool under its Suno name. Four additional SQL migrations bring the isolated incremental rehearsal to 160 pending files. The original 443 table columns and retained fixture settings/jobs/deliveries remain preserved. Focused verification covers 93 tests in thirteen files plus type checking; the complete hosted release gate remains mandatory.

@@ -1,11 +1,11 @@
 {
-  "verified_at": "2026-11-16T02:20:08.365788+00:00",
+  "verified_at": "2026-11-16T13:43:53.829958+00:00",
   "app_regression": {
-    "files": 338,
-    "passed": 2661,
+    "files": 341,
+    "passed": 2702,
     "failed": 0,
-    "source_commit": "722d6eadea1575a95486500a7a45e0fa4c6e4dff",
-    "context": "Last published full production gate before the Jaucian update; the latest hosted gate is recorded in Deployment-Verification.json."
+    "source_commit": "92c48e8e01a85e7a07688d552d51bcf933cc14f4",
+    "context": "Last published full gate before the latest paired-app update; current hosted checks are in Deployment-Verification.json."
   },
   "final_targeted_compatibility": {
     "files": 7,
@@ -27,7 +27,7 @@
   },
   "incremental_schema": {
     "passed": true,
-    "pending_files": 156,
+    "pending_files": 160,
     "retained_table_columns": 443,
     "customer_rows_extracted": 0,
     "retained_types_verified": true,
@@ -96,7 +96,7 @@
   },
   "jaucian_update": {
     "bot_source_commit": "fc78db9ea8a5817c01eec47c161141658a605d99",
-    "paired_web_source_commit": "b0840df6b051a3c9108f9c230b59e409ec23e138",
+    "paired_web_source_commit": "39ffb879251c432ee010ebd4a5a31bdbcf463575",
     "runtime_and_test_files_reviewed": 43,
     "app_targeted_files": 19,
     "app_targeted_tests_passed": 201,
@@ -105,5 +105,16 @@
     "retained_schema_rehearsal_passed": true,
     "live_crm_migration_applied": false,
     "intake_enabled": false
+  },
+  "latest_upstream_recheck": {
+    "bot_source_commit": "fc78db9ea8a5817c01eec47c161141658a605d99",
+    "paired_web_source_commit": "39ffb879251c432ee010ebd4a5a31bdbcf463575",
+    "bot_source_unchanged": true,
+    "reviewed_upstream_files": 28,
+    "focused_test_files": 13,
+    "focused_tests_passed": 93,
+    "retained_schema_upgrade_files": 160,
+    "maintenance_tool_executed": false,
+    "live_crm_migration_applied": false
   }
 }

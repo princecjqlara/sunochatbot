@@ -738,6 +738,22 @@
       "sha256": "768038e65c7dabfeaa0f4459581af2c22004bb7c6988fd1ad90ef670d487329a"
     },
     {
+      "name": "202611160003_veo_completed_project_warnings.sql",
+      "sha256": "e0fbc047c89763506c9bdcf03d739300c8aa2b93368539bb48578ccd967e52f2"
+    },
+    {
+      "name": "202611160004_veo_login_context.sql",
+      "sha256": "7e8f806d83784cc37549d1537c20464cd4b8a353a2ab60f843ab2c6693db444c"
+    },
+    {
+      "name": "202611160005_veo_stage_contact_audit.sql",
+      "sha256": "36e1657c68231ec4d872c1d37f5d51f206237fb5d15222651742a3665a4c33f2"
+    },
+    {
+      "name": "202611160006_veo_salary_snapshot_report.sql",
+      "sha256": "bc2eb50fd65df5396cdafbed7f17bf0e4c3a40f1c214ef532f10c00efbe36330"
+    },
+    {
       "name": "202611160105_suno_jaucian_brief_controls.sql",
       "sha256": "cd72cbc4c66dd43f6347603dc4b247400d654315d9504c03beab5d45f2382dce"
     }
@@ -898,6 +914,10 @@
     "202611150104_suno_tenant_launch.sql",
     "202611160001_veo_workspace_report_deadlines.sql",
     "202611160002_veo_dashboard_summary.sql",
+    "202611160003_veo_completed_project_warnings.sql",
+    "202611160004_veo_login_context.sql",
+    "202611160005_veo_stage_contact_audit.sql",
+    "202611160006_veo_salary_snapshot_report.sql",
     "202611160105_suno_jaucian_brief_controls.sql"
   ],
   "passed": true,
