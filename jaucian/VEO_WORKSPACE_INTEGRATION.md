@@ -25,4 +25,20 @@ The VEO app's scheduled workspace worker owns the editor rotation. Jaucian only 
 
 The `veo_intake_notice_id` payload shares normal retry and acknowledgment handling. An acknowledged notice retries only its VEO checkpoint, preventing duplicate Telegram posts. Timed offers are queued before new notices so announcements cannot starve acceptance windows. Handovers continue to use the same VEO assignment and preserve existing sellers and commissions.
 
+Client notification delivery requires an explicit positive VEO acknowledgment.
+A rejected or incomplete acknowledgment retries the saved checkpoint without
+resending its Telegram message or resetting its original delivery time.
+When Telegram intake is enabled, `/api/health` also checks the read-only VEO
+pending-offer endpoint with a fifteen-second timeout, allowing VEO's full
+twelve-second request deadline and transport time. It returns HTTP 503 with
+`client_assignments_unavailable` when that service cannot be read, including
+when the local delivery queue is empty. Health checks never enqueue or deliver.
+
+The normal dispatcher also checks at most five exhausted, failed client-menu
+replies older than thirty minutes per tick. It retires one only after VEO
+confirms the menu has expired or lost access, using its saved row revision.
+Current menus, actual offers, acknowledged messages and uncertain sends are
+preserved. This cleanup never posts or replays a Telegram message, and stops
+probing when VEO is unavailable.
+
 Jev interruption decisions run in VEO through OpenRouter after migrations `202611080008` and `202611080009`. The exact Jev model must be configured before activation. Reviews never send directly and cannot override manual bot-off controls, an assigned editor, a closed outcome or newer conversation activity.

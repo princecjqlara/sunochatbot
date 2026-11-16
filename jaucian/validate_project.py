@@ -8,6 +8,7 @@ import sys
 
 # These suites must travel with every deployment, even when other tests remain.
 REQUIRED_TEST_FILES = (
+    "test_suno_jaucian_update.py",
     "test_suno_deployment.py",
     "test_suno_workspace_songs.py",
     "test_veo_incentives.py",

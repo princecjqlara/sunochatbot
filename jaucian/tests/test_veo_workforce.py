@@ -11,6 +11,15 @@ TENANT = "00000000-0000-4000-8000-000000000001"
 
 
 class WorkforceTests(unittest.TestCase):
+    def test_every_workforce_read_compiles_for_the_production_postgres_transport(self):
+        from postgres_archive import compile_request
+        def read(path):
+            compile_request(path)
+            return []
+        with patch.object(workforce, 'workspace_directory', return_value=self.data()), patch.object(workforce, 'teams', return_value={CHAT}), \
+                patch.object(workforce, 'request', side_effect=read), patch.object(workforce, 'inspect', return_value={'membership': 'unknown'}):
+            self.assertEqual(len(workforce.snapshot(TENANT)['workers']), 1)
+
     def test_multiple_groups_are_paged_as_memberships_without_duplicating_the_unmapped_account_count(self):
         other = next(chat for chat in GROUPS if chat != CHAT)
         data = self.data();data['accounts'][0]['telegram_groups'] = [{'chat_id': CHAT}, {'chat_id': other}, {'chat_id': CHAT}]

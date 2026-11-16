@@ -62,6 +62,35 @@ class IntakeTests(unittest.TestCase):
                 self.assertEqual(enqueue.call_args.kwargs['payload']['veo_intake_request_id'], REFERENCE)
             self.assertEqual(source.call_args_list[0].kwargs['data'], source.call_args_list[1].kwargs['data'])
 
+    def test_ready_and_busy_accept_spaced_bot_mentions_without_accepting_extra_words(self):
+        with patch.object(intake, 'call', return_value=self.result()) as source, patch.object(intake, 'enqueue_scheduled_action'):
+            for command, action in [('/ready @Jaucianbot', 'ready'), ('/ready@Jaucianbot', 'ready'), ('/busy @Jaucianbot', 'busy')]:
+                intake.handle(self.update(text=command), {CHAT}, self.now)
+                self.assertEqual(source.call_args.args, (action,))
+            source.reset_mock()
+            self.assertIsNone(intake.handle(self.update(text='/ready@Jaucianbot extra'), {CHAT}, self.now))
+            source.assert_not_called()
+
+    def test_acceptance_returns_the_authoritative_confirmation(self):
+        result = {**self.result(), 'feedback': 'Client accepted. Your status is now Busy.'}
+        with patch.object(intake, 'call', return_value=result), patch.object(intake, 'enqueue_scheduled_action'):
+            self.assertEqual(intake.handle(self.update(callback='vi:' + REFERENCE), {CHAT}, self.now), result['feedback'])
+
+    def test_public_health_checks_the_live_offer_endpoint_without_writes_or_delivery(self):
+        import app
+        for result in ({'offers': [], 'notices': []}, {'offers': None, 'notices': []}, RuntimeError('unavailable')):
+            with self.subTest(result=result), patch.dict(os.environ, {'SUPABASE_DB_URL': ''}), \
+                    patch('veo_workspace.review_required', return_value=False), patch.object(app, 'allowed_chat_ids', return_value={CHAT}), \
+                    patch.object(app, 'archive_status', return_value=[]), patch.object(intake, 'enqueue_scheduled_action') as enqueue, \
+                    patch('telegram_sender.telegram_call') as telegram, \
+                    patch.object(intake, 'call', **({'side_effect': result} if isinstance(result, Exception) else {'return_value': result})) as source:
+                status = []
+                body = json.loads(b''.join(app.health_route({}, lambda value, headers: status.append(value))))
+                self.assertEqual(status[0].split()[0], '200' if result == {'offers': [], 'notices': []} else '503')
+                self.assertEqual(body['ok'], result == {'offers': [], 'notices': []})
+                source.assert_called_once_with('pending', timeout=15)
+                enqueue.assert_not_called();telegram.assert_not_called()
+
     def test_old_assignment_buttons_cannot_write_a_parallel_owner(self):
         with patch.object(intake, 'call') as source, patch.object(intake, 'enqueue_scheduled_action') as enqueue:
             self.assertIn('Use /clients', intake.handle(self.update(callback='cw:take:old-offer'), {CHAT}, self.now))
@@ -89,6 +118,33 @@ class IntakeTests(unittest.TestCase):
         with patch.object(intake, 'call', return_value={'offers': [offer]}), patch.object(intake, 'request', return_value=[{'dedupe_key': key}]), patch.object(intake, 'enqueue_scheduled_action') as enqueue:
             self.assertEqual(intake.queue(self.now, {CHAT}), 0); enqueue.assert_not_called()
 
+    def test_expired_exhausted_menus_are_retired_by_revision_without_sending_or_replaying(self):
+        from urllib.parse import parse_qs, urlsplit
+        row = {**self.action(), 'id': 7, 'updated_at': self.now.isoformat()}
+        with patch.object(intake, 'request', side_effect=[[row], [{'id': 7}]]) as database, \
+                patch.object(intake, 'call', side_effect=intake.IntakeScopeChanged('Assignment menu expired')) as source, \
+                patch('telegram_sender.telegram_call') as send, patch.object(intake, 'enqueue_scheduled_action') as enqueue:
+            self.assertEqual(intake.retire_expired_replies(self.now, {CHAT}), 1)
+            query = parse_qs(urlsplit('https://db/' + database.call_args_list[0].args[0]).query)
+            self.assertEqual(query['status'], ['eq.failed']);self.assertEqual(query['attempts'], ['gte.5'])
+            self.assertEqual(query['limit'], ['5'])
+            updated = parse_qs(urlsplit('https://db/' + database.call_args.args[0]).query)
+            self.assertEqual(updated['updated_at'], ['eq.' + row['updated_at']])
+            self.assertEqual(database.call_args.args[1]['status'], 'cancelled')
+            source.assert_called_once_with('render', user=42, chat=CHAT, data={'request_id': REFERENCE}, timeout=5)
+            send.assert_not_called();enqueue.assert_not_called()
+
+    def test_menu_cleanup_preserves_valid_menus_offers_and_uncertain_deliveries(self):
+        row = {**self.action(), 'id': 7, 'updated_at': self.now.isoformat()}
+        rows = [row] + [{**row, 'payload': {**row['payload'], key: True}} for key in
+            ('_veo_message_id', '_veo_sending', 'veo_delivery_unknown', 'veo_intake_offer_id', 'veo_intake_notice_id', 'veo_submission_id')]
+        with patch.object(intake, 'request', return_value=rows) as database, patch.object(intake, 'call', return_value=self.result()) as source:
+            self.assertEqual(intake.retire_expired_replies(self.now, {CHAT}), 0)
+            self.assertEqual(database.call_count, 1);self.assertEqual(source.call_count, 1)
+        with patch.object(intake, 'request', return_value=[row, row]) as database, patch.object(intake, 'call', side_effect=RuntimeError('Outage')) as source:
+            self.assertEqual(intake.retire_expired_replies(self.now, {CHAT}), 0)
+            self.assertEqual(database.call_count, 1);self.assertEqual(source.call_count, 1)
+
     def test_fresh_inquiry_is_announced_once_before_any_editor_offer(self):
         notice = {'notice_id': REFERENCE, 'chat_id': CHAT}
         with patch.object(intake, 'call', return_value={'offers': [], 'notices': [notice]}), patch.object(intake, 'request', return_value=[]), patch.object(intake, 'enqueue_scheduled_action', return_value=True) as enqueue:
@@ -112,7 +168,7 @@ class IntakeTests(unittest.TestCase):
     def test_acknowledged_inquiry_retries_only_the_app_checkpoint_and_never_resends(self):
         import veo_workspace
         action = {'id': 1, 'chat_id': CHAT, 'payload': {'veo_tenant_id': TENANT, 'veo_intake_notice_id': REFERENCE, '_veo_message_id': 77}}
-        with patch('cloud_store.claim_scheduled_actions', return_value=[action]), patch('cloud_store.finish_scheduled_action', return_value=True), patch.object(intake, 'call', return_value={'ok': True}) as source, patch.object(intake, 'send') as send:
+        with patch('cloud_store.claim_scheduled_actions', return_value=[action]), patch('cloud_store.finish_scheduled_action', return_value=True), patch.object(intake, 'call', return_value={'ok': True, 'acknowledged': True}) as source, patch.object(intake, 'send') as send:
             self.assertEqual(veo_workspace.deliver({CHAT}), (1, 1, 0));send.assert_not_called()
             source.assert_called_once_with('ack_notice', chat=CHAT, data={'notice_id': REFERENCE, 'message_id': 77})
 
@@ -120,9 +176,24 @@ class IntakeTests(unittest.TestCase):
         import veo_workspace
         delivered_at = self.now.isoformat()
         action = {'id': 1, 'chat_id': CHAT, 'payload': {'veo_tenant_id': TENANT, 'veo_intake_offer_id': REFERENCE, '_veo_message_id': 77, '_veo_sent_at': delivered_at}}
-        with patch('cloud_store.claim_scheduled_actions', return_value=[action]), patch('cloud_store.finish_scheduled_action', return_value=True), patch.object(intake, 'call', return_value={'ok': True}) as source, patch.object(intake, 'send') as send:
+        with patch('cloud_store.claim_scheduled_actions', return_value=[action]), patch('cloud_store.finish_scheduled_action', return_value=True), patch.object(intake, 'call', return_value={'ok': True, 'acknowledged': True}) as source, patch.object(intake, 'send') as send:
             self.assertEqual(veo_workspace.deliver({CHAT}), (1, 1, 0)); send.assert_not_called()
             source.assert_called_once_with('ack_offer', chat=CHAT, data={'offer_id': REFERENCE, 'message_id': 77, 'sent_at': delivered_at})
+
+    def test_refused_or_missing_delivery_acknowledgment_retries_without_another_telegram_message(self):
+        import veo_workspace
+        for key in ('veo_intake_offer_id', 'veo_intake_notice_id'):
+            for acknowledgment in (False, None):
+                action = {'id': 1, 'chat_id': CHAT, 'payload': {'veo_tenant_id': TENANT, key: REFERENCE, '_veo_message_id': 77}}
+                with self.subTest(kind=key, acknowledgment=acknowledgment), \
+                        patch('cloud_store.claim_scheduled_actions', return_value=[action]), patch('cloud_store._update_claim', return_value=True), \
+                        patch('cloud_store.finish_scheduled_action', return_value=True) as finish, \
+                        patch.object(intake, 'call', return_value={'ok': True, 'acknowledged': acknowledgment}) as source, patch.object(intake, 'send') as send:
+                    self.assertEqual(veo_workspace.deliver({CHAT}), (1, 0, 1))
+                    self.assertFalse(finish.call_args.kwargs['success']);send.assert_not_called()
+                    self.assertEqual(action['payload']['_veo_message_id'], 77)
+                    source.return_value = {'ok': True, 'acknowledged': True}
+                    self.assertEqual(veo_workspace.deliver({CHAT}), (1, 1, 0));send.assert_not_called()
 
     def action(self):
         return {'chat_id': CHAT, 'payload': {'veo_intake_request_id': REFERENCE, 'veo_intake_user_id': 42, 'veo_tenant_id': TENANT}}

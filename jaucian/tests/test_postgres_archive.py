@@ -66,6 +66,15 @@ class PostgresArchiveTests(unittest.TestCase):
         self.assertNotIn("marker", query.as_string())
         self.assertEqual(shape, "rows")
 
+    def test_workforce_poll_join_accepts_reversed_field_order_and_preserves_identity_bounds(self):
+        query, values, _ = compile_request(
+            "daily_poll_answers?select=poll_id,user_id,active,updated_at,daily_polls!inner(chat_id,work_date)"
+            "&user_id=in.(42,43)&daily_polls.chat_id=in.(-100123)&daily_polls.work_date=eq.2026-11-16&limit=1000"
+        )
+        self.assertIn("JOIN public.daily_polls", query.as_string())
+        self.assertIn("AS daily_polls", query.as_string())
+        self.assertEqual(values, [[42, 43], [-100123], dt.date(2026, 11, 16), 1000, 0])
+
     def test_dates_match_http_response_shape(self):
         value = dt.datetime(2026, 10, 7, tzinfo=dt.timezone.utc)
         self.assertEqual(_normalize([{"sent_at": value}]), [{"sent_at": value.isoformat()}])

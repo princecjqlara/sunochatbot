@@ -173,7 +173,11 @@ def route(environ, start_response, respond):
         else:
             raise ValueError("Unknown resource")
         return respond(start_response, 200, {**result, "tenant_id": tenant})
-    except (ValueError, KeyError, TypeError):
+    except (ValueError, KeyError, TypeError) as error:
+        import traceback
+        frames = traceback.extract_tb(error.__traceback__)
+        location = " -> ".join(f"{os.path.basename(frame.filename)}:{frame.lineno}" for frame in frames)
+        print(f"VEO directory validation failed: {type(error).__name__} [{location}]")
         return respond(start_response, 400, {"ok": False, "error": "Invalid request or Telegram identity is not a current human member"})
     except Exception as error:
         print(f"VEO directory unavailable: {type(error).__name__}")

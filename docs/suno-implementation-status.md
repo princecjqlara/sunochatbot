@@ -4,6 +4,8 @@ Work is in `sunobot/suno-system`. The original Suno app and both Veo source chec
 
 ## Implemented in the new checkout
 
+- November 16 Jaucian sync: newer client controls, positive delivery acknowledgment, bounded expired-menu cleanup, assignment-service health, workforce transport repair and paired web recovery/dashboard updates. Suno bot mentions, workspace links, saved brief thresholds, song work and tenant isolation are preserved. See `docs/suno-jaucian-update-2026-11-16.md`; live intake and CRM migration remain pending.
+
 - Tenant launch isolation: a Suno-specific replacement for the inherited launch RPC validates active ownership, rejects foreign Page bindings, scopes historical snapshots to the selected Pages and retains existing grants/campaigns/profile jobs. Two-tenant SQL regressions cover cross-workspace isolation and rollback. See `docs/suno-tenancy.md`. This source migration has not been applied to the live CRM.
 
 - Full Veo source baseline: 125 API routes, 22 page routes, 56 principal components, both calendars, customer profiles, accounts/teams, assignments, production, receipt review, campaigns, media, reporting and operational workers. The route register still classifies every path; presence alone does not establish live acceptance.

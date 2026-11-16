@@ -1,11 +1,11 @@
 {
-  "verified_at": "2026-11-15T14:33:48.315677+00:00",
+  "verified_at": "2026-11-16T02:20:08.365788+00:00",
   "app_regression": {
-    "files": 337,
-    "passed": 2652,
+    "files": 338,
+    "passed": 2661,
     "failed": 0,
-    "source_commit": "dcb04c60bd4ce1b88e1026dd3dac961e2c3b715d",
-    "context": "Previously published production build; tenant-change full hosted gate is recorded in the deployment verification report."
+    "source_commit": "722d6eadea1575a95486500a7a45e0fa4c6e4dff",
+    "context": "Last published full production gate before the Jaucian update; the latest hosted gate is recorded in Deployment-Verification.json."
   },
   "final_targeted_compatibility": {
     "files": 7,
@@ -13,9 +13,9 @@
     "failed": 0
   },
   "bot": {
-    "passed": 1405,
+    "passed": 1418,
     "failed": 0,
-    "sources_unchanged_by_tenant_update": true
+    "context": "Current local deployment validation gate"
   },
   "typecheck_passed": true,
   "production_build_passed": true,
@@ -27,7 +27,7 @@
   },
   "incremental_schema": {
     "passed": true,
-    "pending_files": 151,
+    "pending_files": 156,
     "retained_table_columns": 443,
     "customer_rows_extracted": 0,
     "retained_types_verified": true,
@@ -93,5 +93,17 @@
     "changed_source_lint_passed": true,
     "live_crm_migration_applied": false,
     "live_tenant_created_or_launched": false
+  },
+  "jaucian_update": {
+    "bot_source_commit": "fc78db9ea8a5817c01eec47c161141658a605d99",
+    "paired_web_source_commit": "b0840df6b051a3c9108f9c230b59e409ec23e138",
+    "runtime_and_test_files_reviewed": 43,
+    "app_targeted_files": 19,
+    "app_targeted_tests_passed": 201,
+    "bot_tests_passed": 1418,
+    "all_merge_conflicts_resolved": true,
+    "retained_schema_rehearsal_passed": true,
+    "live_crm_migration_applied": false,
+    "intake_enabled": false
   }
 }

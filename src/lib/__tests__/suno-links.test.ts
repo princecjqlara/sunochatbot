@@ -9,4 +9,12 @@ describe('Suno assignment destinations', () => {
         for (const value of ['https://veochatbot.vercel.app', 'http://suno.example', 'https://u:p@suno.example', 'https://suno.example/x', 'https://suno.example?q=1']) expect(() => sunoWorkspaceOrigin(value)).toThrow();
         for (const url of ['https://foreign.example/dashboard/workspace', 'https://veochatbot.vercel.app/api/auth']) expect(() => sunoIntakeLinks({url}, 'https://suno.example')).toThrow();
     });
+    it('rewrites the new handover guidance to Suno while retaining its command instructions', () => {
+        const prefix = 'Use the VEO workspace to manage handovers and reassignments: ';
+        expect(sunoIntakeLinks({ text: prefix + 'https://veochatbot.vercel.app/dashboard/workspace?view=new_clients\n\nUse /ready.' }, 'https://suno.example').text)
+            .toBe('Use the Suno workspace to manage handovers and reassignments: https://suno.example/dashboard/workspace?view=new_clients\n\nUse /ready.');
+        expect(() => sunoIntakeLinks({ text: prefix + 'https://foreign.example/dashboard/workspace' }, 'https://suno.example')).toThrow();
+        expect(sunoIntakeLinks({ text: 'Customer mentioned https://veochatbot.vercel.app' }, 'https://suno.example').text)
+            .toBe('Customer mentioned https://veochatbot.vercel.app');
+    });
 });

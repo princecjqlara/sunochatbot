@@ -73,7 +73,7 @@ from trabawho_songs import confirm_song_reply, is_song_notice, queue_song_follow
 
 
 MAX_BODY_BYTES = 1_000_000
-AUTOMATION_VERSION = "2026-11-15.suno.1"
+AUTOMATION_VERSION = "2026-11-16.suno.1"
 SCHEDULE_STATUSES = {"pending", "processing", "sent", "failed", "cancelled"}
 
 
@@ -164,6 +164,11 @@ def health_route(environ, start_response):
     except Exception as error:
         print(f"Health query failed: {type(error).__name__}")
         return response(start_response, 503, {"ok": False})
+    try:
+        from veo_intake import check_health
+        check_health()
+    except Exception:
+        return response(start_response, 503, {"ok": False, "reason": "client_assignments_unavailable"})
     return response(start_response, 200, {"ok": True})
 
 

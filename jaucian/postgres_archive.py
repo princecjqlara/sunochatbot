@@ -78,7 +78,7 @@ def _selection(value: str):
     for part in _split_selection(value):
         if part == "*":
             expressions.append(sql.SQL('"a".*'))
-        elif part == "daily_polls!inner(work_date,chat_id)":
+        elif part in {"daily_polls!inner(work_date,chat_id)", "daily_polls!inner(chat_id,work_date)"}:
             join = True
             expressions.append(sql.SQL("jsonb_build_object('work_date', daily_polls.work_date, "
                                        "'chat_id', daily_polls.chat_id) AS daily_polls"))

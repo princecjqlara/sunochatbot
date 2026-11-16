@@ -14,7 +14,7 @@ import urllib.request
 import uuid
 from cloud_store import enqueue_scheduled_action, request
 from daily_automation import GROUPS
-from suno_profile import valid_workspace_link
+from suno_profile import valid_workspace_link, enabled as suno_system_enabled, workspace_origin
 
 
 class IntakeScopeChanged(ValueError):
@@ -26,16 +26,18 @@ class NoRedirect(urllib.request.HTTPRedirectHandler):
         raise RuntimeError("Tokko assignment redirects are not allowed")
 
 
-def open_request(req):
-    return urllib.request.build_opener(NoRedirect()).open(req, timeout=20)
+def open_request(req, *, timeout: float = 20):
+    return urllib.request.build_opener(NoRedirect()).open(req, timeout=timeout)
 
 
 def enabled() -> bool:
     return os.environ.get("VEO_WORKSPACE_ENABLED", "").lower() == "true" and os.environ.get("VEO_TELEGRAM_INTAKE_ENABLED", "").lower() == "true"
 
 
-def call(action: str, *, user: int = 0, chat: int = 0, data: dict | None = None) -> dict:
+def call(action: str, *, user: int = 0, chat: int = 0, data: dict | None = None, timeout: float = 20) -> dict:
     tenant, base, secret = (os.environ.get(k, "") for k in ("VEO_WORKSPACE_TENANT_ID", "VEO_WORKSPACE_URL", "VEO_JAUCIAN_SECRET"))
+    if suno_system_enabled():
+        base = workspace_origin()
     uuid.UUID(tenant)
     parsed = urllib.parse.urlsplit(base)
     if parsed.scheme != "https" or not parsed.netloc or parsed.username or parsed.password or not secret:
@@ -44,7 +46,7 @@ def call(action: str, *, user: int = 0, chat: int = 0, data: dict | None = None)
     req = urllib.request.Request(base.rstrip("/") + "/api/workspace/handoff", data=raw,
         headers={"Authorization": "Bearer " + secret, "Content-Type": "application/json"}, method="POST")
     try:
-        with open_request(req) as response:
+        with open_request(req, timeout=timeout) as response:
             result = json.load(response)
     except urllib.error.HTTPError as error:
         if error.code in {400, 403, 409}:
@@ -90,7 +92,10 @@ def handle(update: dict, allowed: set[int], now: dt.datetime) -> str | None:
         if not isinstance(message.get("date"), int) or abs(now.timestamp() - message["date"]) > 600:
             return None
         text = str(message.get("text") or "").strip().lower()
-        command = text.split("@", 1)[0] if text.startswith("/") else text
+        matched = re.fullmatch(r"/(ready|busy|clients|offers|myclients|reassign|handover)(?:\s*@([a-z0-9_]+))?", text)
+        if matched and matched[2] and suno_system_enabled() and matched[2] != "dannysunobot":
+            return None
+        command = "/" + matched[1] if matched else text
         action = {"/ready": "ready", "ready": "ready", "/busy": "busy", "busy": "busy", "/clients": "pool", "/offers": "offers", "/myclients": "assigned", "/reassign": "reassign", "/handover": "reassign"}.get(command)
         if action is None:
             return None
@@ -109,7 +114,7 @@ def handle(update: dict, allowed: set[int], now: dt.datetime) -> str | None:
             enqueue_scheduled_action(chat_id=chat, action_type="message", scheduled_for=now,
                 dedupe_key=f"veo-intake-help:{tenant}:{request_id}", payload={"veo_intake_help": True, "veo_tenant_id": tenant,
                     "veo_intake_user_id": user["id"], "expires_at": (now + dt.timedelta(minutes=15)).isoformat(),
-                    "text": "Let us get you set up. Link Telegram in your VEO profile, then ask your team leader or manager to connect your group and Pages. A manager is optional if you already have a team leader. When that is ready, use /clients to see available clients."})
+                    "text": "Let us get you set up. Link Telegram in your " + ("Suno" if suno_system_enabled() else "VEO") + " profile, then ask your team leader or manager to connect your group and Pages. A manager is optional if you already have a team leader. When that is ready, use /clients to see available clients."})
         return str(error)[:200]
     if int(result.get("chat_id") or 0) != chat or int(result.get("telegram_user_id") or 0) != user["id"]:
         raise RuntimeError("Assignment response identity did not match")
@@ -120,7 +125,8 @@ def handle(update: dict, allowed: set[int], now: dt.datetime) -> str | None:
     enqueue_scheduled_action(chat_id=chat, action_type="message", scheduled_for=now,
         dedupe_key=f"veo-intake-reply:{tenant}:{result['request_id']}", payload={"veo_intake_request_id": result["request_id"],
             "veo_intake_user_id": user["id"], "veo_tenant_id": tenant, "text": "Tokko assignment controls; current access checked at delivery"})
-    return "Saved in Tokko. Your refreshed controls will appear here shortly."
+    fallback = "Saved in " + ("Suno" if suno_system_enabled() else "Tokko") + ". Your refreshed controls will appear here shortly."
+    return str(result.get("feedback") or fallback)[:200]
 
 
 def queue(now: dt.datetime, allowed: set[int]) -> int:
@@ -128,6 +134,7 @@ def queue(now: dt.datetime, allowed: set[int]) -> int:
         return 0
     from automation_controls import new_clients_enabled
     tenant = os.environ["VEO_WORKSPACE_TENANT_ID"]
+    retire_expired_replies(now, allowed)
     pending = call("pending")
     offers = [o for o in pending.get("offers", []) if int(o["chat_id"]) in allowed.intersection(GROUPS) and new_clients_enabled(int(o["chat_id"]))]
     notices = [n for n in pending.get("notices", []) if int(n["chat_id"]) in allowed.intersection(GROUPS) and new_clients_enabled(int(n["chat_id"]))]
@@ -158,12 +165,68 @@ def queue(now: dt.datetime, allowed: set[int]) -> int:
     return queued
 
 
+def retire_expired_replies(now: dt.datetime, allowed: set[int]) -> int:
+    """Retire exhausted menu replies only after VEO confirms lost scope/expiry.
+
+    Actual offers, sent messages and uncertain sends are never repaired here.
+    The normal dispatcher owns this bounded cleanup; no Telegram call is made.
+    """
+    chats = allowed.intersection(GROUPS)
+    if not chats:
+        return 0
+    tenant = os.environ["VEO_WORKSPACE_TENANT_ID"]
+    rows = request("scheduled_actions?" + urllib.parse.urlencode({
+        "select": "id,chat_id,payload,updated_at", "status": "eq.failed", "attempts": "gte.5",
+        "chat_id": "in.(" + ",".join(map(str, sorted(chats))) + ")",
+        "dedupe_key": f"like.veo-intake-reply:{tenant}:*",
+        "scheduled_for": "lt." + (now - dt.timedelta(minutes=30)).isoformat(),
+        "order": "scheduled_for.asc,id.asc", "limit": 5,
+    })) or []
+    retired = 0
+    for row in rows:
+        payload = row.get("payload") or {}
+        if (payload.get("veo_tenant_id") != tenant or not payload.get("veo_intake_request_id")
+                or not payload.get("veo_intake_user_id") or not row.get("updated_at")
+                or any(payload.get(key) for key in ("_veo_message_id", "_veo_sending", "veo_delivery_unknown",
+                    "veo_intake_offer_id", "veo_intake_notice_id", "veo_submission_id", "veo_availability_date"))):
+            continue
+        try:
+            call("render", user=int(payload["veo_intake_user_id"]), chat=int(row["chat_id"]),
+                 data={"request_id": payload["veo_intake_request_id"]}, timeout=5)
+        except IntakeScopeChanged:
+            changed = request("scheduled_actions?" + urllib.parse.urlencode({
+                "id": "eq." + str(row["id"]), "status": "eq.failed", "updated_at": "eq." + row["updated_at"], "select": "id",
+            }), {"status": "cancelled", "last_error": "Client menu expired or its access changed; use /clients for fresh controls",
+                 "repeat_interval_minutes": None}, method="PATCH", prefer="return=representation")
+            retired += len(changed or [])
+        except RuntimeError:
+            # Preserve failed state during an outage and avoid repeated probes.
+            break
+    return retired
+
+
 def acknowledge_delivery(action: dict, message_id: int) -> None:
     payload = action["payload"]
     if payload.get("veo_intake_notice_id"):
-        call("ack_notice", chat=int(action["chat_id"]), data={"notice_id": payload["veo_intake_notice_id"], "message_id": message_id})
+        result = call("ack_notice", chat=int(action["chat_id"]), data={"notice_id": payload["veo_intake_notice_id"], "message_id": message_id})
     elif payload.get("veo_intake_offer_id"):
-        call("ack_offer", chat=int(action["chat_id"]), data={"offer_id": payload["veo_intake_offer_id"], "message_id": message_id, **({"sent_at": payload["_veo_sent_at"]} if payload.get("_veo_sent_at") else {})})
+        result = call("ack_offer", chat=int(action["chat_id"]), data={"offer_id": payload["veo_intake_offer_id"], "message_id": message_id, **({"sent_at": payload["_veo_sent_at"]} if payload.get("_veo_sent_at") else {})})
+    else:
+        return
+    if result.get("acknowledged") is not True:
+        raise RuntimeError("Tokko did not confirm the client notification checkpoint")
+
+
+def check_health() -> None:
+    if not enabled():
+        return
+    # These RPCs are read-only. An empty local outbox does not establish that
+    # the authoritative service can still return new offers.
+    # VEO bounds this request at 12 seconds. Allow its full deadline plus
+    # transport time, including a cold start, before reporting it unavailable.
+    current = call("pending", timeout=15)
+    if not isinstance(current.get("offers"), list) or not isinstance(current.get("notices"), list):
+        raise RuntimeError("Tokko client notification state is unavailable")
 
 
 def validate_reply(current: dict, *, announcement: bool = False) -> None:

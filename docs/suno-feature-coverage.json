@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-11-15T14:27:04.715410+00:00",
+  "generated_at": "2026-11-16T02:18:36.107632+00:00",
   "scope": "Source coverage and planning only; no functional parity claim",
   "features": {
     "F01": "Sign-in, personal profile and access boundary",
@@ -539,7 +539,7 @@
       "declared_schedule_utc": "* * * * *",
       "direct_rpc_names": [],
       "direct_table_names": [],
-      "source_sha256": "3e523f9566f899e4bcbadb0abb380475479576583d1bc9fc291ab3940ce104fa",
+      "source_sha256": "2103985b181f2944ecf6b705aa8548c54e5858153e2351b727a9064a3c989ccf",
       "implementation_status": "planning_only",
       "compatibility_verified": false
     },
@@ -569,7 +569,7 @@
         "veo_refresh_spend_quotas"
       ],
       "direct_table_names": [],
-      "source_sha256": "352bcda8fb982d686c8c727597115db81306fbb2c4c3af28426252c639ff20f0",
+      "source_sha256": "3317b91402bfd7241ed2b444e1c63fd903257fd5db2105ddf5adbf86f152718d",
       "implementation_status": "planning_only",
       "compatibility_verified": false
     },
@@ -611,7 +611,7 @@
         "veo_telegram_intake_maintenance"
       ],
       "direct_table_names": [],
-      "source_sha256": "8573ea0b41b7b97ba495e22a07a9647081bd4abf7927d50481b6e336d73405c7",
+      "source_sha256": "74a30ca61f3c04a5cda30b01c80f5d95cea7e73ae79712b6ef932216563d1a4a",
       "implementation_status": "planning_only",
       "compatibility_verified": false
     },
@@ -1854,7 +1854,7 @@
       "declared_schedule_utc": null,
       "direct_rpc_names": [],
       "direct_table_names": [],
-      "source_sha256": "2f1c8921f37439fe75c179b8b4e1486cc57dc65df4f1393be42ce5a6c727dae4",
+      "source_sha256": "3a449e9ea77244173865057eb35ae8b25690b2cc15d4bc8082ae8280814f8616",
       "implementation_status": "planning_only",
       "compatibility_verified": false
     },
@@ -1971,7 +1971,7 @@
         "veo-conversation-submissions",
         "veo_submissions"
       ],
-      "source_sha256": "a3d0af12db95d2003ecb96519810824734d03c091ad953f6ea668ce4505e2482",
+      "source_sha256": "2a8d27331655893525ef7decf76521c3491fa05310b17ca6376ed205789ac21e",
       "implementation_status": "planning_only",
       "compatibility_verified": false
     },
@@ -2020,7 +2020,7 @@
         "veo_intake_action"
       ],
       "direct_table_names": [],
-      "source_sha256": "773b13b46bd63e9be506bfe47fa23eaecfb56aa92fe4d3c37498744b1300a08f",
+      "source_sha256": "a0578690693606eac3ae451d3ad7caf44eccbc3d3f9998b0094856d7bc232226",
       "implementation_status": "planning_only",
       "compatibility_verified": false
     },
@@ -2178,7 +2178,7 @@
         "veo_order_facts",
         "veo_payments"
       ],
-      "source_sha256": "e65272dc77fef02f42bb56b413e235399fff7113253d98c0262a181bdc353a30",
+      "source_sha256": "3c21c03ab883332da3e5b587027e24de489bc17547b2ead2c63bba95437aa771",
       "implementation_status": "planning_only",
       "compatibility_verified": false
     },
@@ -2384,7 +2384,7 @@
       "route": "/dashboard/workspace",
       "feature": "F04",
       "source": "src/app/dashboard/workspace/page.tsx",
-      "source_sha256": "acda87f85e8aedd52d17ce8f3acdf9b1725a190a4c673ff3b3b3f1440ec42de8",
+      "source_sha256": "a51a983d934087434abfedcba491ba53cae86d7af63ac1c498783b6939f8f3cf",
       "compatibility_verified": false
     },
     {
@@ -2983,7 +2983,7 @@
       "declared_schedule_utc": "* * * * *",
       "direct_rpc_names": [],
       "direct_table_names": [],
-      "source_sha256": "3e523f9566f899e4bcbadb0abb380475479576583d1bc9fc291ab3940ce104fa",
+      "source_sha256": "2103985b181f2944ecf6b705aa8548c54e5858153e2351b727a9064a3c989ccf",
       "implementation_status": "planning_only",
       "compatibility_verified": false
     },
@@ -3013,7 +3013,7 @@
         "veo_refresh_spend_quotas"
       ],
       "direct_table_names": [],
-      "source_sha256": "352bcda8fb982d686c8c727597115db81306fbb2c4c3af28426252c639ff20f0",
+      "source_sha256": "3317b91402bfd7241ed2b444e1c63fd903257fd5db2105ddf5adbf86f152718d",
       "implementation_status": "planning_only",
       "compatibility_verified": false
     },
@@ -3055,7 +3055,7 @@
         "veo_telegram_intake_maintenance"
       ],
       "direct_table_names": [],
-      "source_sha256": "8573ea0b41b7b97ba495e22a07a9647081bd4abf7927d50481b6e336d73405c7",
+      "source_sha256": "74a30ca61f3c04a5cda30b01c80f5d95cea7e73ae79712b6ef932216563d1a4a",
       "implementation_status": "planning_only",
       "compatibility_verified": false
     },

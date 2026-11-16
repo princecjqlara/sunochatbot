@@ -1,4 +1,4 @@
--- REVIEW ONLY. Existing Suno upgrade; 151 file/hash identities.
+-- REVIEW ONLY. Existing Suno upgrade; 156 file/hash identities.
 -- Requires a restorable backup, completed Suno policy and maintenance cutover.
 -- Omit the full baseline installer. This transaction retains saved chatbot settings.
 BEGIN;
@@ -12287,6 +12287,115 @@ NOTIFY pgrst,'reload schema';
 
 INSERT INTO app_private.suno_workspace_migration_files(filename,sha256) VALUES('202611140103_suno_runtime_compatibility.sql','8af7f52248bcbf9eaad5b57f5c3e5e6de6b9df2af07039f24774aafc3bea48d1');
 
+-- FILE: 202611150001_veo_telegram_client_controls.sql SHA256: 16e37d4f111dda76acd4b19e4c39ee7ebcc663a3dc85c947b4505f6839eb9338
+
+SET LOCAL lock_timeout='5s';
+-- Keep the authoritative assignment checks and the existing bound tokens.
+-- Navigation and availability buttons are reusable; assignment mutations
+-- retain their single-result guard. Telegram update IDs still fence retries.
+DO $$ DECLARE definition text;needle text;BEGIN
+ definition:=pg_get_functiondef('veo_telegram_intake(uuid,bigint,bigint,text,jsonb)'::regprocedure);
+ needle:='IF token.result_request_id IS NOT NULL THEN RETURN';
+ IF strpos(definition,needle)=0 THEN RAISE EXCEPTION 'Telegram token implementation changed';END IF;
+ definition:=replace(definition,needle,'IF token.result_request_id IS NOT NULL AND token.action IN(''accept'',''decline'',''cancel'',''offer'') THEN RETURN');
+
+ needle:='IF r.kind=''pool'' AND scope->>''role'' IN(''member'',''manager'') OR c->>''offered_to''=actor::text AND c->''offer_authorized''=''true''::jsonb THEN';
+ IF strpos(definition,needle)=0 THEN RAISE EXCEPTION 'Telegram acceptance rendering changed';END IF;
+ definition:=replace(definition,needle,$patch$IF (r.kind='pool' AND scope->>'role' IN('member','manager')
+     AND c->'intake'->'eligible'='true'::jsonb
+     AND coalesce(c->'auto_assignment'->>'status','') NOT IN('waiting','offered'))
+    OR (c->>'offered_to'=actor::text AND c->'offer_authorized'='true'::jsonb) THEN$patch$);
+
+ needle:='IF c->''can_offer''=''true''::jsonb THEN row_buttons:=';
+ IF strpos(definition,needle)=0 THEN RAISE EXCEPTION 'Telegram offer rendering changed';END IF;
+ definition:=replace(definition,needle,$patch$IF c->'can_offer'='true'::jsonb AND (c->>'owner_id' IS NOT NULL OR
+     (c->'intake'->'eligible'='true'::jsonb AND coalesce(c->'auto_assignment'->>'status','') NOT IN('waiting','offered'))) THEN row_buttons:=$patch$);
+
+ needle:='row_buttons:=''[]'';';
+ IF strpos(definition,needle)=0 THEN RAISE EXCEPTION 'Telegram client rendering changed';END IF;
+ definition:=replace(definition,needle,$patch$row_buttons:='[]';
+   IF c->>'owner_id' IS NULL AND coalesce(c->'auto_assignment'->>'status','') IN('waiting','offered') THEN
+    lines:=lines||E'\n  Waiting for your automatic editor offer. Use /ready to join the queue.';
+   ELSIF c->>'owner_id' IS NULL AND c->'intake'->'eligible' IS DISTINCT FROM 'true'::jsonb THEN
+    lines:=lines||E'\n  Collecting client details ('||coalesce(c->'intake'->>'detail_count','0')||'/3).';
+   END IF;$patch$);
+
+ needle:='RETURN jsonb_build_object(''request_id'',req,''chat_id'',p_chat,''telegram_user_id'',p_telegram);'||chr(10)||' END IF;';
+ IF strpos(definition,needle)=0 THEN RAISE EXCEPTION 'Telegram result implementation changed';END IF;
+ definition:=replace(definition,needle,$patch$RETURN jsonb_build_object('request_id',req,'chat_id',p_chat,'telegram_user_id',p_telegram,
+   'feedback',CASE coalesce(token.action,p_action)
+    WHEN 'accept' THEN 'Client accepted. Your status is now Busy. Open My clients to continue.'
+    WHEN 'ready' THEN 'You are Ready for a client. Ready ends when you choose Busy, accept a client, or at Philippine midnight.'
+    WHEN 'busy' THEN 'You are Busy. Pending offers to you have been cancelled.'
+    WHEN 'offer' THEN 'Client offered. The current owner keeps the client until the worker accepts.'
+    ELSE 'Your refreshed client controls will appear here shortly.' END);
+ END IF;$patch$);
+ -- Some retained deployments stored literal backslash-n in this function.
+ definition:=replace(definition,chr(92)||chr(92)||'n',chr(92)||'n');
+ EXECUTE definition;
+END $$;
+INSERT INTO app_private.schema_migrations(version,description)
+ VALUES('202611150001','Repair reusable Telegram client controls and render only authorized acceptance actions') ON CONFLICT(version) DO NOTHING;
+NOTIFY pgrst,'reload schema';
+
+
+INSERT INTO app_private.suno_workspace_migration_files(filename,sha256) VALUES('202611150001_veo_telegram_client_controls.sql','16e37d4f111dda76acd4b19e4c39ee7ebcc663a3dc85c947b4505f6839eb9338');
+
+-- FILE: 202611150002_veo_telegram_command_controls.sql SHA256: b4ea70a0d761e44940eec47acfe9d4200ea7b2b98e6d5a8dcd469ffe023d16fa
+
+SET LOCAL lock_timeout='5s';
+-- Keep all authorization, expiry, ownership and idempotency checks in the
+-- existing implementation. Only the presentation of new replies changes.
+ALTER FUNCTION veo_telegram_intake(uuid,bigint,bigint,text,jsonb) RENAME TO veo_telegram_intake_before_command_controls;
+CREATE FUNCTION veo_telegram_intake(p_tenant uuid,p_telegram bigint,p_chat bigint,p_action text,p_data jsonb) RETURNS jsonb
+LANGUAGE plpgsql SECURITY DEFINER SET search_path=public,pg_temp SET jit=off SET plan_cache_mode=force_custom_plan AS $$
+DECLARE result jsonb;kind text;row_buttons jsonb;button jsonb;kept jsonb;buttons jsonb:='[]';token veo_telegram_intake_tokens;
+BEGIN
+ result:=veo_telegram_intake_before_command_controls(p_tenant,p_telegram,p_chat,p_action,p_data);
+ IF p_action IN('render','render_offer') THEN
+  SELECT r.kind INTO kind FROM veo_telegram_intake_requests r WHERE r.id=(result->>'request_id')::uuid;
+  IF kind IN('reassign','choose_worker') THEN
+   result:=result||jsonb_build_object('text','Use the VEO workspace to manage handovers and reassignments: https://veochatbot.vercel.app/dashboard/workspace?view=new_clients');
+  END IF;
+  FOR row_buttons IN SELECT value FROM jsonb_array_elements(coalesce(result->'reply_markup'->'inline_keyboard','[]')) LOOP
+   kept:='[]';
+   FOR button IN SELECT value FROM jsonb_array_elements(row_buttons) LOOP
+    IF coalesce(button->>'callback_data','') !~ '^vi:[0-9a-f-]{36}$' THEN CONTINUE;END IF;
+    SELECT t.* INTO token FROM veo_telegram_intake_tokens t
+     WHERE t.id=substring(button->>'callback_data' FROM 4)::uuid;
+    IF token.offer_id IS NULL OR token.action NOT IN('accept','decline') THEN CONTINUE;END IF;
+    kept:=kept||jsonb_build_array(button||jsonb_build_object('text',CASE token.action WHEN 'accept' THEN 'Accept client' ELSE 'Remove from list' END));
+   END LOOP;
+   IF jsonb_array_length(kept)>0 THEN buttons:=buttons||jsonb_build_array(kept);END IF;
+  END LOOP;
+  result:=result||jsonb_build_object('reply_markup',jsonb_build_object('inline_keyboard',buttons),
+   'text',left(result->>'text',2800)||E'\n\nUse /ready to receive an automatic editor offer, or /busy when unavailable. Use /offers for current offers and /myclients for accepted clients.'||
+    CASE WHEN jsonb_array_length(buttons)>0 THEN E'\nAccept client confirms ownership and sets you Busy. Remove from list declines your offer; the client remains available for reassignment.' ELSE '' END);
+ ELSE
+  result:=result||CASE WHEN result->>'feedback' LIKE 'Client accepted.%' THEN jsonb_build_object('feedback','Client accepted. Your status is now Busy. Use /myclients to continue.')
+   WHEN result->>'feedback' IS NOT NULL AND p_action='callback' AND EXISTS(
+    SELECT 1 FROM veo_telegram_intake_tokens WHERE id=(p_data->>'token_id')::uuid AND action='decline')
+    THEN jsonb_build_object('feedback','Offer removed from your list. The client remains available for reassignment.') ELSE '{}'::jsonb END;
+ END IF;
+ RETURN result;
+END $$;
+ALTER FUNCTION veo_intake_notice(uuid,uuid,bigint) RENAME TO veo_intake_notice_before_command_controls;
+CREATE FUNCTION veo_intake_notice(p_tenant uuid,p_notice uuid,p_chat bigint) RETURNS jsonb
+LANGUAGE plpgsql STABLE SECURITY DEFINER SET search_path=public,pg_temp AS $$
+DECLARE result jsonb;BEGIN
+ result:=veo_intake_notice_before_command_controls(p_tenant,p_notice,p_chat);
+ IF result IS NULL THEN RETURN NULL;END IF;
+ RETURN result||jsonb_build_object('reply_markup',jsonb_build_object('inline_keyboard','[]'::jsonb));
+END $$;
+REVOKE ALL ON FUNCTION veo_telegram_intake(uuid,bigint,bigint,text,jsonb),veo_intake_notice(uuid,uuid,bigint),veo_telegram_intake_before_command_controls(uuid,bigint,bigint,text,jsonb),veo_intake_notice_before_command_controls(uuid,uuid,bigint) FROM PUBLIC,anon,authenticated;
+GRANT EXECUTE ON FUNCTION veo_telegram_intake(uuid,bigint,bigint,text,jsonb),veo_intake_notice(uuid,uuid,bigint),veo_telegram_intake_before_command_controls(uuid,bigint,bigint,text,jsonb),veo_intake_notice_before_command_controls(uuid,uuid,bigint) TO service_role;
+INSERT INTO app_private.schema_migrations(version,description)
+ VALUES('202611150002','Use Telegram availability commands and retain only offer acceptance and decline controls') ON CONFLICT(version) DO NOTHING;
+NOTIFY pgrst,'reload schema';
+
+
+INSERT INTO app_private.suno_workspace_migration_files(filename,sha256) VALUES('202611150002_veo_telegram_command_controls.sql','b4ea70a0d761e44940eec47acfe9d4200ea7b2b98e6d5a8dcd469ffe023d16fa');
+
 -- FILE: 202611150101_suno_song_work.sql SHA256: 9f5b562a1cc59595b0b2732ceed11b71ca2db3b81adabd550d31ca0584002a7d
 
 -- Song delivery declarations are work evidence, never payment verification.
@@ -12507,6 +12616,63 @@ NOTIFY pgrst,'reload schema';
 
 
 INSERT INTO app_private.suno_workspace_migration_files(filename,sha256) VALUES('202611150104_suno_tenant_launch.sql','e91377cbfe5ff70d6c0c12a9ee93e22be6bfbcb206b20fe5e8d479adb18d59ed');
+
+-- FILE: 202611160001_veo_workspace_report_deadlines.sql SHA256: 450fe4aa16f1539aacadf9383a12be32349bb16ea30d4fa0ff8f420b2b230ef8
+
+SET LOCAL lock_timeout='5s';
+-- PostgREST applies these per-RPC limits at transaction start. They remain
+-- below the application's bounded eighteen-second report-read deadline.
+ALTER FUNCTION veo_dashboard(uuid,date) SET statement_timeout='15s';
+ALTER FUNCTION veo_team_capacity(uuid,date) SET statement_timeout='15s';
+INSERT INTO app_private.schema_migrations(version,description)
+ VALUES('202611160001','Allow bounded dashboard calculations to complete within the application read deadline') ON CONFLICT(version) DO NOTHING;
+NOTIFY pgrst,'reload schema';
+
+
+INSERT INTO app_private.suno_workspace_migration_files(filename,sha256) VALUES('202611160001_veo_workspace_report_deadlines.sql','450fe4aa16f1539aacadf9383a12be32349bb16ea30d4fa0ff8f420b2b230ef8');
+
+-- FILE: 202611160002_veo_dashboard_summary.sql SHA256: 768038e65c7dabfeaa0f4459581af2c22004bb7c6988fd1ad90ef670d487329a
+
+SET LOCAL lock_timeout='5s';
+-- Reuse every current permission and financial calculation. The workspace
+-- already fetches order pages and collection health through separate routes.
+DO $$ DECLARE definition text;start_at integer;end_at integer;needle text;BEGIN
+ definition:=pg_get_functiondef('veo_dashboard(uuid,date)'::regprocedure);
+ start_at:=strpos(definition,'''orders'',');
+ end_at:=strpos(substring(definition FROM start_at),'''salary'',')+start_at-1;
+ IF start_at=0 OR end_at<=start_at THEN RAISE EXCEPTION 'Dashboard order-list integration changed';END IF;
+ definition:=substring(definition FROM 1 FOR start_at-1)||'''orders'',''[]''::jsonb,'||chr(10)||' '||substring(definition FROM end_at);
+ start_at:=strpos(definition,'''sync'',');
+ end_at:=strpos(substring(definition FROM start_at),' INTO result;')+start_at-1;
+ IF start_at=0 OR end_at<=start_at THEN RAISE EXCEPTION 'Dashboard collection-list integration changed';END IF;
+ definition:=substring(definition FROM 1 FOR start_at-1)||'''sync'',''[]''::jsonb)'||substring(definition FROM end_at);
+ needle:='FUNCTION public.veo_dashboard(';
+ IF strpos(definition,needle)=0 THEN RAISE EXCEPTION 'Dashboard function signature changed';END IF;
+ EXECUTE replace(definition,needle,'FUNCTION public.veo_dashboard_summary(');
+END $$;
+REVOKE ALL ON FUNCTION veo_dashboard_summary(uuid,date) FROM PUBLIC,anon,authenticated;
+GRANT EXECUTE ON FUNCTION veo_dashboard_summary(uuid,date) TO service_role;
+INSERT INTO app_private.schema_migrations(version,description)
+ VALUES('202611160002','Read dashboard figures without hydrating unused order and collection lists') ON CONFLICT(version) DO NOTHING;
+NOTIFY pgrst,'reload schema';
+
+
+INSERT INTO app_private.suno_workspace_migration_files(filename,sha256) VALUES('202611160002_veo_dashboard_summary.sql','768038e65c7dabfeaa0f4459581af2c22004bb7c6988fd1ad90ef670d487329a');
+
+-- FILE: 202611160105_suno_jaucian_brief_controls.sql SHA256: cd72cbc4c66dd43f6347603dc4b247400d654315d9504c03beab5d45f2382dce
+
+-- New upstream controls were introduced after Suno's song-domain migration.
+-- Keep the saved per-Page brief threshold in their collection status too.
+DO $$ DECLARE definition text;needle text;BEGIN
+ definition:=pg_get_functiondef('veo_telegram_intake_before_command_controls(uuid,bigint,bigint,text,jsonb)'::regprocedure);
+ needle:=$old$coalesce(c->'intake'->>'detail_count','0')||'/3).'$old$;
+ IF strpos(definition,needle)=0 THEN RAISE EXCEPTION 'Telegram brief status integration changed';END IF;
+ EXECUTE replace(definition,needle,$new$coalesce(c->'intake'->>'detail_count','0')||'/'||coalesce(c->'intake'->>'required','?')||').' $new$);
+END $$;
+NOTIFY pgrst,'reload schema';
+
+
+INSERT INTO app_private.suno_workspace_migration_files(filename,sha256) VALUES('202611160105_suno_jaucian_brief_controls.sql','cd72cbc4c66dd43f6347603dc4b247400d654315d9504c03beab5d45f2382dce');
 
 ALTER TABLE public.chatbot_configs DISABLE TRIGGER update_chatbot_configs_updated_at;
 UPDATE public.chatbot_configs live SET "enabled"=saved."enabled","trial_mode_enabled"=saved."trial_mode_enabled","trial_contact_id"=saved."trial_contact_id","instructions"=saved."instructions","fallback_reply"=saved."fallback_reply","model"=saved."model","created_at"=saved."created_at","updated_at"=saved."updated_at","rag_enabled"=saved."rag_enabled","follow_up_prompt"=saved."follow_up_prompt","details_to_collect"=saved."details_to_collect","split_messages"=saved."split_messages","max_message_parts"=saved."max_message_parts","stop_when_details_collected"=saved."stop_when_details_collected","stop_on_opt_out"=saved."stop_on_opt_out","stop_on_refusal"=saved."stop_on_refusal","stop_on_qualified"=saved."stop_on_qualified","stop_on_not_qualified"=saved."stop_on_not_qualified","stop_on_converted"=saved."stop_on_converted","stop_on_order_created"=saved."stop_on_order_created","details_completion_percent"=saved."details_completion_percent","bot_dos"=saved."bot_dos","bot_donts"=saved."bot_donts","follow_up_enabled"=saved."follow_up_enabled","follow_up_quick_delays_minutes"=saved."follow_up_quick_delays_minutes","follow_up_best_time_days"=saved."follow_up_best_time_days","follow_up_messages"=saved."follow_up_messages","follow_up_utility_template_name"=saved."follow_up_utility_template_name","follow_up_utility_template_language"=saved."follow_up_utility_template_language","follow_up_utility_text"=saved."follow_up_utility_text","follow_up_media_asset_id"=saved."follow_up_media_asset_id","follow_up_ai_instructions"=saved."follow_up_ai_instructions","knowledge_source_page_id"=saved."knowledge_source_page_id" FROM suno_retained_chatbot_settings saved WHERE live.page_id=saved.page_id;

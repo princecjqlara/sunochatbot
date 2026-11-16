@@ -19,6 +19,7 @@ const result = {
         suno_mode: process.env.SUNO_SYSTEM_ENABLED === 'true', auth_secret_configured: Boolean(process.env.NEXTAUTH_SECRET),
         history_source: process.env.SUNO_HISTORY_SOURCE || null, profile_mode: process.env.SUNO_CONTACT_PROFILE_MODE || null },
     bot: { expected_username: 'dannysunobot', token_configured: Boolean(bot.TELEGRAM_BOT_TOKEN),
+        intake_enabled: bot.VEO_TELEGRAM_INTAKE_ENABLED === 'true', tenant_configured: Boolean(bot.VEO_WORKSPACE_TENANT_ID),
         separate_archive_configured: Boolean(bot.SUPABASE_URL && bot.SUPABASE_SERVICE_ROLE_KEY),
         approved_group_count: (bot.ALLOWED_CHAT_IDS || '').split(',').filter(x => x.trim()).length,
         handoff_secret_matches: Boolean(bot.VEO_JAUCIAN_SECRET && bot.VEO_JAUCIAN_SECRET === process.env.VEO_JAUCIAN_SECRET) },

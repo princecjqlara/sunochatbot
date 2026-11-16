@@ -706,6 +706,14 @@
       "sha256": "8af7f52248bcbf9eaad5b57f5c3e5e6de6b9df2af07039f24774aafc3bea48d1"
     },
     {
+      "name": "202611150001_veo_telegram_client_controls.sql",
+      "sha256": "16e37d4f111dda76acd4b19e4c39ee7ebcc663a3dc85c947b4505f6839eb9338"
+    },
+    {
+      "name": "202611150002_veo_telegram_command_controls.sql",
+      "sha256": "b4ea70a0d761e44940eec47acfe9d4200ea7b2b98e6d5a8dcd469ffe023d16fa"
+    },
+    {
       "name": "202611150101_suno_song_work.sql",
       "sha256": "9f5b562a1cc59595b0b2732ceed11b71ca2db3b81adabd550d31ca0584002a7d"
     },
@@ -720,6 +728,18 @@
     {
       "name": "202611150104_suno_tenant_launch.sql",
       "sha256": "e91377cbfe5ff70d6c0c12a9ee93e22be6bfbcb206b20fe5e8d479adb18d59ed"
+    },
+    {
+      "name": "202611160001_veo_workspace_report_deadlines.sql",
+      "sha256": "450fe4aa16f1539aacadf9383a12be32349bb16ea30d4fa0ff8f420b2b230ef8"
+    },
+    {
+      "name": "202611160002_veo_dashboard_summary.sql",
+      "sha256": "768038e65c7dabfeaa0f4459581af2c22004bb7c6988fd1ad90ef670d487329a"
+    },
+    {
+      "name": "202611160105_suno_jaucian_brief_controls.sql",
+      "sha256": "cd72cbc4c66dd43f6347603dc4b247400d654315d9504c03beab5d45f2382dce"
     }
   ],
   "applied_offline": [
@@ -870,10 +890,15 @@
     "202611140101_suno_legacy_compatibility.sql",
     "202611140102_suno_song_domain.sql",
     "202611140103_suno_runtime_compatibility.sql",
+    "202611150001_veo_telegram_client_controls.sql",
+    "202611150002_veo_telegram_command_controls.sql",
     "202611150101_suno_song_work.sql",
     "202611150102_suno_controls_and_retention.sql",
     "202611150103_suno_atomic_takeover_recovery.sql",
-    "202611150104_suno_tenant_launch.sql"
+    "202611150104_suno_tenant_launch.sql",
+    "202611160001_veo_workspace_report_deadlines.sql",
+    "202611160002_veo_dashboard_summary.sql",
+    "202611160105_suno_jaucian_brief_controls.sql"
   ],
   "passed": true,
   "tenant_launch_rehearsal": {
