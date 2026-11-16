@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-11-16T13:58:44.185120+00:00",
+  "generated_at": "2026-11-16T16:50:54.018215+00:00",
   "scope": "Source coverage and planning only; no functional parity claim",
   "features": {
     "F01": "Sign-in, personal profile and access boundary",
@@ -565,11 +565,9 @@
         "GET"
       ],
       "declared_schedule_utc": "1-59/5 * * * *",
-      "direct_rpc_names": [
-        "veo_refresh_spend_quotas"
-      ],
+      "direct_rpc_names": [],
       "direct_table_names": [],
-      "source_sha256": "3317b91402bfd7241ed2b444e1c63fd903257fd5db2105ddf5adbf86f152718d",
+      "source_sha256": "ad1e901fab32922415af249fc52192416e9082aa038167fb212725a991f411a5",
       "implementation_status": "planning_only",
       "compatibility_verified": false
     },
@@ -611,7 +609,7 @@
         "veo_telegram_intake_maintenance"
       ],
       "direct_table_names": [],
-      "source_sha256": "74a30ca61f3c04a5cda30b01c80f5d95cea7e73ae79712b6ef932216563d1a4a",
+      "source_sha256": "824786888b63c303935aeedefd685678eee9d4b49f1dc9d26ccb4357977411e4",
       "implementation_status": "planning_only",
       "compatibility_verified": false
     },
@@ -1798,11 +1796,10 @@
       ],
       "declared_schedule_utc": null,
       "direct_rpc_names": [
-        "veo_calendar_prepare",
-        "veo_finance_days"
+        "veo_salary_report"
       ],
       "direct_table_names": [],
-      "source_sha256": "6541f69a1d301dbf7b1e0d4edaa512ab27978c9fb468f307db256f72a78e49e3",
+      "source_sha256": "ea84ababd730cd9af1167dc82c03e93b72734308a70129f4412436cc62684967",
       "implementation_status": "planning_only",
       "compatibility_verified": false
     },
@@ -3009,11 +3006,9 @@
         "GET"
       ],
       "declared_schedule_utc": "1-59/5 * * * *",
-      "direct_rpc_names": [
-        "veo_refresh_spend_quotas"
-      ],
+      "direct_rpc_names": [],
       "direct_table_names": [],
-      "source_sha256": "3317b91402bfd7241ed2b444e1c63fd903257fd5db2105ddf5adbf86f152718d",
+      "source_sha256": "ad1e901fab32922415af249fc52192416e9082aa038167fb212725a991f411a5",
       "implementation_status": "planning_only",
       "compatibility_verified": false
     },
@@ -3055,7 +3050,7 @@
         "veo_telegram_intake_maintenance"
       ],
       "direct_table_names": [],
-      "source_sha256": "74a30ca61f3c04a5cda30b01c80f5d95cea7e73ae79712b6ef932216563d1a4a",
+      "source_sha256": "824786888b63c303935aeedefd685678eee9d4b49f1dc9d26ccb4357977411e4",
       "implementation_status": "planning_only",
       "compatibility_verified": false
     },

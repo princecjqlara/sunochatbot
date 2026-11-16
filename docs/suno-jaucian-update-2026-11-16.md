@@ -47,3 +47,7 @@ The next source check and fetch found Jaucian unchanged at `fc78db9ea8a5817c01ee
 - `scripts/repair-suno-data-api-schema-cache.mjs` is scoped by this checkout's Suno project/credential guards. It exposes explicit preflight/apply modes; an optional reconnect refreshes only identified PostgREST connections in that database. It is not invoked by deployment, and no live role settings or connections were changed during this sync.
 
 All 28 changed upstream files were reviewed, including the maintenance tool under its Suno name. Four additional SQL migrations bring the isolated incremental rehearsal to 160 pending files. The original 443 table columns and retained fixture settings/jobs/deliveries remain preserved. Focused verification covers 93 tests in thirteen files plus type checking; the complete hosted release gate remains mandatory.
+
+## November 17 recheck
+
+The paired app subsequently advanced to `7cf71ac`; Jaucian remained unchanged. The [November 17 Suno update](suno-veo-update-2026-11-17.md) adapts its bounded database work, read-only calendar finance, response-body timeout handling and resumable quota refreshes. The isolated incremental rehearsal now covers 162 pending files. Suno's later admin sign-in alias and explicitly approved Danny groups remain preserved.

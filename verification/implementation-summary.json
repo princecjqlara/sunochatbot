@@ -27,7 +27,7 @@
   },
   "incremental_schema": {
     "passed": true,
-    "pending_files": 160,
+    "pending_files": 162,
     "retained_table_columns": 443,
     "customer_rows_extracted": 0,
     "retained_types_verified": true,
@@ -38,7 +38,7 @@
   "remaining": [
     "Suno earnings rules and adapter",
     "tenant and remaining CRM schema installation during the verified live cutover",
-    "approved groups and Page routes",
+    "Page-to-group routes and current topic verification (both Suno groups are approved)",
     "retained job/token/archive handover",
     "owner login and interactive/profile/calendar live acceptance",
     "verified Meta app and Page runtime ownership"
@@ -108,13 +108,23 @@
   },
   "latest_upstream_recheck": {
     "bot_source_commit": "fc78db9ea8a5817c01eec47c161141658a605d99",
-    "paired_web_source_commit": "39ffb879251c432ee010ebd4a5a31bdbcf463575",
+    "paired_web_baseline": "39ffb879251c432ee010ebd4a5a31bdbcf463575",
+    "paired_web_source_commit": "7cf71acf484b56002d2ccf0bfd37dc6ec5d453aa",
     "bot_source_unchanged": true,
-    "reviewed_upstream_files": 28,
-    "focused_test_files": 13,
-    "focused_tests_passed": 93,
-    "retained_schema_upgrade_files": 160,
+    "new_commits": 2,
+    "reviewed_upstream_files": 21,
+    "adapted_upstream_files": 20,
+    "upstream_guide_reviewed_separately": true,
+    "focused_test_files": 11,
+    "focused_tests_passed": 137,
+    "typecheck_passed": true,
+    "changed_typescript_files_linted": 17,
+    "lint_errors": 0,
+    "retained_schema_upgrade_files": 162,
+    "retained_columns_preserved": 443,
     "maintenance_tool_executed": false,
-    "live_crm_migration_applied": false
+    "live_crm_migration_applied": false,
+    "existing_admin_alias_preserved": true,
+    "approved_suno_groups_preserved": true
   }
 }

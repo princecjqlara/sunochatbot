@@ -754,6 +754,14 @@
       "sha256": "bc2eb50fd65df5396cdafbed7f17bf0e4c3a40f1c214ef532f10c00efbe36330"
     },
     {
+      "name": "202611160007_veo_bounded_database_work.sql",
+      "sha256": "1171459c03e979a73038ecec219f740623562e1a0f7b08cce5da8851679af7dc"
+    },
+    {
+      "name": "202611160008_veo_quota_run_budget.sql",
+      "sha256": "2f83beff244ada1975ddd5d0c2f2cd112e7dd8a88669ef6904277c146636cbd1"
+    },
+    {
       "name": "202611160105_suno_jaucian_brief_controls.sql",
       "sha256": "cd72cbc4c66dd43f6347603dc4b247400d654315d9504c03beab5d45f2382dce"
     }
@@ -918,6 +926,8 @@
     "202611160004_veo_login_context.sql",
     "202611160005_veo_stage_contact_audit.sql",
     "202611160006_veo_salary_snapshot_report.sql",
+    "202611160007_veo_bounded_database_work.sql",
+    "202611160008_veo_quota_run_budget.sql",
     "202611160105_suno_jaucian_brief_controls.sql"
   ],
   "passed": true,
