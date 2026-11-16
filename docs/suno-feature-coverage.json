@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-11-16T13:43:54.432352+00:00",
+  "generated_at": "2026-11-16T13:58:44.185120+00:00",
   "scope": "Source coverage and planning only; no functional parity claim",
   "features": {
     "F01": "Sign-in, personal profile and access boundary",
@@ -2652,7 +2652,7 @@
       "component": "VeoOperationsPanel.tsx",
       "feature": "F24",
       "source": "src/components/VeoOperationsPanel.tsx",
-      "source_sha256": "3f1e3f27619a384e40e13a4f172cfe9b594d9675b1a637baf612fe8bdba5689c",
+      "source_sha256": "f4493fa938d264453213ed5bfedb13f94b9fd109500f468ccd4f20c8f2f0e4bf",
       "compatibility_verified": false
     },
     {

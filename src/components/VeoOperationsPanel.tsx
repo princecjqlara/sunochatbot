@@ -19,6 +19,8 @@ export default function VeoOperationsPanel({ scope, pages, submit, busy, mode = 
     const [status, setStatus] = useState(['closed', 'done'].includes(mode) ? mode : 'all'), [search, setSearch] = useState(initialSearch), [offset, setOffset] = useState(0);
     const [data, setData] = useState<any>(null), [employees, setEmployees] = useState<any[]>([]), [error, setError] = useState(''), [loading, setLoading] = useState(true), [version, setVersion] = useState(0);
     const [selected, setSelected] = useState<any>(null), [workStatus, setWorkStatus] = useState('working'), [ranking, setRanking] = useState('deals');
+    const [salaryProfileKey, setSalaryProfileKey] = useState<string | null>(null);
+    const profileKey = JSON.stringify([scope.user_id, scope.tenant_id, worker]);
     const loadedQuery = useRef('');
     const searchSchedule = useRef(createSearchSchedule(initialSearch));
     useEffect(() => { if (initialWorkerId && scope.role !== 'member') { setWorker(initialWorkerId); setOffset(0); } }, [initialWorkerId, scope.role]);
@@ -58,6 +60,10 @@ export default function VeoOperationsPanel({ scope, pages, submit, busy, mode = 
         {['salary', 'performance', 'rankings'].includes(mode) && <div className="flex flex-wrap gap-3 text-sm"><button type="button" className="underline" onClick={() => { const start = new Date(Date.now() - 6 * 86400000 + 8 * 3600000).toISOString().slice(0, 10); setFrom(start < launch ? launch : start); setTo(today()); setOffset(0); }}>Last 7 days</button><button type="button" className="underline" onClick={() => { const start = today().slice(0, 7) + '-01'; setFrom(start < launch ? launch : start); setTo(today()); setOffset(0); }}>This month</button><p className="text-xs text-slate-500">Dates include both endpoints. Choose up to 93 days per report.</p></div>}
         <div className="flex gap-3 text-sm"><button type="button" className="underline" onClick={() => { setFrom(today()); setTo(today()); setOffset(0); }}>Today</button><button type="button" className="underline" onClick={() => { setFrom(launch > new Date(Date.now() - 29 * 86400000 + 8 * 3600000).toISOString().slice(0, 10) ? launch : new Date(Date.now() - 29 * 86400000 + 8 * 3600000).toISOString().slice(0, 10)); setTo(today()); setOffset(0); }}>Recent history</button></div>
         {['performance', 'rankings'].includes(mode) && (worker ? <><VeoEmployeeProfile worker={worker} from={from} to={to} page={page} refreshToken={refreshToken} version={version} />{supervisor && <button className="underline text-sm" onClick={() => { setWorker(''); setOffset(0); }}>Back to all employees</button>}</> : <p className="text-sm text-slate-600">Select an employee, or click their name in the ranking, to open their complete performance profile.</p>)}
+        {mode === 'salary' && worker && <div className="space-y-3">
+            <button type="button" className="underline text-sm" aria-expanded={salaryProfileKey === profileKey} onClick={() => setSalaryProfileKey(value => value === profileKey ? null : profileKey)}>{salaryProfileKey === profileKey ? 'Hide employee profile' : 'Open employee profile'}</button>
+            {salaryProfileKey === profileKey && <VeoEmployeeProfile worker={worker} from={from} to={to} page={page} refreshToken={refreshToken} version={version} />}
+        </div>}
         {loading && !data && <p role="status" className="text-sm">Loading verified performance…</p>}{error && <p role="alert" className="text-red-700">{error}</p>}
         {data && <>
             {mode === 'salary' && <VeoSalaryStatement days={data.finance.days} from={from} to={to} role={scope.role} onEmployee={id => { setWorker(id); setOffset(0); }} />}
