@@ -1,0 +1,9 @@
+# Approved Suno access, November 17 PHT
+
+The user explicitly approved Danny sending in **Trabawho?** (`-1002894511895`) and **Suno makata** (`-1004498344479`). Read-only Telegram checks identify Danny as an administrator with topic-management permission in both groups. Their two IDs are recorded in the app's `VEO_APPROVED_TELEGRAM_CHAT_IDS` and the bot's `ALLOWED_CHAT_IDS`, both locally and in production configuration. This approval does not include another group or the inherited Veo report recipient.
+
+The requested head-admin credentials are configured on retained Suno identity `1e56fd95-56af-4aca-b50f-89a48c083249`. The requested email was not attached to another identity. The credential operation updated only that user's email, password hash and legacy administrator role, using the previously empty password field as a concurrency guard. It retained the Facebook identity and all thirteen existing Page grants. Password verification accepted the supplied credential and rejected a different value. Plaintext credentials were passed over non-echoing stdin and were not written to source, logs or reports.
+
+This credential update does not create the missing workspace tables or tenant Owner membership. The public dashboard still reports setup pending. The separate bot remains in setup mode, and its automation allowlist remains empty. No webhook registration, Telegram delivery, update-stream consumption, scheduler change, CRM schema migration or financial activation was performed as part of access configuration.
+
+The archived topic routes are preserved, including Makata Active **132** and Songs **133**. Before live workflow activation, complete confirmed Page-to-group routes, current topic verification, Suno's financial adapter, a restorable CRM backup and compatible tenant/schema/historical-work handover. Group approval and an account password alone do not provide those missing objects or business settings.

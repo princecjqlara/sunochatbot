@@ -8,18 +8,19 @@ Current implementation and incomplete live requirements are in [suno-implementat
 
 - Suno Supabase project: `cxgynadprukyeuqbchbs`.
 - Retained Suno owner: `1e56fd95-56af-4aca-b50f-89a48c083249` (Cj Lara).
+- The requested head-admin credentials were configured on this retained identity on November 17 PHT. Its thirteen Page grants and Facebook identity are preserved. Workspace Owner membership and dashboard login remain pending the compatible tenant/database cutover; no password is stored in this repository.
 - Page allowlist: the 13 Pages read from Suno's existing database on preparation. `src/config/veo-pages.json` contains their Facebook identities; no Veo Page is approved.
 - Telegram service: `@dannysunobot`, bot ID `9210209211`. The token is server-only in the ignored Jaucian environment.
 - App and bot have a newly generated shared handoff secret. It is different from Veo's secret.
-- Local app origin: `http://localhost:3100`. Production origins are not guessed or registered.
+- Local app origin: `http://localhost:3100`. Separate production origins are `https://suno-system.vercel.app` and `https://dannysunobot.vercel.app`.
 - Workspace, legacy automatic sends, Telegram delivery destinations and scheduled jobs are not activated by copying these files.
 
 ## Decisions before launch
 
 1. Confirm Suno's pay/earnings policy. The copied Veo ledger currently uses 35%/40%, personal Closed Deal and Done Deal targets, and verified receipt milestones. Suno's earlier receipt-written earnings and song delivery counts are different measures.
-2. Choose the new app and bot production URLs. Keep the existing working Sunobot available until the replacement is verified.
-3. Add `@dannysunobot` to the intended Suno groups. Its current membership and administrator permissions must be verified before the groups enter `ALLOWED_CHAT_IDS` or `VEO_APPROVED_TELEGRAM_CHAT_IDS`.
-4. Confirm the Suno group/topic routing. The supplied profile contains the existing Suno Trabawho and Suno Makata identifiers as candidates, not as approval for the new bot. The old Veo DAILY REPORTS destination is not inherited.
+2. The separate app and bot production URLs are configured above. Keep the existing working Sunobot available until the replacement is verified.
+3. The user explicitly approved Danny sending in **Trabawho?** (`-1002894511895`) and **Suno makata** (`-1004498344479`) on November 17 PHT. Danny's administrator and topic-management permissions were verified. Both IDs are recorded in `ALLOWED_CHAT_IDS` and `VEO_APPROVED_TELEGRAM_CHAT_IDS`; automation remains paused while the compatible handover is incomplete.
+4. Confirm which Suno Pages feed each approved group and verify the current topic inventory. The profile preserves archived topic IDs, including Makata Active 132 and Songs 133. The old Veo DAILY REPORTS destination is not inherited.
 
 ## Database preparation
 
