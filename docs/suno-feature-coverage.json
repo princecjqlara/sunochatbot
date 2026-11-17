@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-11-16T16:50:54.018215+00:00",
+  "generated_at": "2026-11-17T09:33:31.588917+00:00",
   "scope": "Source coverage and planning only; no functional parity claim",
   "features": {
     "F01": "Sign-in, personal profile and access boundary",
@@ -2388,7 +2388,7 @@
       "route": "/",
       "feature": "F01",
       "source": "src/app/page.tsx",
-      "source_sha256": "5e762755f5720049375b7914816c35a7ed552aa455a5e7abc0c06cb06f5ad0e7",
+      "source_sha256": "8ed2813bf98626e60151b34d1dae5fb800134eccdc3077c9fec47d690828907c",
       "compatibility_verified": false
     },
     {
@@ -2396,6 +2396,13 @@
       "feature": "F16",
       "source": "src/app/sales-form/page.tsx",
       "source_sha256": "11bfc2b82c18585d2b670773a862d380bb816d9b34273ec855a2ab4089bfd4b3",
+      "compatibility_verified": false
+    },
+    {
+      "route": "/ui-preview",
+      "feature": "F34",
+      "source": "src/app/ui-preview/page.tsx",
+      "source_sha256": "6f97d493c91c483e75c9d974bba3118dd7552caab8d06ecdadd6e1f5bb32eacb",
       "compatibility_verified": false
     },
     {
@@ -2586,14 +2593,14 @@
       "component": "VeoDashboardBreadcrumb.tsx",
       "feature": "F34",
       "source": "src/components/VeoDashboardBreadcrumb.tsx",
-      "source_sha256": "30b20d8d2a3da784ca072d94e95a67434975adfc33ca6ae0d395f82f15aac25f",
+      "source_sha256": "6571cbe1c92a6f3b21b2c3742d896b433ee40afdbc4ddaef1a7218ab870868c8",
       "compatibility_verified": false
     },
     {
       "component": "VeoDashboardNavigation.tsx",
       "feature": "F34",
       "source": "src/components/VeoDashboardNavigation.tsx",
-      "source_sha256": "4f990b48aef915aca07654170588b829f6dcfbd7e85ba571f44a9484a493a762",
+      "source_sha256": "bdfc2712ab85f75f2a6d380863b40b442e689cf6cfc62b80ab1aaa75a6ac4fc9",
       "compatibility_verified": false
     },
     {
@@ -2747,7 +2754,7 @@
       "component": "VeoTeamsDashboard.tsx",
       "feature": "F04",
       "source": "src/components/VeoTeamsDashboard.tsx",
-      "source_sha256": "0b9e58c8ef3ce78647197139b3377d151e778a355e290befbbbd20ab654bdc25",
+      "source_sha256": "4d578f06fdc8318a24232436b6677729fee0e2a243ca99a3f973c10ebfc8c799",
       "compatibility_verified": false
     },
     {
@@ -2797,6 +2804,20 @@
       "feature": "F05",
       "source": "src/components/VeoWorkspaceContacts.tsx",
       "source_sha256": "60b7c1a9e0a3a30b73bbea67d3e18b199493d1df90199b6f4cb5078093288d80",
+      "compatibility_verified": false
+    },
+    {
+      "component": "WorkspacePreview.tsx",
+      "feature": "F34",
+      "source": "src/components/WorkspacePreview.tsx",
+      "source_sha256": "275f58f9d97a455d897955583684b6f25d0cfba8703280ce1be6249b3dca885c",
+      "compatibility_verified": false
+    },
+    {
+      "component": "WorkspaceShell.tsx",
+      "feature": "F34",
+      "source": "src/components/WorkspaceShell.tsx",
+      "source_sha256": "1a28e9655e45016b2e5a2fe3a8f37ba7fd845e0be936a02e63a7da7fe2f30415",
       "compatibility_verified": false
     }
   ],
@@ -3271,8 +3292,8 @@
   ],
   "counts": {
     "api_routes": 125,
-    "pages": 22,
-    "components": 56,
+    "pages": 23,
+    "components": 58,
     "cron_routes": 17,
     "scheduled_in_vercel": 16,
     "not_scheduled_in_vercel": 1,

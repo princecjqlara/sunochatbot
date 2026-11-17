@@ -1,12 +1,23 @@
 import { createElement } from 'react';
 import { act, create } from 'react-test-renderer';
 import { afterEach, expect, it, vi } from 'vitest';
-const m = vi.hoisted(() => ({ session: vi.fn(), push: vi.fn(), params: new URLSearchParams() }));
-vi.mock('next-auth/react', () => ({ useSession: m.session, signOut: vi.fn() }));
+const m = vi.hoisted(() => ({ session: vi.fn(), push: vi.fn(), signOut: vi.fn(), params: new URLSearchParams() }));
+vi.mock('next-auth/react', () => ({ useSession: m.session, signOut: m.signOut }));
 vi.mock('next/navigation', () => ({ useRouter: () => ({ push: m.push }), usePathname: () => '/dashboard/workspace', useSearchParams: () => m.params }));
 vi.mock('next/link', () => ({ default: ({ href, children, ...props }: any) => createElement('a', { href, ...props }, children) }));
 import Layout from './layout';
 afterEach(() => { vi.unstubAllGlobals();m.params = new URLSearchParams(); });
+it.each(['loading', 'unauthenticated', 'invalid'])('keeps workspace content hidden for a %s session', async state => {
+    m.signOut.mockClear(); m.push.mockClear();
+    m.session.mockReturnValue(state === 'invalid' ? { status: 'authenticated', data: { user: { role: 'owner', telegramProfileConfirmed: true } } } : { status: state, data: null });
+    let view: any; await act(async () => { view = create(createElement(Layout, null, createElement('p', { id: 'private-workspace' }, 'Private workspace'))); });
+    try {
+        expect(view.root.findAllByProps({ id: 'private-workspace' })).toHaveLength(0);
+        expect(view.root.findAllByType('nav')).toHaveLength(0);
+        if (state === 'invalid') expect(m.signOut).toHaveBeenCalledWith({ callbackUrl: '/' });
+        if (state === 'unauthenticated') expect(m.push).toHaveBeenCalledWith('/');
+    } finally { await act(async () => view.unmount()); }
+});
 it('gives CJ the calendar, ads performance and capacity links while keeping those financial reports off worker navigation', async () => {
     vi.stubGlobal('fetch', vi.fn(async () => new Response(JSON.stringify({ pages: [] }))));
     m.session.mockReturnValue({ status: 'authenticated', data: { user: { id: 'user', role: 'owner', telegramProfileConfirmed: true } } });

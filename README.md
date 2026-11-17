@@ -14,6 +14,10 @@ npm run dev
 
 Open <http://localhost:3100>. Local credentials are in the ignored `.env.local`; the Telegram token is only in `jaucian/.env.local`. Never register the workspace's media bridge with this token: Jaucian must own its update stream.
 
+To review the Veo-style interface during setup, use **Preview workspace UI** on the setup page, or open `/ui-preview`. It is available in development and on deployments with `SUNO_DEPLOYMENT_STAGE=setup`; it returns 404 on active production deployments. The preview shares the dashboard shell and team components with the authenticated workspace, uses clearly labelled fictional records, and keeps navigation inside the preview. Client search and team filtering work locally. Other sections show their layout and setup status. The preview does not unlock sign-in or call workspace APIs and asks search engines not to index it.
+
+With the setup deployment running, `node scripts/verify-workspace-preview.mjs --base=http://127.0.0.1:3100` checks the served preview and anonymous API/worker restrictions. Use `--expect-hidden` when checking an active production deployment instead. Both modes make only anonymous GET requests.
+
 ```powershell
 npm run typecheck
 npm test

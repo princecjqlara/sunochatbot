@@ -68,7 +68,7 @@ WORKSPACE = {
 }
 
 PAGES = {
-    '/': 'F01', '/vintage': 'F01', '/sales-form': 'F16', '/dashboard': 'F04',
+    '/': 'F01', '/vintage': 'F01', '/sales-form': 'F16', '/dashboard': 'F04', '/ui-preview': 'F34',
     '/dashboard/7-day-contacts': 'F05', '/dashboard/ad-calendar': 'F11',
     '/dashboard/ad-quality': 'F13', '/dashboard/automations': 'F21',
     '/dashboard/campaigns': 'F30', '/dashboard/chatbot': 'F17',
@@ -108,6 +108,7 @@ COMPONENTS = {
     'VeoTelegramLink': 'F29', 'VeoTelegramProfile': 'F01',
     'VeoTelegramReminder': 'F29', 'VeoWorkCalendar': 'F12',
     'VeoWorkforceReadiness': 'F27', 'VeoWorkspaceContacts': 'F05',
+    'WorkspacePreview': 'F34', 'WorkspaceShell': 'F34',
 }
 
 BOT_ROUTES = {
@@ -266,7 +267,7 @@ bot_rows = [{'route': p, 'feature': BOT_ROUTES[p][0], 'methods': BOT_ROUTES[p][1
             for p in sorted(bot_paths)]
 for column in live['columns']:
     assert column['table_name'] in DATA_OWNERS, 'Data relation needs explicit owner: ' + column['table_name']
-assert len(routes) == 125 and len(pages) == 22 and len(cron_rows) == 17
+assert len(routes) == 125 and len(pages) == 23 and len(cron_rows) == 17
 assert sum(row['declared_schedule_utc'] is not None for row in cron_rows) == 16
 report = {'generated_at': datetime.datetime.now(datetime.timezone.utc).isoformat(),
           'scope': 'Source coverage and planning only; no functional parity claim',

@@ -2,7 +2,7 @@
 
 Planning inventory. A mapped path is not a verified working feature. All entries still need their master-plan acceptance checks.
 
-Coverage: 125 API routes, 22 page routes, 56 non-test top-level UI components, 17 cron routes; zero unclassified paths in these sets.
+Coverage: 125 API routes, 23 page routes, 58 non-test top-level UI components, 17 cron routes; zero unclassified paths in these sets.
 
 ## Feature IDs
 
@@ -200,6 +200,7 @@ Coverage: 125 API routes, 22 page routes, 56 non-test top-level UI components, 1
 | `/dashboard/workspace` | F04 |
 | `/` | F01 |
 | `/sales-form` | F16 |
+| `/ui-preview` | F34 |
 | `/vintage` | F01 |
 
 ## UI components
@@ -262,6 +263,8 @@ Coverage: 125 API routes, 22 page routes, 56 non-test top-level UI components, 1
 | `VeoWorkCalendar.tsx` | F12 |
 | `VeoWorkforceReadiness.tsx` | F27 |
 | `VeoWorkspaceContacts.tsx` | F05 |
+| `WorkspacePreview.tsx` | F34 |
+| `WorkspaceShell.tsx` | F34 |
 
 ## Python bot routes
 
