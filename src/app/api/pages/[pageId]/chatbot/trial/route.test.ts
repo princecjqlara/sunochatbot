@@ -107,6 +107,8 @@ describe('live Messenger chatbot trial controls', () => {
         expect(payload).toMatchObject({ page_id: 'page_1', contact_id: 'contact_1', status: 'active',
             collected_details: {}, stop_reason: null, last_inbound_at: null, last_bot_reply_at: null });
         expect(payload.history_start_at).toBe(ignore === true ? payload.started_at : null);
+        if (ignore === true) expect(payload.form_sent_at).toBeNull();
+        else expect(payload).not.toHaveProperty('form_sent_at');
         expect(Date.parse(payload.window_expires_at)).toBeGreaterThan(Date.parse(payload.started_at));
         expect(pipeline.eq).toHaveBeenCalledWith('page_id', 'page_1');
         expect(pipeline.eq).toHaveBeenCalledWith('id', 'contact_1');

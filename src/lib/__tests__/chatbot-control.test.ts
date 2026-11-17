@@ -160,3 +160,11 @@ describe('chatbot conversation controls', () => {
         expect(getChatbotStateStopReason(state, new Date('2026-09-08T00:00:00Z'))).toBe('window_expired');
     });
 });
+
+
+describe('durable completion stops', () => {
+    const state = { status: 'stopped', stop_reason: 'details_collected', last_inbound_at: '2026-10-16T10:00:00Z', stopped_at: '2026-10-16T10:00:10Z' } as ChatbotContactState;
+    it.each(['2026-10-17T10:00:00Z', '2026-11-17T10:00:00Z'])('does not expire a completion stop at %s', date => {
+        expect(getChatbotStateStopReason(state, new Date(date))).toBe('details_collected');
+    });
+});

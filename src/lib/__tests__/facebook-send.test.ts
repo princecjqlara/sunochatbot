@@ -11,11 +11,57 @@ function createJsonResponse(ok: boolean, payload: unknown, status: number = 200,
 }
 
 afterEach(() => {
+    vi.useRealTimers();
     vi.restoreAllMocks();
     vi.unstubAllGlobals();
 });
 
 describe('sendMessage', () => {
+    it('recovers from an explicit temporary Facebook rejection', async () => {
+        vi.useFakeTimers();
+        const fetchMock = vi.fn()
+            .mockResolvedValueOnce(createJsonResponse(false, { error: {
+                message: '(#2) Service temporarily unavailable', code: 2
+            } }, 400, 'Bad Request'))
+            .mockResolvedValueOnce(createJsonResponse(true, { message_id: 'mid.recovered' }));
+        vi.stubGlobal('fetch', fetchMock);
+        const assertion = expect(sendMessage('page_1', 'token_1', 'psid_1', 'hello', 'RESPONSE'))
+            .resolves.toEqual({ message_id: 'mid.recovered' });
+        await vi.runAllTimersAsync();
+        await assertion;
+        expect(fetchMock).toHaveBeenCalledTimes(2);
+        expect(fetchMock.mock.calls[0][1].body).toBe(fetchMock.mock.calls[1][1].body);
+    });
+
+    it('bounds temporary rejection retries to three attempts', async () => {
+        vi.useFakeTimers();
+        const fetchMock = vi.fn().mockImplementation(async () => createJsonResponse(false, {
+            error: { message: '(#2) Service temporarily unavailable', code: 2 }
+        }, 503, 'Service Unavailable'));
+        vi.stubGlobal('fetch', fetchMock);
+        const assertion = expect(sendMessage('page_1', 'token_1', 'psid_1', 'hello', 'RESPONSE'))
+            .rejects.toThrow('Service temporarily unavailable');
+        await vi.runAllTimersAsync();
+        await assertion;
+        expect(fetchMock).toHaveBeenCalledTimes(3);
+    });
+
+    it('does not retry policy rejections even when marked transient', async () => {
+        const fetchMock = vi.fn().mockResolvedValue(createJsonResponse(false, {
+            error: { message: '(#10) Outside allowed window', code: 10, is_transient: true }
+        }, 400, 'Bad Request'));
+        vi.stubGlobal('fetch', fetchMock);
+        await expect(sendMessage('page_1', 'token_1', 'psid_1', 'hello', 'RESPONSE')).rejects.toThrow('Outside allowed window');
+        expect(fetchMock).toHaveBeenCalledTimes(1);
+    });
+
+    it('does not replay ambiguous network failures', async () => {
+        const fetchMock = vi.fn().mockRejectedValue(new TypeError('fetch failed'));
+        vi.stubGlobal('fetch', fetchMock);
+        await expect(sendMessage('page_1', 'token_1', 'psid_1', 'hello', 'RESPONSE')).rejects.toThrow('fetch failed');
+        expect(fetchMock).toHaveBeenCalledTimes(1);
+    });
+
     it('rejects invalid utility parameters before calling Facebook', async () => {
         const fetchMock = vi.fn();
         vi.stubGlobal('fetch', fetchMock);

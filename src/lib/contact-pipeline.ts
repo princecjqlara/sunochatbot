@@ -105,7 +105,7 @@ export async function updateContactPipelineStage(
 ): Promise<boolean> {
     const { data: contact, error: contactError } = await supabase
         .from('contacts')
-        .select('pipeline_stage')
+        .select('pipeline_stage,pipeline_stage_source,pipeline_stage_updated_at')
         .eq('id', input.contactId)
         .eq('page_id', input.pageId)
         .maybeSingle();
@@ -113,10 +113,13 @@ export async function updateContactPipelineStage(
     if (!contact) return false;
 
     const current = isContactPipelineStage(contact.pipeline_stage) ? contact.pipeline_stage : 'new';
-    if (!input.force && !shouldAutoMovePipeline(current, input.stage)) return false;
-    if (current === input.stage && !input.force) return false;
+    const confirmMessengerStage = input.source === 'messenger' && current === input.stage &&
+        contact.pipeline_stage_source !== 'messenger';
+    if (!input.force && !confirmMessengerStage && !shouldAutoMovePipeline(current, input.stage)) return false;
+    // An older bot turn cannot reopen or change a lead that staff already closed.
+    if (!input.force && input.source === 'chatbot' && isPipelineClosedForAutomation(current)) return false;
 
-    const { error: updateError } = await supabase
+    let update = supabase
         .from('contacts')
         .update({
             pipeline_stage: input.stage,
@@ -125,6 +128,12 @@ export async function updateContactPipelineStage(
         })
         .eq('id', input.contactId)
         .eq('page_id', input.pageId);
+    if (!input.force) {
+        update = update.eq('pipeline_stage', current);
+        if (contact.pipeline_stage_source) update = update.eq('pipeline_stage_source', contact.pipeline_stage_source);
+        if (contact.pipeline_stage_updated_at) update = update.eq('pipeline_stage_updated_at', contact.pipeline_stage_updated_at);
+    }
+    const { data: updated, error: updateError } = await update.select('id').maybeSingle();
     if (updateError) throw new Error(updateError.message || 'Could not update contact pipeline stage');
-    return true;
+    return Boolean(updated);
 }

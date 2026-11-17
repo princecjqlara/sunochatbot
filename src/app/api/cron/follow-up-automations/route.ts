@@ -1,3 +1,4 @@
+import { processDueHumanTakeovers } from '@/lib/chatbot-human-takeover';
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseAdmin } from '@/lib/supabase';
 import { processDueFollowUpAutomationSteps } from '@/lib/workflow-automations';
@@ -14,6 +15,7 @@ export async function GET(_request: NextRequest) {
         // Follow-ups are this route's primary job. Run them before the nested
         // campaign worker, which can consume almost the entire external cron
         // request timeout when campaign delivery is slow.
+        const humanTakeovers = await processDueHumanTakeovers({ supabase: getSupabaseAdmin(), limit: 20 });
         const result = await processDueFollowUpAutomationSteps({
             supabase: getSupabaseAdmin(),
             limit: 10
@@ -63,6 +65,7 @@ export async function GET(_request: NextRequest) {
             success: true,
             ...result,
             chatbotFollowUps,
+            humanTakeovers,
             campaignWorker,
             messagingAutoTag,
             duration: Date.now() - startTime

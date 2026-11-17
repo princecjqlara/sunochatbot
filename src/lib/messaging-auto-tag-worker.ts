@@ -1,6 +1,7 @@
 import { getPageConversationsBatch } from '@/lib/facebook';
 import {
     classifyMessengerSystemMessage,
+    findLatestMessengerAutomationStop,
     findLatestMessengerLeadStageEvent,
     type MessengerSystemSignal
 } from '@/lib/messaging-auto-tag';
@@ -206,7 +207,7 @@ export async function processOneMessagingAutoTagPage() {
                 .filter(message => message.from?.id === current.fb_page_id)
                 .map(message => classifyMessengerSystemMessage(message.message || ''))
                 .filter((signal): signal is MessengerSystemSignal => signal !== null))];
-            if (signals.length === 0) continue;
+            if (signals.length === 0 && !findLatestMessengerAutomationStop(messages, current.fb_page_id)) continue;
 
             let { data: contact, error: contactError } = await db.from('contacts').select('id')
                 .eq('page_id', current.id).eq('psid', participant.id).maybeSingle();
@@ -234,7 +235,8 @@ export async function processOneMessagingAutoTagPage() {
                 .filter(message => message.from?.id === current.fb_page_id)
                 .map(message => classifyMessengerSystemMessage(message.message || ''))
                 .filter((signal): signal is MessengerSystemSignal => signal !== null))];
-            if (signals.length === 0) continue;
+            const automationStop = findLatestMessengerAutomationStop(messages, current.fb_page_id);
+            if (signals.length === 0 && !automationStop) continue;
 
             const leadStageEvent = findLatestMessengerLeadStageEvent(messages, current.fb_page_id);
             if (leadStageEvent) {
@@ -269,8 +271,7 @@ export async function processOneMessagingAutoTagPage() {
                 tagged += outcomeAssignments.length;
             }
 
-            const pipelineSignal = (['converted', 'order_created', 'qualified', 'not_qualified'] as MessengerSystemSignal[])
-                .find(signal => signals.includes(signal));
+            const pipelineSignal = automationStop && automationStop !== 'manual' ? automationStop : null;
             if (pipelineSignal && await updateContactPipelineStage(db, {
                 pageId: current.id,
                 contactId: contact.id,
@@ -280,8 +281,8 @@ export async function processOneMessagingAutoTagPage() {
                 pipelineMoved++;
             }
 
-            const stopSignal = (['order_created', 'converted', 'qualified', 'not_qualified'] as MessengerSystemSignal[])
-                .find(signal => signals.includes(signal) && shouldStopForSignal(chatbotStopConfig, signal));
+            const stopSignal = automationStop === 'manual' ? 'manual' : automationStop &&
+                shouldStopForSignal(chatbotStopConfig, automationStop) ? automationStop : null;
             if (stopSignal) {
                 if (existingState?.status !== 'stopped') {
                     await saveChatbotContactState(db, {
@@ -293,6 +294,9 @@ export async function processOneMessagingAutoTagPage() {
                     });
                     chatbotStopped++;
                 }
+                const { cancelPendingChatbotFollowUps } = await import('@/lib/chatbot-follow-ups');
+                await cancelPendingChatbotFollowUps({ supabase: db, pageId: current.id,
+                    contactId: contact.id, reason: 'Lead Center is no longer in Intake' });
             }
         }
 

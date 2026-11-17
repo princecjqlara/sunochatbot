@@ -4,6 +4,7 @@ import {
     getConversationForPsid,
     getConversationIdForPsid,
     getConversationMessages,
+    getMessengerContactLabels,
     getFacebookPages,
     getPageConversationsBatch,
     isFacebookReauthRequired
@@ -21,6 +22,54 @@ function createJsonResponse(ok: boolean, payload: unknown, status: number = 200,
 afterEach(() => {
     vi.restoreAllMocks();
     vi.unstubAllGlobals();
+});
+
+describe('current Messenger contact labels', () => {
+    it('reads the requested PSID labels with page_label_name and disables caching', async () => {
+        const fetchMock = vi.fn().mockResolvedValue(createJsonResponse(true, {
+            data: [{ id: 'qualified-label', page_label_name: 'Qualified' }]
+        }));
+        vi.stubGlobal('fetch', fetchMock);
+        expect(await getMessengerContactLabels('psid_1', 'page_token')).toEqual([
+            { id: 'qualified-label', page_label_name: 'Qualified' }
+        ]);
+        const url = new URL(fetchMock.mock.calls[0][0]);
+        expect(url.pathname).toBe('/v21.0/psid_1/custom_labels');
+        expect(url.searchParams.get('fields')).toBe('id,page_label_name');
+        expect(fetchMock.mock.calls[0][1].cache).toBe('no-store');
+    });
+    it('follows short pages so a later Qualified label cannot be missed', async () => {
+        const fetchMock = vi.fn()
+            .mockResolvedValueOnce(createJsonResponse(true, { data: [{ id: 'ad', page_label_name: 'ad_id.1' }],
+                paging: { next: 'https://graph.facebook.com/next-labels' } }))
+            .mockResolvedValueOnce(createJsonResponse(true, { data: [{ id: 'q', page_label_name: 'Qualified' }] }));
+        vi.stubGlobal('fetch', fetchMock);
+        expect(await getMessengerContactLabels('psid_1', 'page_token')).toHaveLength(2);
+        expect(fetchMock).toHaveBeenCalledTimes(2);
+    });
+    it.each([{}, { data: null }, { data: [{ id: 'q' }] }, { data: [{ id: 'q', page_label_name: '' }] }])(
+        'rejects unreadable labels instead of authorizing a reply: %j', async body => {
+            vi.stubGlobal('fetch', vi.fn().mockResolvedValue(createJsonResponse(true, body)));
+            await expect(getMessengerContactLabels('psid_1', 'page_token')).rejects.toThrow('missing label names');
+        });
+    it('propagates a denied label read instead of falling back to an empty list', async () => {
+        vi.stubGlobal('fetch', vi.fn().mockResolvedValue(createJsonResponse(false, {
+            error: { code: 100, error_subcode: 33, message: 'Unsupported get request' }
+        }, 400)));
+        await expect(getMessengerContactLabels('psid_1', 'page_token')).rejects.toMatchObject({ code: 100, subcode: 33, labelPagesRead: 0 });
+    });
+    it('rejects a partial label read when pagination fails', async () => {
+        const fetchMock = vi.fn()
+            .mockResolvedValueOnce(createJsonResponse(true, { data: [], paging: { next: 'https://graph.facebook.com/next' } }))
+            .mockResolvedValueOnce(createJsonResponse(false, { error: { code: 2, message: 'Temporary failure' } }, 503));
+        vi.stubGlobal('fetch', fetchMock);
+        await expect(getMessengerContactLabels('psid_1', 'page_token')).rejects.toThrow('Temporary failure');
+    });
+    it('rejects a repeated label cursor instead of accepting incomplete assignments', async () => {
+        vi.stubGlobal('fetch', vi.fn().mockResolvedValue(createJsonResponse(true, { data: [],
+            paging: { next: 'https://graph.facebook.com/repeated' } })));
+        await expect(getMessengerContactLabels('psid_1', 'page_token')).rejects.toThrow('complete Facebook inbox labels');
+    });
 });
 
 describe('getFacebookPages', () => {
@@ -174,6 +223,18 @@ describe('strict conversation reads', () => {
         expect(requestUrl.searchParams.get('user_id')).toBe('psid_1');
         expect(requestUrl.searchParams.get('fields')).toContain('messages.limit(100)');
         expect(requestUrl.searchParams.get('access_token')).toBe('page token');
+        expect(fetchMock.mock.calls[0][1]).toEqual(expect.objectContaining({ cache: 'no-store' }));
+    });
+
+    it('rejects truncated histories when a lead-stage audit requires completeness', async () => {
+        const fetchMock = vi.fn();
+        vi.stubGlobal('fetch', fetchMock);
+        await expect(getConversationMessages('thread', 'token', 1, {
+            initialPage: { data: [{ id: 'first', message: 'Hello', from: { id: 'customer' },
+                created_time: '2026-10-16T10:00:00Z' }], paging: { next: 'next-page' } },
+            throwOnError: true, requireComplete: true
+        })).rejects.toThrow('history exceeded the audit limit');
+        expect(fetchMock).not.toHaveBeenCalled();
     });
 
     it('throws a classified Graph error instead of exporting an incomplete message history', async () => {

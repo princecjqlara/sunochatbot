@@ -179,7 +179,7 @@ export async function POST(
                 await recordOutboundMessageEvent(db, {
                     pageId, contactId, messageId: result.message_id, sourceType: 'manual',
                     actorUserId: session.user.id, actorName: session.user.name || session.user.email || null,
-                    messageKind: messagingType
+                    messageKind: messagingType, messageText: text
                 });
             }
         } catch (error) {

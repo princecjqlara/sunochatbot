@@ -3,6 +3,7 @@ import { FACEBOOK_REAUTH_MESSAGE } from './facebook-permissions';
 import { isFacebookReauthMessage } from './facebook-errors';
 import type { TemplateMediaType } from './facebook-templates';
 import { getUtilityTemplateParameterValidationError } from './send-errors';
+import { retryFacebookSend } from './facebook-send-retry';
 
 // Re-export templates from dedicated file
 export { UTILITY_TEMPLATES } from './facebook-templates';
@@ -30,6 +31,7 @@ export class FacebookGraphApiError extends Error {
     type?: string;
     requiresReauth: boolean;
     raw: unknown;
+    labelPagesRead?: number;
 
     constructor(
         message: string,
@@ -118,7 +120,7 @@ async function fetchFacebookRead(input: string, timeoutMs: number = FACEBOOK_REA
     const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
 
     try {
-        return await fetch(input, { signal: controller.signal });
+        return await fetch(input, { signal: controller.signal, cache: 'no-store' });
     } catch (error) {
         if (controller.signal.aborted) {
             throw new Error(`Facebook read request timed out after ${timeoutMs / 1000} seconds`);
@@ -332,6 +334,44 @@ export async function getPageConversationsBatch(
     };
 }
 
+export type MessengerContactLabel = { id: string; page_label_name: string };
+
+/** Read current per-contact inbox labels. Stage changes are not reliably
+ * included in conversation messages. A failed/partial read is never an empty
+ * label list, and a Page's label catalogue is not a contact's assignments.
+ */
+export async function getMessengerContactLabels(
+    psid: string,
+    pageAccessToken: string,
+    options: { timeoutMs?: number } = {}
+): Promise<MessengerContactLabel[]> {
+    const url = new URL(`${FACEBOOK_GRAPH_URL}/${psid}/custom_labels`);
+    url.searchParams.set('fields', 'id,page_label_name');
+    url.searchParams.set('access_token', pageAccessToken);
+    let next: string | null = url.toString();
+    const seen = new Set<string>();
+    const labels: MessengerContactLabel[] = [];
+    while (next) {
+        if (seen.has(next) || seen.size >= 50) throw new Error('Could not verify complete Facebook inbox labels');
+        seen.add(next);
+        const response = await fetchFacebookRead(next, options.timeoutMs);
+        if (!response.ok) {
+            const error = await readFacebookError(response, `/${psid}/custom_labels`);
+            error.labelPagesRead = seen.size - 1;
+            throw error;
+        }
+        const body = await response.json();
+        if (!Array.isArray(body.data) || body.data.some((label: MessengerContactLabel) =>
+            !label || typeof label.id !== 'string' || !label.id.trim() ||
+            typeof label.page_label_name !== 'string' || !label.page_label_name.trim())) {
+            throw new Error('Could not verify Facebook inbox labels: missing label names');
+        }
+        labels.push(...body.data);
+        next = body.paging?.next || null;
+    }
+    return labels;
+}
+
 // Get user profile from PSID
 export async function getUserProfile(
     psid: string,
@@ -355,7 +395,7 @@ export async function getUserProfile(
 export async function subscribePageToAppWebhook(
     pageId: string,
     pageAccessToken: string,
-    subscribedFields: string[] = ['messages', 'messaging_postbacks']
+    subscribedFields: string[] = ['messages', 'messaging_postbacks', 'message_echoes']
 ): Promise<void> {
     const formData = new URLSearchParams();
     formData.set('access_token', pageAccessToken);
@@ -452,7 +492,8 @@ export async function sendMessage(
     templateLanguage: string = DEFAULT_UTILITY_LANGUAGE,
     templateBodyParameters?: string[],
     templateButtons?: Array<{ type: 'URL'; text: string; url: string } | { type: 'POSTBACK'; text: string; payload: string }>,
-    templateMediaHeader?: { type: TemplateMediaType; url: string }
+    templateMediaHeader?: { type: TemplateMediaType; url: string },
+    beforeRetry?: () => Promise<void>
 ): Promise<{ message_id: string }> {
     // Build the request payload based on messaging type
     let bodyPayload: Record<string, unknown>;
@@ -581,54 +622,56 @@ export async function sendMessage(
         }
     }
 
-    // Facebook Messenger API endpoint - use /me/messages with page access token.
-    // A stalled upstream request must not consume the entire campaign function
-    // lifetime and prevent its completed recipient statuses from being saved.
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), FACEBOOK_SEND_TIMEOUT_MS);
-    let response: Response;
+    return retryFacebookSend(async () => {
+        // Facebook Messenger API endpoint - use /me/messages with page access token.
+        // A stalled upstream request must not consume the entire campaign function
+        // lifetime and prevent its completed recipient statuses from being saved.
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), FACEBOOK_SEND_TIMEOUT_MS);
+        let response: Response;
 
-    try {
-        response = await fetch(
-            `${FACEBOOK_GRAPH_URL}/me/messages?access_token=${pageAccessToken}`,
-            {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify(bodyPayload),
-                signal: controller.signal
+        try {
+            response = await fetch(
+                `${FACEBOOK_GRAPH_URL}/me/messages?access_token=${pageAccessToken}`,
+                {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(bodyPayload),
+                    signal: controller.signal
+                }
+            );
+        } catch (error) {
+            if (controller.signal.aborted) {
+                throw new Error(`Facebook send timed out after ${FACEBOOK_SEND_TIMEOUT_MS / 1000} seconds`);
             }
-        );
-    } catch (error) {
-        if (controller.signal.aborted) {
-            throw new Error(`Facebook send timed out after ${FACEBOOK_SEND_TIMEOUT_MS / 1000} seconds`);
+            throw error;
+        } finally {
+            clearTimeout(timeoutId);
         }
-        throw error;
-    } finally {
-        clearTimeout(timeoutId);
-    }
 
-    if (!response.ok) {
-        const facebookError = await readFacebookError(response, '/me/messages');
-        console.error('🔴 Facebook send message error:', {
+        if (!response.ok) {
+            const facebookError = await readFacebookError(response, '/me/messages');
+            console.error('🔴 Facebook send message error:', {
+                pageId,
+                recipientPsid,
+                status: response.status,
+                error: facebookError.message,
+                code: facebookError.code,
+                subcode: facebookError.subcode
+            });
+            throw facebookError;
+        }
+
+        const result = await response.json();
+        console.log('✅ Message sent successfully:', {
             pageId,
             recipientPsid,
-            status: response.status,
-            error: facebookError.message,
-            code: facebookError.code,
-            subcode: facebookError.subcode
+            messageId: result.message_id
         });
-        throw facebookError;
-    }
-
-    const result = await response.json();
-    console.log('✅ Message sent successfully:', {
-        pageId,
-        recipientPsid,
-        messageId: result.message_id
-    });
-    return result;
+        return result;
+    }, beforeRetry);
 }
 
 export async function sendMessengerMediaAttachment(
@@ -807,7 +850,7 @@ export async function getConversationMessages(
     conversationId: string,
     pageAccessToken: string,
     maxMessages: number = 500, // Safety limit to prevent infinite loops
-    options: { throwOnError?: boolean; initialPage?: ConversationMessagePage } = {}
+    options: { throwOnError?: boolean; initialPage?: ConversationMessagePage; requireComplete?: boolean; timeoutMs?: number } = {}
 ): Promise<ConversationMessage[]> {
     const allMessages: ConversationMessage[] = options.initialPage?.data
         ? [...options.initialPage.data]
@@ -829,7 +872,7 @@ export async function getConversationMessages(
             }
             seenPageUrls.add(nextUrl);
 
-            const fetchResponse = await fetchFacebookRead(nextUrl);
+            const fetchResponse = await fetchFacebookRead(nextUrl, options.timeoutMs);
 
             if (!fetchResponse.ok) {
                 const graphError = await readFacebookError(fetchResponse, `/${conversationId}/messages`);
@@ -849,6 +892,9 @@ export async function getConversationMessages(
             // have a next page, so stopping based on row count can lose messages.
         }
 
+        if (nextUrl && options.requireComplete) {
+            throw new Error('Could not verify lead stage: conversation history exceeded the audit limit');
+        }
         console.log(`📨 Fetched ${allMessages.length} total messages for conversation ${conversationId}`);
         return allMessages;
     } catch (error) {

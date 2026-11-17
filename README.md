@@ -70,6 +70,10 @@ OPENROUTER_EMBEDDING_MODEL=openai/text-embedding-3-small
 OPENROUTER_MULTIMODAL_MODEL=google/gemini-3.8-flash
 CHATBOT_RAG_MATCH_THRESHOLD=0.35
 
+# Optional recovery policy for unreadable per-contact Facebook labels.
+# Default strict: require a successful current-label read before any bot reply.
+# CHATBOT_LABEL_ACCESS_POLICY=history_fallback
+
 # Optional private Google Drive indexing. Public-link folders need no credentials.
 GOOGLE_DRIVE_SERVICE_ACCOUNT_EMAIL=drive-reader@your-project.iam.gserviceaccount.com
 GOOGLE_DRIVE_PRIVATE_KEY="-----BEGIN PRIVATE KEY-----\n...\n-----END PRIVATE KEY-----\n"
@@ -80,6 +84,15 @@ TELEGRAM_WEBHOOK_SECRET=replace-with-a-random-secret-token
 TELEGRAM_MEDIA_ROUTES={"-1001234567890":"00000000-0000-4000-8000-000000000000"}
 
 ```
+
+`CHATBOT_LABEL_ACCESS_POLICY=history_fallback` permits the live stage guard to
+check complete Messenger history when the initial label read returns HTTP 400,
+code 100/subcode 33. Other read failures and partial label reads still pause
+delivery. Current readable labels, known closed stages, orders, opt-outs and
+human holds retain their existing checks. This opt-in policy can miss stage
+changes that Facebook exposes only through an unreadable label. Leaving the
+setting absent retains strict verification. The read-only comparison script
+`scripts/verify-label-fallback.ts` checks both guards without sending customer messages.
 
 ### Telegram group media bridge
 

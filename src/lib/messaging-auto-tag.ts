@@ -1,4 +1,22 @@
 export type MessengerSystemSignal = 'order_created' | 'qualified' | 'not_qualified' | 'converted';
+export type MessengerAutomationStopReason = MessengerSystemSignal | 'manual';
+
+/** Meta exposes current lead stages as inbox labels, without necessarily
+ * adding a message. Only Intake and Meta's advertising attribution labels
+ * permit automation. Other business labels conservatively keep the team in
+ * control, including newly named stages.
+ */
+export function findMessengerLabelAutomationStop(
+    labels: Array<{ page_label_name: string }>
+): MessengerAutomationStopReason | null {
+    const names = labels.map(label => label.page_label_name.trim().toLowerCase().replace(/[_\s-]+/g, ' '));
+    if (names.some(name => ['converted', 'paid', 'won'].includes(name))) return 'converted';
+    if (names.some(name => ['order created', 'order placed', 'dispatched'].includes(name))) return 'order_created';
+    if (names.some(name => ['not qualified', 'disqualified', 'unqualified'].includes(name))) return 'not_qualified';
+    if (names.includes('qualified')) return 'qualified';
+    return names.some(name => name !== 'intake' && !/^ad[ _]id\./i.test(name) &&
+        !['messenger ads', 'ad response'].includes(name)) ? 'manual' : null;
+}
 
 type MessengerHistoryMessage = {
     id?: string;
@@ -6,6 +24,40 @@ type MessengerHistoryMessage = {
     from?: { id?: string };
     created_time?: string;
 };
+
+export function getMessengerLeadStageName(text: string): string | null {
+    return /^Lead\s+stage\s+set\s+to\s+([^\r\n]+?)\.?$/i.exec(text.trim())?.[1].trim() || null;
+}
+
+/** Intake is the only explicit Lead Center stage that permits bot automation.
+ * Keep outcome tagging separate: a custom stage must stop the bot without being
+ * incorrectly labeled Qualified/Converted in the sales pipeline.
+ */
+export function findLatestMessengerAutomationStop(
+    messages: MessengerHistoryMessage[],
+    facebookPageId: string
+): MessengerAutomationStopReason | null {
+    const assignments = messages.flatMap((message, index) => {
+        if (message.from?.id !== facebookPageId || typeof message.message !== 'string') return [];
+        const stage = getMessengerLeadStageName(message.message);
+        if (!stage) return [];
+        return [{ message, stage, index, timestamp: Date.parse(message.created_time || '') }];
+    });
+    assignments.sort((a, b) => {
+        const aValid = Number.isFinite(a.timestamp), bValid = Number.isFinite(b.timestamp);
+        if (aValid && bValid && a.timestamp !== b.timestamp) return b.timestamp - a.timestamp;
+        if (aValid !== bValid) return aValid ? -1 : 1;
+        return a.index - b.index;
+    });
+    const latest = assignments[0];
+    if (latest && !/^intake$/i.test(latest.stage)) {
+        return classifyMessengerSystemMessage(latest.message.message!) || 'manual';
+    }
+    // Returning to Intake does not undo an actual Messenger order.
+    return messages.some(message => message.from?.id === facebookPageId &&
+        classifyMessengerSystemMessage(message.message || '') === 'order_created' &&
+        !/^Lead\s+stage\s+set\s+to\s+/i.test(message.message?.trim() || '')) ? 'order_created' : null;
+}
 
 export type MessengerLeadStageEvent = {
     messageId: string;

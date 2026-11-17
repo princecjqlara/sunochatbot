@@ -2,12 +2,16 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const mocks = vi.hoisted(() => ({
     sendMessage: vi.fn(),
-    sendMessengerMediaAttachment: vi.fn()
+    sendMessengerMediaAttachment: vi.fn(),
+    getConversationForPsid: vi.fn(),
+    getMessengerContactLabels: vi.fn()
 }));
 
 vi.mock('../facebook', () => ({
     sendMessage: mocks.sendMessage,
-    sendMessengerMediaAttachment: mocks.sendMessengerMediaAttachment
+    sendMessengerMediaAttachment: mocks.sendMessengerMediaAttachment,
+    getConversationForPsid: mocks.getConversationForPsid,
+    getMessengerContactLabels: mocks.getMessengerContactLabels
 }));
 
 import {
@@ -22,6 +26,8 @@ function createWorkflowSupabaseMock(options?: {
     automations?: Array<Record<string, unknown>>;
     states?: Array<Record<string, unknown>>;
     contact?: Record<string, unknown> | null;
+    chatbotState?: Record<string, unknown> | null;
+    contactError?: { message: string };
 }) {
     const stateUpserts: Record<string, unknown>[] = [];
     const stateUpdates: Record<string, unknown>[] = [];
@@ -84,13 +90,20 @@ function createWorkflowSupabaseMock(options?: {
                         eq: vi.fn().mockReturnValue({
                             maybeSingle: vi.fn().mockResolvedValue({
                                 data: options?.contact ?? { id: 'contact_1' },
-                                error: null
+                                error: options?.contactError || null
                             })
                         })
                     })
                 })
             };
         }
+
+        if (table === 'chatbot_contact_states') {
+            const chain: any = { select: () => chain, eq: () => chain,
+                maybeSingle: async () => ({ data: options?.chatbotState || null, error: null }) };
+            return chain;
+        }
+        if (table === 'outbound_message_events') return { upsert: vi.fn().mockResolvedValue({ error: null }) };
 
         throw new Error(`Unexpected table: ${table}`);
     });
@@ -120,12 +133,76 @@ describe('workflow automations', () => {
         mocks.sendMessengerMediaAttachment.mockReset();
         mocks.sendMessage.mockResolvedValue({ message_id: 'mid_1' });
         mocks.sendMessengerMediaAttachment.mockResolvedValue({ message_id: 'mid_media_1' });
+        mocks.getConversationForPsid.mockReset();
+        mocks.getMessengerContactLabels.mockReset().mockResolvedValue([]);
+        mocks.getConversationForPsid.mockResolvedValue({ messages: { data: [] } });
     });
 
     it('normalizes codes before matching', () => {
         expect(normalizeWorkflowKeyword('  #StopAuto   Now  ')).toBe('#stopauto now');
         expect(workflowTextMatchesCode(' #STOPAUTO ', '#stopauto')).toBe(true);
         expect(workflowTextMatchesCode('please #stopauto', '#stopauto')).toBe(false);
+    });
+
+    function dueState() {
+        return { id: 'state_1', automation_id: 'automation_1', contact_id: 'contact_1', status: 'active',
+            current_step_index: 0, next_step_at: '2026-07-29T02:30:00.000Z',
+            workflow_automations: { ...automation, steps: [{ message_text: 'Here is the information.', delay_minutes: 30,
+                media_type: 'image', media_url: 'https://example.test/image.jpg' }],
+                pages: { fb_page_id: 'fb_page_1', access_token: 'token_1' } },
+            contacts: { id: 'contact_1', page_id: 'page_1', psid: 'psid_1', last_interaction_at: '2026-07-29T02:00:00.000Z' } };
+    }
+    const setStage = (stage: string) => mocks.getConversationForPsid.mockResolvedValue({ messages: { data: [{
+        id: 'stage', message: `Lead stage set to ${stage}`, from: { id: 'fb_page_1' }, created_time: '2026-07-29T02:20:00Z'
+    }] } });
+    it.each(['Qualified', 'Converted', 'Contacted', 'Interested', 'Custom stage'])('stops a due workflow for Facebook stage %s', async stage => {
+        const { supabase, stateUpdates } = createWorkflowSupabaseMock({ states: [dueState()] });
+        setStage(stage);
+        const result = await processDueFollowUpAutomationSteps({ supabase, now: new Date('2026-07-29T02:30:00Z') });
+        expect(result.stopped).toBe(1);
+        expect(mocks.sendMessage).not.toHaveBeenCalled();
+        expect(mocks.sendMessengerMediaAttachment).not.toHaveBeenCalled();
+        expect(stateUpdates).toContainEqual(expect.objectContaining({ status: 'stopped' }));
+    });
+    it('allows an eligible Intake workflow', async () => {
+        const { supabase } = createWorkflowSupabaseMock({ states: [dueState()] });
+        setStage('Intake');
+        expect((await processDueFollowUpAutomationSteps({ supabase, now: new Date('2026-07-29T02:30:00Z') })).sent).toBe(1);
+        expect(mocks.sendMessage).toHaveBeenCalledTimes(1);
+    });
+    it('blocks a current Qualified label even when the workflow has no stage history event', async () => {
+        const { supabase } = createWorkflowSupabaseMock({ states: [dueState()] });
+        mocks.getMessengerContactLabels.mockResolvedValue([{ id: 'q', page_label_name: 'Qualified' }]);
+        expect((await processDueFollowUpAutomationSteps({ supabase, now: new Date('2026-07-29T02:30:00Z') })).stopped).toBe(1);
+        expect(mocks.sendMessage).not.toHaveBeenCalled();
+        expect(mocks.sendMessengerMediaAttachment).not.toHaveBeenCalled();
+    });
+    it('does not send a workflow when current label access is denied', async () => {
+        const { supabase } = createWorkflowSupabaseMock({ states: [dueState()] });
+        mocks.getMessengerContactLabels.mockRejectedValue(new Error('Label access denied'));
+        expect((await processDueFollowUpAutomationSteps({ supabase, now: new Date('2026-07-29T02:30:00Z') })).errors).toBe(1);
+        expect(mocks.sendMessage).not.toHaveBeenCalled();
+        expect(mocks.sendMessengerMediaAttachment).not.toHaveBeenCalled();
+    });
+    it('stops workflow media when the stage changes after text was delivered', async () => {
+        const { supabase } = createWorkflowSupabaseMock({ states: [dueState()] });
+        mocks.sendMessage.mockImplementation(async () => { setStage('Interested'); return { message_id: 'text' }; });
+        expect((await processDueFollowUpAutomationSteps({ supabase, now: new Date('2026-07-29T02:30:00Z') })).stopped).toBe(1);
+        expect(mocks.sendMessage).toHaveBeenCalledTimes(1);
+        expect(mocks.sendMessengerMediaAttachment).not.toHaveBeenCalled();
+    });
+    it('blocks a workflow retry after a lead stage change', async () => {
+        const { supabase } = createWorkflowSupabaseMock({ states: [dueState()] });
+        mocks.sendMessage.mockImplementation(async (...args) => { setStage('Contacted'); await args[10](); });
+        expect((await processDueFollowUpAutomationSteps({ supabase, now: new Date('2026-07-29T02:30:00Z') })).stopped).toBe(1);
+        expect(mocks.sendMessengerMediaAttachment).not.toHaveBeenCalled();
+    });
+    it('sends nothing when lead-stage verification fails', async () => {
+        const { supabase } = createWorkflowSupabaseMock({ states: [dueState()] });
+        mocks.getConversationForPsid.mockRejectedValue(new Error('Facebook unavailable'));
+        expect((await processDueFollowUpAutomationSteps({ supabase, now: new Date('2026-07-29T02:30:00Z') })).errors).toBe(1);
+        expect(mocks.sendMessage).not.toHaveBeenCalled();
+        expect(mocks.sendMessengerMediaAttachment).not.toHaveBeenCalled();
     });
 
     it('resets a follow-up sequence to step 1 when configured to reset on contact reply', async () => {
@@ -326,7 +403,7 @@ describe('workflow automations', () => {
             'token_1',
             'psid_1',
             'Hi Juan step 1',
-            'RESPONSE'
+            'RESPONSE', undefined, undefined, undefined, undefined, undefined, expect.any(Function)
         );
         expect(stateUpdates[0]).toMatchObject({
             status: 'active',
@@ -375,7 +452,7 @@ describe('workflow automations', () => {
             'token_1',
             'psid_1',
             'Hi Juan, here is the video.',
-            'RESPONSE'
+            'RESPONSE', undefined, undefined, undefined, undefined, undefined, expect.any(Function)
         );
         expect(mocks.sendMessengerMediaAttachment).toHaveBeenCalledWith(
             'fb_page_1',

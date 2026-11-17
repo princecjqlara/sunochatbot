@@ -5,6 +5,7 @@ const mocks = vi.hoisted(() => ({
     getSupabaseAdmin: vi.fn(),
     processDueFollowUpAutomationSteps: vi.fn(),
     processDueChatbotFollowUps: vi.fn(),
+    processDueHumanTakeovers: vi.fn(),
     processOneMessagingAutoTagPage: vi.fn()
 }));
 
@@ -20,6 +21,8 @@ vi.mock('@/lib/chatbot-follow-ups', () => ({
     processDueChatbotFollowUps: mocks.processDueChatbotFollowUps
 }));
 
+vi.mock('@/lib/chatbot-human-takeover', () => ({ processDueHumanTakeovers: mocks.processDueHumanTakeovers }));
+
 vi.mock('@/lib/messaging-auto-tag-worker', () => ({
     processOneMessagingAutoTagPage: mocks.processOneMessagingAutoTagPage
 }));
@@ -30,6 +33,7 @@ describe('GET /api/cron/follow-up-automations', () => {
     beforeEach(() => {
         vi.clearAllMocks();
         mocks.getSupabaseAdmin.mockReturnValue({ database: true });
+        mocks.processDueHumanTakeovers.mockResolvedValue({ checked: 0, released: 0, held: 0, scheduled: 0, failed: 0 });
         mocks.processDueFollowUpAutomationSteps.mockResolvedValue({ processed: 0 });
         mocks.processDueChatbotFollowUps.mockResolvedValue({ checked: 0, sent: 0 });
         mocks.processOneMessagingAutoTagPage.mockResolvedValue({ pages: 1, conversations: 0, tagged: 0 });

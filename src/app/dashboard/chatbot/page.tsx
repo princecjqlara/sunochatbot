@@ -203,6 +203,9 @@ type LiveTrialStatus = {
         window_expires_at: string;
         last_bot_reply_at: string | null;
         history_start_at?: string | null;
+        human_pause_status?: string | null;
+        human_resume_at?: string | null;
+        human_hold_reason?: string | null;
     } | null;
     pending_follow_ups: number;
 };
@@ -2501,6 +2504,14 @@ export default function ChatbotPage() {
                             {liveTrialStatus?.contact?.id === selectedTrialContact?.id && liveTrialStatus?.state?.history_start_at && (
                                 <p className="mt-2 text-xs text-gray-600">
                                     The bot is using only messages sent since the last fresh reset.
+                                </p>
+                            )}
+                            {liveTrialStatus?.contact?.id === selectedTrialContact?.id &&
+                                ['paused', 'checking', 'held'].includes(liveTrialStatus?.state?.human_pause_status || '') && (
+                                <p className="mt-2 text-xs text-amber-700">
+                                    {liveTrialStatus?.state?.human_pause_status === 'held'
+                                        ? 'Human takeover: staying with your team because this conversation needs human attention.'
+                                        : 'Human takeover: bot replies and reminders are paused. Eligibility is reviewed at 11:59 PM Philippine time.'}
                                 </p>
                             )}
                             <div className="mt-4 flex flex-wrap gap-2">

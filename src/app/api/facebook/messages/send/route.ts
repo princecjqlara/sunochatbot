@@ -1199,6 +1199,7 @@ export async function POST(request: NextRequest) {
                         contactId: contact.id,
                         messageId: sendResult.message_id,
                         sourceType: 'manual',
+                        messageText: messageToSend,
                         sourceName: 'Sunobot manual send',
                         actorUserId: userId,
                         actorName: session.user?.name || session.user?.email || null,

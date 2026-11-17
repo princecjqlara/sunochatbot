@@ -10,8 +10,10 @@ const mocks = vi.hoisted(() => ({
     sendMessengerGenericCarousel: vi.fn(),
     getUserProfile: vi.fn(),
     getConversationForPsid: vi.fn(),
+    getMessengerContactLabels: vi.fn(),
     analyzeInboundCustomerImages: vi.fn(),
     generateChatbotResponse: vi.fn(),
+    loadChatbotDeliveryHistory: vi.fn(), reserveChatbotMessage: vi.fn(), finishChatbotMessage: vi.fn(),
     handleFollowUpWorkflowContactReply: vi.fn(),
     triggerReplyWorkflowAutomations: vi.fn(),
     stopWorkflowAutomationsFromPageMessage: vi.fn()
@@ -28,7 +30,8 @@ vi.mock('@/lib/facebook', () => ({
     sendMessengerMediaAttachment: mocks.sendMessengerMediaAttachment,
     sendMessengerGenericCarousel: mocks.sendMessengerGenericCarousel,
     getUserProfile: mocks.getUserProfile,
-    getConversationForPsid: mocks.getConversationForPsid
+    getConversationForPsid: mocks.getConversationForPsid,
+    getMessengerContactLabels: mocks.getMessengerContactLabels
 }));
 
 vi.mock('@/lib/placeholders', () => ({
@@ -43,6 +46,13 @@ vi.mock('@/lib/chatbot-media', async (importOriginal) => ({
 vi.mock('@/lib/chatbot', async (importOriginal) => ({
     ...await importOriginal<typeof import('@/lib/chatbot')>(),
     generateChatbotResponse: mocks.generateChatbotResponse
+}));
+
+vi.mock('@/lib/chatbot-message-delivery', async (importOriginal) => ({
+    ...await importOriginal<typeof import('@/lib/chatbot-message-delivery')>(),
+    loadChatbotDeliveryHistory: mocks.loadChatbotDeliveryHistory,
+    reserveChatbotMessage: mocks.reserveChatbotMessage,
+    finishChatbotMessage: mocks.finishChatbotMessage
 }));
 
 vi.mock('@/lib/workflow-automations', () => ({
@@ -149,7 +159,9 @@ function createSupabaseMock(options?: {
     });
     const existingContactEqPsid = vi.fn().mockReturnValue({ maybeSingle: existingContactMaybeSingle });
     const existingContactEqPage = vi.fn().mockReturnValue({ eq: existingContactEqPsid });
-    const contactsSelect = vi.fn().mockReturnValue({ eq: existingContactEqPage });
+    const contactsSelect = vi.fn((columns: string) => columns === 'pipeline_stage'
+        ? { eq: () => ({ eq: () => ({ maybeSingle: async () => ({ data: { pipeline_stage: 'new' }, error: null }) }) }) }
+        : { eq: existingContactEqPage });
 
     const contactsUpsertSingle = vi.fn().mockResolvedValue({
         data: {
@@ -211,6 +223,15 @@ function createSupabaseMock(options?: {
             };
         }
 
+        if (table === 'chatbot_configs') {
+            return { select: vi.fn().mockReturnValue({ eq: vi.fn().mockReturnValue({
+                maybeSingle: vi.fn().mockResolvedValue({ data: null, error: null })
+            }) }) };
+        }
+        if (table === 'chatbot_contact_states') {
+            const q: any = { select: () => q, eq: () => q, maybeSingle: async () => ({ data: null, error: null }) };
+            return q;
+        }
         throw new Error(`Unexpected table: ${table}`);
     });
 
@@ -220,7 +241,7 @@ function createSupabaseMock(options?: {
     };
 }
 
-function createPhotoChatbotSupabaseMock(options?: { state?: Record<string, unknown>; config?: Record<string, unknown>; latestContact?: Record<string, unknown>; bestContactHour?: number }) {
+function createPhotoChatbotSupabaseMock(options?: { state?: Record<string, unknown>; config?: Record<string, unknown>; latestContact?: Record<string, unknown>; bestContactHour?: number; newContact?: boolean; contact?: Record<string, unknown> }) {
     const welcomeSelect = vi.fn(() => {
         throw new Error('Photo chatbot handling should bypass the welcome lookup');
     });
@@ -262,8 +283,23 @@ function createPhotoChatbotSupabaseMock(options?: { state?: Record<string, unkno
 
     const stateUpsert = vi.fn().mockResolvedValue({ error: null });
     const followUpUpsert = vi.fn().mockResolvedValue({ error: null });
-    const contactUpdate = vi.fn().mockReturnValue({
-        eq: vi.fn().mockReturnValue({ eq: vi.fn().mockResolvedValue({ error: null }) })
+    const replyInsert = vi.fn().mockResolvedValue({ error: null });
+    const persistedContact: Record<string, unknown> = options?.latestContact ||
+        { pipeline_stage: 'engaged', ...options?.contact };
+    const contactUpdate = vi.fn((payload: Record<string, unknown>) => {
+        const filters: Array<[string, unknown]> = [];
+        const run = () => {
+            const matches = filters.every(([key, value]) => !(key in persistedContact) || persistedContact[key] === value);
+            if (matches) Object.assign(persistedContact, payload);
+            return { data: matches ? { id: 'contact_row_1' } : null, error: null };
+        };
+        const chain: any = {
+            eq: vi.fn((key, value) => { filters.push([key, value]); return chain; }),
+            select: vi.fn(() => chain),
+            maybeSingle: vi.fn(async () => run()),
+            then: (resolve: any, reject: any) => Promise.resolve(run()).then(resolve, reject)
+        };
+        return chain;
     });
     const from = vi.fn((table: string) => {
         if (table === 'pages') {
@@ -284,8 +320,8 @@ function createPhotoChatbotSupabaseMock(options?: { state?: Record<string, unkno
                     eq: vi.fn().mockReturnValue({
                         eq: vi.fn().mockReturnValue({
                             maybeSingle: vi.fn().mockImplementation(async () => ({
-                                data: columns === 'pipeline_stage,last_inbound_at' ? options?.latestContact || { pipeline_stage: 'engaged' } : options?.config
-                                    ? { id: 'contact_row_1', name: 'Photo Contact', pipeline_stage: 'engaged', profile_pic: null } : null,
+                                data: columns.startsWith('pipeline_stage,') ? { ...persistedContact } : !options?.newContact && options?.config
+                                    ? { id: 'contact_row_1', name: 'Photo Contact', pipeline_stage: 'engaged', profile_pic: null, ...options?.contact } : null,
                                 error: null
                             }))
                         })
@@ -294,7 +330,7 @@ function createPhotoChatbotSupabaseMock(options?: { state?: Record<string, unkno
                 upsert: vi.fn().mockReturnValue({
                     select: vi.fn().mockReturnValue({
                         single: vi.fn().mockResolvedValue({
-                            data: { id: 'contact_row_1', name: 'Photo Contact', pipeline_stage: 'engaged', best_contact_hour: options?.bestContactHour },
+                            data: { id: 'contact_row_1', name: 'Photo Contact', pipeline_stage: 'engaged', best_contact_hour: options?.bestContactHour, ...options?.contact },
                             error: null
                         })
                     })
@@ -338,7 +374,7 @@ function createPhotoChatbotSupabaseMock(options?: { state?: Record<string, unkno
         }
         if (table === 'chatbot_reply_events') {
             return {
-                insert: vi.fn().mockResolvedValue({ error: null }),
+                insert: replyInsert,
                 update: vi.fn().mockReturnValue({ eq: vi.fn().mockResolvedValue({ error: null }) })
             };
         }
@@ -356,10 +392,15 @@ function createPhotoChatbotSupabaseMock(options?: { state?: Record<string, unkno
             };
         }
         if (table === 'welcome_messages') return { select: welcomeSelect };
+        if (table === 'chatbot_configs') {
+            return { select: vi.fn().mockReturnValue({ eq: vi.fn().mockReturnValue({
+                maybeSingle: vi.fn().mockResolvedValue({ data: null, error: null })
+            }) }) };
+        }
         throw new Error(`Unexpected table: ${table}`);
     });
 
-    return { from, welcomeSelect, stateUpsert, contactUpdate, chatbotConfig, followUpUpsert };
+    return { from, rpc: vi.fn().mockResolvedValue({ error: null }), welcomeSelect, stateUpsert, contactUpdate, chatbotConfig, followUpUpsert, replyInsert };
 }
 
 function createSupabaseMockWithFirstInteractionColumnFailure() {
@@ -454,6 +495,11 @@ function createSupabaseMockWithFirstInteractionColumnFailure() {
             };
         }
 
+        if (table === 'chatbot_configs') {
+            return { select: vi.fn().mockReturnValue({ eq: vi.fn().mockReturnValue({
+                maybeSingle: vi.fn().mockResolvedValue({ data: null, error: null })
+            }) }) };
+        }
         throw new Error(`Unexpected table: ${table}`);
     });
 
@@ -559,6 +605,11 @@ function createSupabaseMockWithGenericUpsertFailure() {
             };
         }
 
+        if (table === 'chatbot_configs') {
+            return { select: vi.fn().mockReturnValue({ eq: vi.fn().mockReturnValue({
+                maybeSingle: vi.fn().mockResolvedValue({ data: null, error: null })
+            }) }) };
+        }
         throw new Error(`Unexpected table: ${table}`);
     });
 
@@ -572,6 +623,9 @@ function createSupabaseMockWithGenericUpsertFailure() {
 describe('POST /api/facebook/webhook', () => {
     beforeEach(() => {
         vi.clearAllMocks();
+        mocks.loadChatbotDeliveryHistory.mockReset().mockResolvedValue([]);
+        mocks.reserveChatbotMessage.mockReset().mockResolvedValue('delivery-id');
+        mocks.finishChatbotMessage.mockReset().mockResolvedValue(undefined);
         vi.stubEnv('NODE_ENV', 'test');
         mocks.handleFollowUpWorkflowContactReply.mockResolvedValue({
             checked: 0,
@@ -597,6 +651,7 @@ describe('POST /api/facebook/webhook', () => {
             skipped: 0
         });
         mocks.getConversationForPsid.mockResolvedValue(null);
+        mocks.getMessengerContactLabels.mockReset().mockResolvedValue([]);
         mocks.analyzeInboundCustomerImages.mockResolvedValue('A payment receipt showing PHP 150.');
         mocks.generateChatbotResponse.mockResolvedValue({
             reply: 'Thanks, I can see the PHP 150 receipt.',
@@ -948,14 +1003,266 @@ describe('POST /api/facebook/webhook', () => {
 
     const detailFields = Array.from({ length: 20 }, (_, i) => `Field ${i}`);
     const goalConfig = { details_to_collect: detailFields, details_completion_percent: 26, stop_when_details_collected: true };
-    const currentInbound = () => createWebhookRequest({ object: 'page', entry: [{ id: 'fb_page_1', messaging: [{
+    const currentInbound = (text = 'Our new details.') => createWebhookRequest({ object: 'page', entry: [{ id: 'fb_page_1', messaging: [{
         sender: { id: 'contact_psid_1' }, recipient: { id: 'fb_page_1' },
-        timestamp: Date.parse('2026-10-08T12:00:00Z'), message: { mid: 'mid.goal', text: 'Our new details.' }
+        timestamp: Date.parse('2026-10-08T12:00:00Z'), message: { mid: 'mid.goal', text }
     }] }] });
     const activeState = (details: Record<string, string>) => ({ page_id: 'page_row_1', contact_id: 'contact_row_1',
         status: 'active', started_at: '2026-10-08T01:00:00Z', window_expires_at: '2026-10-15T01:00:00Z',
         collected_details: details, missing_details: [], stop_reason: null, stopped_at: null,
         last_inbound_at: null, last_bot_reply_at: null });
+
+    const formPriorityConfig = { instructions: 'PRIORITIZE_FILL_UP_FORM: true\nALLOW_BRIEF_FORM: true\nSONG_BRIEF_FORM: hiraya-seven-fields\nSHORT_HUMAN_REPLIES: true',
+        details_to_collect: ['Business name', 'Main products or services', 'Tagline or slogan', 'Lyrics language', 'Vocal preference', 'Preferred mood/style', 'Additional requests'],
+        details_completion_percent: 100 };
+    it('prioritizes the owner form when a model returns only an individual question', async () => {
+        const supabase = createPhotoChatbotSupabaseMock({ state: activeState({}), config: formPriorityConfig });
+        mocks.getSupabaseAdmin.mockReturnValue(supabase);
+        mocks.generateChatbotResponse.mockResolvedValue({ messages: ['Pop or acoustic?'], collected_details: {}, missing_details: [], details_complete: false });
+        expect((await POST(currentInbound())).status).toBe(200);
+        expect(mocks.sendMessage).toHaveBeenCalledTimes(1);
+        expect(mocks.sendMessage.mock.calls[0][3]).toContain('1. Business Name:');
+        expect(mocks.sendMessage.mock.calls[0][3]).toContain('7. Additional requests:');
+        expect(mocks.sendMessage.mock.calls[0][3]).not.toContain('Pop or acoustic?');
+        expect(mocks.sendMessage.mock.calls[0][3]).toMatch(/Ano po ang business name na ilalagay natin\?$/);
+        expect(supabase.rpc).toHaveBeenCalledWith('record_chatbot_form_sent', expect.objectContaining({
+            p_page_id: 'page_row_1', p_contact_id: 'contact_row_1', p_history_start_at: null
+        }));
+    });
+    it('still offers the form when reply generation is unavailable', async () => {
+        const supabase = createPhotoChatbotSupabaseMock({ state: activeState({}), config: formPriorityConfig });
+        mocks.getSupabaseAdmin.mockReturnValue(supabase);
+        mocks.generateChatbotResponse.mockRejectedValue(new Error('Provider unavailable'));
+        expect((await POST(currentInbound())).status).toBe(200);
+        expect(mocks.sendMessage).toHaveBeenCalledTimes(1);
+        expect(mocks.sendMessage.mock.calls[0][3]).toMatch(/^Pa-sagutan po para sa kanta\n/);
+    });
+    it('does not record form delivery when Messenger rejects the send', async () => {
+        const supabase = createPhotoChatbotSupabaseMock({ state: activeState({}), config: formPriorityConfig });
+        mocks.getSupabaseAdmin.mockReturnValue(supabase);
+        mocks.generateChatbotResponse.mockResolvedValue({ messages: ['What genre?'], collected_details: {}, missing_details: [], details_complete: false });
+        mocks.sendMessage.mockRejectedValue(new Error('Messenger unavailable'));
+        await POST(currentInbound());
+        expect(supabase.rpc).not.toHaveBeenCalledWith('record_chatbot_form_sent', expect.anything());
+    });
+    it('suppresses a delivery already reserved by another worker without retrying the inbound event', async () => {
+        const supabase = createPhotoChatbotSupabaseMock({ state: activeState({}), config: formPriorityConfig });
+        mocks.getSupabaseAdmin.mockReturnValue(supabase);
+        mocks.generateChatbotResponse.mockResolvedValue({ messages: ['What genre?'], collected_details: {}, missing_details: [], details_complete: false });
+        mocks.reserveChatbotMessage.mockResolvedValue(null);
+        const response = await POST(currentInbound());
+        expect(response.status).toBe(200);
+        expect(mocks.sendMessage).not.toHaveBeenCalled();
+        expect(mocks.finishChatbotMessage).not.toHaveBeenCalled();
+    });
+    it('adds previously delivered message memory when Facebook omits it from history', async () => {
+        const supabase = createPhotoChatbotSupabaseMock({ state: activeState({}), config: formPriorityConfig });
+        mocks.getSupabaseAdmin.mockReturnValue(supabase);
+        const previous = { id: 'sent-before-window', message: 'A bright opening can highlight your bakery.',
+            from: { id: 'fb_page_1', name: 'Page' }, created_time: '2026-10-08T10:00:00Z' };
+        mocks.loadChatbotDeliveryHistory.mockResolvedValue([previous]);
+        mocks.generateChatbotResponse.mockResolvedValue({ messages: ['What genre?'], collected_details: {}, missing_details: [], details_complete: false });
+        await POST(currentInbound());
+        expect(mocks.generateChatbotResponse).toHaveBeenCalledWith(expect.objectContaining({ history: expect.arrayContaining([previous]) }));
+    });
+    it('retains newly filled answers during a provider outage and omits them from the missing form', async () => {
+        const supabase = createPhotoChatbotSupabaseMock({ state: activeState({}), config: formPriorityConfig });
+        mocks.getSupabaseAdmin.mockReturnValue(supabase);
+        mocks.generateChatbotResponse.mockRejectedValue(new Error('Provider unavailable'));
+        await POST(currentInbound('1. Business Name: Sunrise Bakery\n4. English or Tagalog lyrics: Tagalog'));
+        expect(supabase.stateUpsert).toHaveBeenCalledWith(expect.objectContaining({ collected_details: {
+            'Business name': 'Sunrise Bakery', 'Lyrics language': 'Tagalog'
+        } }), expect.anything());
+        expect(mocks.sendMessage.mock.calls[0][3]).not.toContain('1. Business Name:');
+        expect(mocks.sendMessage.mock.calls[0][3]).not.toContain('4. English or Tagalog lyrics:');
+        expect(mocks.sendMessage.mock.calls[0][3]).toContain('2. Specialty/Products:');
+    });
+    it('does not resend a form missing from history when durable delivery exists', async () => {
+        const supabase = createPhotoChatbotSupabaseMock({ state: { ...activeState({ 'Business name': 'Sunrise Bakery' }),
+            form_sent_at: '2026-10-17T08:00:00Z' }, config: formPriorityConfig });
+        mocks.getSupabaseAdmin.mockReturnValue(supabase);
+        mocks.generateChatbotResponse.mockResolvedValue({ messages: ['Anong produkto ang itatampok natin?'],
+            collected_details: { 'Business name': 'Sunrise Bakery' }, missing_details: [], details_complete: false });
+        await POST(currentInbound());
+        expect(mocks.generateChatbotResponse).toHaveBeenCalledWith(expect.objectContaining({ formSentAt: '2026-10-17T08:00:00Z' }));
+        expect(mocks.sendMessage.mock.calls[0][3]).not.toContain('Business Name:');
+        expect(supabase.rpc).not.toHaveBeenCalledWith('record_chatbot_form_sent', expect.anything());
+    });
+    it('does not send a priority form when Facebook shows Qualified', async () => {
+        const supabase = createPhotoChatbotSupabaseMock({ state: activeState({}), config: formPriorityConfig });
+        mocks.getSupabaseAdmin.mockReturnValue(supabase);
+        mocks.getMessengerContactLabels.mockResolvedValue([{ id: 'q', page_label_name: 'Qualified' }]);
+        expect((await POST(currentInbound())).status).toBe(200);
+        expect(mocks.generateChatbotResponse).not.toHaveBeenCalled();
+        expect(mocks.sendMessage).not.toHaveBeenCalled();
+    });
+
+    it('blocks a live Qualified inbox label when message history contains no stage event', async () => {
+        const supabase = createPhotoChatbotSupabaseMock({ state: activeState({}), config: {} });
+        mocks.getSupabaseAdmin.mockReturnValue(supabase);
+        mocks.getMessengerContactLabels.mockResolvedValue([{ id: 'q', page_label_name: 'Qualified' }]);
+        expect((await POST(currentInbound())).status).toBe(200);
+        expect(mocks.generateChatbotResponse).not.toHaveBeenCalled();
+        expect(mocks.sendMessage).not.toHaveBeenCalled();
+        expect(supabase.stateUpsert).toHaveBeenCalledWith(expect.objectContaining({ status: 'stopped', stop_reason: 'qualified' }),
+            { onConflict: 'page_id,contact_id' });
+    });
+    it('blocks a label-only qualification that arrives during reply generation', async () => {
+        const supabase = createPhotoChatbotSupabaseMock({ state: activeState({}), config: {} });
+        mocks.getSupabaseAdmin.mockReturnValue(supabase);
+        mocks.generateChatbotResponse.mockImplementation(async () => {
+            mocks.getMessengerContactLabels.mockResolvedValue([{ id: 'q', page_label_name: 'Qualified' }]);
+            return { messages: ['Do not send.'], collected_details: {}, missing_details: [], details_complete: false };
+        });
+        expect((await POST(currentInbound())).status).toBe(200);
+        expect(mocks.generateChatbotResponse).toHaveBeenCalledTimes(1);
+        expect(mocks.sendMessage).not.toHaveBeenCalled();
+    });
+    it('blocks the remaining bubbles after a label-only qualification', async () => {
+        const supabase = createPhotoChatbotSupabaseMock({ config: { split_messages: true, max_message_parts: 3 } });
+        mocks.getSupabaseAdmin.mockReturnValue(supabase);
+        mocks.generateChatbotResponse.mockResolvedValue({ messages: ['First.', 'Second.'],
+            collected_details: {}, missing_details: [], details_complete: false });
+        mocks.sendMessage.mockImplementation(async () => {
+            mocks.getMessengerContactLabels.mockResolvedValue([{ id: 'q', page_label_name: 'Qualified' }]);
+            return { message_id: 'first' };
+        });
+        expect((await POST(currentInbound())).status).toBe(200);
+        expect(mocks.sendMessage).toHaveBeenCalledTimes(1);
+    });
+    it('does not send a fallback when the current labels cannot be verified', async () => {
+        const supabase = createPhotoChatbotSupabaseMock({ state: activeState({}), config: {} });
+        mocks.getSupabaseAdmin.mockReturnValue(supabase);
+        mocks.getMessengerContactLabels.mockRejectedValue(new Error('Unsupported get request'));
+        expect((await POST(currentInbound())).status).toBe(500);
+        expect(mocks.generateChatbotResponse).not.toHaveBeenCalled();
+        expect(mocks.sendMessage).not.toHaveBeenCalled();
+    });
+    it('blocks a transient retry when Qualified is added after the initial send attempt', async () => {
+        const supabase = createPhotoChatbotSupabaseMock({ state: activeState({}), config: {} });
+        mocks.getSupabaseAdmin.mockReturnValue(supabase);
+        mocks.generateChatbotResponse.mockResolvedValue({ messages: ['Reply.'],
+            collected_details: {}, missing_details: [], details_complete: false });
+        mocks.sendMessage.mockImplementation(async (...args) => {
+            mocks.getMessengerContactLabels.mockResolvedValue([{ id: 'q', page_label_name: 'Qualified' }]);
+            await args[10]();
+            return { message_id: 'must-not-send' };
+        });
+        expect((await POST(currentInbound())).status).toBe(200);
+        expect(mocks.sendMessage).toHaveBeenCalledTimes(1);
+        expect(supabase.stateUpsert).toHaveBeenLastCalledWith(expect.objectContaining({ status: 'stopped', stop_reason: 'qualified' }),
+            { onConflict: 'page_id,contact_id' });
+    });
+
+    it('answers an Intake inquiry while keeping all other eligibility checks', async () => {
+        const supabase = createPhotoChatbotSupabaseMock({ state: activeState({}), config: {} });
+        mocks.getSupabaseAdmin.mockReturnValue(supabase);
+        mocks.getConversationForPsid.mockResolvedValue({ messages: { data: [{ id: 'intake', from: { id: 'fb_page_1' },
+            message: 'Lead stage set to Intake', created_time: '2026-10-07T12:00:00Z' }] } });
+        mocks.generateChatbotResponse.mockResolvedValue({ messages: ['How can we help?'],
+            collected_details: {}, missing_details: [], details_complete: false });
+        expect((await POST(currentInbound())).status).toBe(200);
+        expect(mocks.generateChatbotResponse).toHaveBeenCalledTimes(1);
+        expect(mocks.sendMessage).toHaveBeenCalledTimes(1);
+    });
+
+    it.each(['Intake', 'Contacted', 'Interested', 'Qualified'])(
+        'processes native %s stage notifications without treating Intake as a human reply', async stage => {
+            const supabase = createPhotoChatbotSupabaseMock({ state: activeState({}), config: {} });
+            const rpc = vi.fn().mockResolvedValue({ error: null });
+            mocks.getSupabaseAdmin.mockReturnValue({ ...supabase, rpc });
+            const response = await POST(createWebhookRequest({ object: 'page', entry: [{ id: 'fb_page_1', messaging: [{
+                sender: { id: 'fb_page_1' }, recipient: { id: 'contact_psid_1' }, timestamp: Date.parse('2026-10-08T12:00:00Z'),
+                message: { mid: 'stage-echo', is_echo: true, text: `Lead stage set to ${stage}` }
+            }] }] }));
+            expect(response.status).toBe(200);
+            expect(rpc).not.toHaveBeenCalled();
+            expect(mocks.sendMessage).not.toHaveBeenCalled();
+            if (stage === 'Intake') expect(supabase.stateUpsert).not.toHaveBeenCalled();
+            else expect(supabase.stateUpsert).toHaveBeenCalledWith(expect.objectContaining({ status: 'stopped',
+                stop_reason: stage === 'Qualified' ? 'qualified' : 'manual' }), { onConflict: 'page_id,contact_id' });
+        });
+
+    it('does not apply a redelivered stage notification from before an explicit trial reset', async () => {
+        const supabase = createPhotoChatbotSupabaseMock({ state: { ...activeState({}), history_start_at: '2026-10-08T13:00:00Z' }, config: {} });
+        mocks.getSupabaseAdmin.mockReturnValue(supabase);
+        expect((await POST(createWebhookRequest({ object: 'page', entry: [{ id: 'fb_page_1', messaging: [{
+            sender: { id: 'fb_page_1' }, recipient: { id: 'contact_psid_1' }, timestamp: Date.parse('2026-10-08T12:00:00Z'),
+            message: { mid: 'old-stage-echo', is_echo: true, text: 'Lead stage set to Contacted' }
+        }] }] }))).status).toBe(200);
+        expect(supabase.stateUpsert).not.toHaveBeenCalled();
+        expect(mocks.sendMessage).not.toHaveBeenCalled();
+    });
+
+    it.each(['Qualified', 'Converted', 'Not Qualified', 'Order Created', 'Contacted', 'Interested', 'Custom stage'])(
+        'does not generate or send for an existing non-Intake stage %s, even with legacy stop flags disabled', async stage => {
+            const supabase = createPhotoChatbotSupabaseMock({ state: activeState({}), config: {
+                stop_on_qualified: false, stop_on_not_qualified: false, stop_on_converted: false, stop_on_order_created: false } });
+            mocks.getSupabaseAdmin.mockReturnValue(supabase);
+            mocks.getConversationForPsid.mockResolvedValue({ messages: { data: [{ id: 'closed', from: { id: 'fb_page_1' },
+                message: `Lead stage set to ${stage}`, created_time: '2026-10-07T12:00:00Z' }] } });
+            expect((await POST(currentInbound())).status).toBe(200);
+            expect(mocks.generateChatbotResponse).not.toHaveBeenCalled();
+            expect(mocks.sendMessage).not.toHaveBeenCalled();
+            expect(supabase.stateUpsert).toHaveBeenCalledWith(expect.objectContaining({ status: 'stopped' }),
+                { onConflict: 'page_id,contact_id' });
+        });
+
+    it.each(['Qualified', 'Converted', 'Not Qualified', 'Order Created', 'Contacted', 'Interested', 'Custom stage'])(
+        'stops a reply when Facebook changes to %s during generation', async stage => {
+            const supabase = createPhotoChatbotSupabaseMock({ state: activeState({}), config: goalConfig });
+            mocks.getSupabaseAdmin.mockReturnValue(supabase);
+            mocks.generateChatbotResponse.mockImplementation(async () => {
+                mocks.getConversationForPsid.mockResolvedValue({ messages: { data: [{
+                    id: 'stage-event', message: `Lead stage set to ${stage}.`, from: { id: 'fb_page_1' },
+                    created_time: '2026-10-08T12:00:01Z'
+                }] } });
+                return { messages: ['Another question?'], collected_details: {}, missing_details: [], details_complete: false };
+            });
+            expect((await POST(currentInbound())).status).toBe(200);
+            expect(mocks.generateChatbotResponse).toHaveBeenCalledTimes(1);
+            expect(mocks.sendMessage).not.toHaveBeenCalled();
+            expect(supabase.stateUpsert).toHaveBeenCalledWith(expect.objectContaining({
+                status: 'stopped', stop_reason: ['Contacted', 'Interested', 'Custom stage'].includes(stage)
+                    ? 'manual' : stage.toLowerCase().replaceAll(' ', '_')
+            }), { onConflict: 'page_id,contact_id' });
+        }
+    );
+
+    it.each(['Converted', 'Contacted'])('stops remaining bubbles when the lead changes to %s after the first bubble', async stage => {
+        const supabase = createPhotoChatbotSupabaseMock({ config: { split_messages: true, max_message_parts: 3 } });
+        mocks.getSupabaseAdmin.mockReturnValue(supabase);
+        mocks.generateChatbotResponse.mockResolvedValue({ messages: ['First reply.', 'Second reply.'],
+            collected_details: {}, missing_details: [], details_complete: false });
+        mocks.sendMessage.mockImplementation(async () => {
+            mocks.getConversationForPsid.mockResolvedValue({ messages: { data: [{
+                id: 'stage-event', message: `Lead stage set to ${stage}.`, from: { id: 'fb_page_1' },
+                created_time: '2026-10-08T12:00:01Z'
+            }] } });
+            return { message_id: 'first-bubble' };
+        });
+        expect((await POST(currentInbound())).status).toBe(200);
+        expect(mocks.sendMessage).toHaveBeenCalledTimes(1);
+        expect(supabase.stateUpsert).toHaveBeenLastCalledWith(expect.objectContaining({
+            status: 'stopped', stop_reason: stage === 'Converted' ? 'converted' : 'manual'
+        }), { onConflict: 'page_id,contact_id' });
+    });
+
+    it('stops remaining bubbles when staff changes the saved pipeline stage', async () => {
+        const latestContact = { pipeline_stage: 'engaged', pipeline_stage_source: 'chatbot' };
+        const supabase = createPhotoChatbotSupabaseMock({ latestContact,
+            config: { split_messages: true, max_message_parts: 3 } });
+        mocks.getSupabaseAdmin.mockReturnValue(supabase);
+        mocks.generateChatbotResponse.mockResolvedValue({ messages: ['First reply.', 'Second reply.'],
+            collected_details: {}, missing_details: [], details_complete: false });
+        mocks.sendMessage.mockImplementation(async () => {
+            latestContact.pipeline_stage = 'not_qualified';
+            latestContact.pipeline_stage_source = 'manual';
+            return { message_id: 'first-bubble' };
+        });
+        expect((await POST(currentInbound())).status).toBe(200);
+        expect(mocks.sendMessage).toHaveBeenCalledTimes(1);
+    });
 
     it('schedules later-day reminders using the refreshed best hour instead of the stale contact hour', async () => {
         const supabase = createPhotoChatbotSupabaseMock({ bestContactHour: 7, config: {
@@ -994,6 +1301,65 @@ describe('POST /api/facebook/webhook', () => {
         expect(mocks.generateChatbotResponse).not.toHaveBeenCalled();
         expect(mocks.sendMessage).not.toHaveBeenCalled();
         expect(supabase.stateUpsert).toHaveBeenCalledWith(expect.objectContaining({ stop_reason: 'details_collected', status: 'stopped' }), { onConflict: 'page_id,contact_id' });
+    });
+
+
+    it('requests recovery after a database failure during generation before a send was attempted', async () => {
+        const supabase = createPhotoChatbotSupabaseMock({ config: {} });
+        let failStateReads = false;
+        const originalFrom = supabase.from;
+        const stateRead = { select: () => ({ eq: () => ({ eq: () => ({ maybeSingle: async () => ({ data: null, error: { message: 'Temporary database failure' } }) }) }) }) };
+        mocks.getSupabaseAdmin.mockReturnValue({ ...supabase, from: (table: string) => {
+            if (table === 'chatbot_contact_states' && failStateReads) return stateRead;
+            return originalFrom(table);
+        } });
+        mocks.generateChatbotResponse.mockImplementation(async () => {
+            failStateReads = true;
+            return { messages: ['Hello!'], collected_details: {}, missing_details: [], details_complete: false };
+        });
+        expect((await POST(currentInbound())).status).toBe(500);
+        expect(mocks.sendMessage).not.toHaveBeenCalled();
+        expect(supabase.replyInsert).toHaveBeenCalledTimes(1);
+    });
+
+    it('requests redelivery when live conversation checks are temporarily unavailable', async () => {
+        const supabase = createPhotoChatbotSupabaseMock();
+        mocks.getSupabaseAdmin.mockReturnValue(supabase);
+        mocks.getConversationForPsid.mockRejectedValue(new Error('Facebook temporarily unavailable'));
+        expect((await POST(currentInbound())).status).toBe(500);
+        expect(mocks.generateChatbotResponse).not.toHaveBeenCalled();
+        expect(mocks.sendMessage).not.toHaveBeenCalled();
+    });
+
+    it('requests redelivery when chatbot settings cannot be read', async () => {
+        const supabase = createPhotoChatbotSupabaseMock();
+        const from = supabase.from;
+        mocks.getSupabaseAdmin.mockReturnValue({ ...supabase, from: (table: string) => {
+            if (table === 'chatbot_configs') throw new Error('Temporary database failure');
+            return from(table);
+        } });
+        expect((await POST(currentInbound())).status).toBe(500);
+        expect(mocks.sendMessage).not.toHaveBeenCalled();
+    });
+
+    it('asks Meta to redeliver after a temporary send rejection', async () => {
+        const supabase = createPhotoChatbotSupabaseMock({ config: {} });
+        mocks.getSupabaseAdmin.mockReturnValue(supabase);
+        mocks.generateChatbotResponse.mockResolvedValue({ messages: ['We can help with your song.'],
+            collected_details: {}, missing_details: [], details_complete: false });
+        mocks.sendMessage.mockRejectedValue(Object.assign(new Error('(#2) Service temporarily unavailable'), { code: 2 }));
+        expect((await POST(currentInbound())).status).toBe(500);
+    });
+
+    it('does not request redelivery after a partially delivered reply', async () => {
+        const supabase = createPhotoChatbotSupabaseMock({ config: { split_messages: true, max_message_parts: 3 } });
+        mocks.getSupabaseAdmin.mockReturnValue(supabase);
+        mocks.generateChatbotResponse.mockResolvedValue({ messages: ['First reply.', 'Second reply.'],
+            collected_details: {}, missing_details: [], details_complete: false });
+        mocks.sendMessage.mockResolvedValueOnce({ message_id: 'mid.delivered' })
+            .mockRejectedValueOnce(Object.assign(new Error('(#2) Service temporarily unavailable'), { code: 2 }));
+        expect((await POST(currentInbound())).status).toBe(200);
+        expect(mocks.sendMessage).toHaveBeenCalledTimes(2);
     });
 
     it('retains extracted answers and the stop even if the closing delivery fails', async () => {
@@ -1070,6 +1436,211 @@ describe('POST /api/facebook/webhook', () => {
         expect(supabase.stateUpsert).not.toHaveBeenCalled();
     });
 
+
+
+    function completedSupportSetup(source = 'chatbot', stopReason = 'details_collected') {
+        const answers = Object.fromEntries(detailFields.slice(0, 6).map(k => [k, 'provided']));
+        const state: Record<string, unknown> = { ...activeState(answers), status: 'stopped', stop_reason: stopReason,
+            last_inbound_at: '2026-10-07T12:00:00Z', stopped_at: '2026-10-07T12:00:10Z' };
+        const contact = { pipeline_stage: 'qualified', pipeline_stage_source: source };
+        const supabase = createPhotoChatbotSupabaseMock({ config: { ...goalConfig, follow_up_enabled: true },
+            state, contact, latestContact: { ...contact, last_inbound_at: '2026-10-08T12:00:00Z' } });
+        return { supabase, state, answers };
+    }
+
+    it('does not answer a fresh inquiry after automatic qualification', async () => {
+        const { supabase, answers } = completedSupportSetup();
+        mocks.getSupabaseAdmin.mockReturnValue(supabase);
+        mocks.generateChatbotResponse.mockResolvedValue({ messages: ['We can help with your new question.'],
+            collected_details: {}, missing_details: [], details_complete: true });
+        expect((await POST(currentInbound())).status).toBe(200);
+        expect(mocks.generateChatbotResponse).not.toHaveBeenCalled();
+        expect(mocks.sendMessage).not.toHaveBeenCalled();
+        expect(supabase.stateUpsert).toHaveBeenCalledWith(expect.objectContaining({
+            status: 'stopped', stop_reason: 'qualified', collected_details: answers
+        }), { onConflict: 'page_id,contact_id' });
+        expect(supabase.followUpUpsert).not.toHaveBeenCalled();
+    });
+
+    it.each(['manual', 'messenger', 'system', 'chatbot'])('keeps a %s qualification closed for automatic support', async source => {
+        const { supabase } = completedSupportSetup(source);
+        mocks.getSupabaseAdmin.mockReturnValue(supabase);
+        expect((await POST(currentInbound())).status).toBe(200);
+        expect(mocks.generateChatbotResponse).not.toHaveBeenCalled();
+        expect(mocks.sendMessage).not.toHaveBeenCalled();
+    });
+
+    it.each(['opt_out', 'refusal', 'manual', 'converted', 'order_created'])('does not bypass a saved %s stop', async reason => {
+        const { supabase } = completedSupportSetup('chatbot', reason);
+        mocks.getSupabaseAdmin.mockReturnValue(supabase);
+        expect((await POST(currentInbound())).status).toBe(200);
+        expect(mocks.sendMessage).not.toHaveBeenCalled();
+    });
+
+    it('persists a new opt-out from an already completed customer', async () => {
+        const { supabase } = completedSupportSetup();
+        mocks.getSupabaseAdmin.mockReturnValue(supabase);
+        expect((await POST(createWebhookRequest({ object: 'page', entry: [{ id: 'fb_page_1', messaging: [{
+            sender: { id: 'contact_psid_1' }, recipient: { id: 'fb_page_1' }, timestamp: Date.parse('2026-10-08T12:00:00Z'),
+            message: { mid: 'mid.optout', text: 'Stop messaging me' }
+        }] }] }))).status).toBe(200);
+        expect(mocks.sendMessage).not.toHaveBeenCalled();
+        expect(supabase.stateUpsert).toHaveBeenCalledWith(expect.objectContaining({ status: 'stopped', stop_reason: 'opt_out' }), { onConflict: 'page_id,contact_id' });
+    });
+
+    it('never starts generating a support reply for an already qualified lead', async () => {
+        const { supabase } = completedSupportSetup();
+        mocks.getSupabaseAdmin.mockReturnValue(supabase);
+        mocks.generateChatbotResponse.mockImplementation(async () => {
+            mocks.getConversationForPsid.mockResolvedValue({ messages: { data: [{ id: 'staff-stop',
+                message: 'Lead stage set to Converted.', from: { id: 'fb_page_1' }, created_time: '2026-10-08T12:00:01Z' }] } });
+            return { messages: ['We can help.'], collected_details: {}, missing_details: [], details_complete: true };
+        });
+        expect((await POST(currentInbound())).status).toBe(200);
+        expect(mocks.generateChatbotResponse).not.toHaveBeenCalled();
+        expect(mocks.sendMessage).not.toHaveBeenCalled();
+    });
+
+
+    it.each(['paused', 'checking', 'held'])('does not answer while a human takeover is %s', async status => {
+        const state = { ...activeState({}), human_pause_status: status };
+        const supabase = createPhotoChatbotSupabaseMock({ state, config: {} });
+        mocks.getSupabaseAdmin.mockReturnValue(supabase);
+        expect((await POST(currentInbound())).status).toBe(200);
+        expect(mocks.generateChatbotResponse).not.toHaveBeenCalled();
+        expect(mocks.sendMessage).not.toHaveBeenCalled();
+    });
+
+    it('stops a generated reply if a human takes over before delivery', async () => {
+        const state: Record<string, unknown> = activeState({});
+        const supabase = createPhotoChatbotSupabaseMock({ state, config: {} });
+        mocks.getSupabaseAdmin.mockReturnValue(supabase);
+        mocks.generateChatbotResponse.mockImplementation(async () => {
+            state.human_pause_status = 'paused';
+            return { messages: ['Hello!'], collected_details: {}, missing_details: [], details_complete: false };
+        });
+        expect((await POST(currentInbound())).status).toBe(200);
+        expect(mocks.sendMessage).not.toHaveBeenCalled();
+    });
+
+    it('stops remaining bubbles when a human takes over after the first bubble', async () => {
+        const state: Record<string, unknown> = activeState({});
+        const supabase = createPhotoChatbotSupabaseMock({ state, config: { split_messages: true, max_message_parts: 3 } });
+        mocks.getSupabaseAdmin.mockReturnValue(supabase);
+        mocks.generateChatbotResponse.mockResolvedValue({ messages: ['First.', 'Second.'], collected_details: {}, missing_details: [], details_complete: false });
+        mocks.sendMessage.mockImplementation(async () => { state.human_pause_status = 'paused'; return { message_id: 'mid.first' }; });
+        expect((await POST(currentInbound())).status).toBe(200);
+        expect(mocks.sendMessage).toHaveBeenCalledTimes(1);
+    });
+
+    it('passes the saved current price into response generation', async () => {
+        const state = { ...activeState({}), conversation_price_quote: 'PHP 450 for two songs', conversation_price_quoted_at: '2026-10-08T11:00:00Z' };
+        const supabase = createPhotoChatbotSupabaseMock({ state, config: {} });
+        mocks.getSupabaseAdmin.mockReturnValue(supabase);
+        expect((await POST(currentInbound())).status).toBe(200);
+        expect(mocks.generateChatbotResponse).toHaveBeenCalledWith(expect.objectContaining({
+            conversationPriceQuote: expect.objectContaining({ text: 'PHP 450 for two songs' })
+        }));
+    });
+
+    it.each([false, true])('records a native staff echo but ignores known automatic echoes (automatic = %s)', async automatic => {
+        const supabase = createPhotoChatbotSupabaseMock({ config: {} });
+        const rpc = vi.fn().mockResolvedValue({ error: null });
+        const query: any = { eq: () => query, maybeSingle: async () => ({ data: automatic ? { source_type: 'chatbot' } : null, error: null }) };
+        mocks.getSupabaseAdmin.mockReturnValue({ ...supabase, rpc, from: (table: string) => table === 'outbound_message_events'
+            ? { select: () => query } : supabase.from(table) });
+        const response = await POST(createWebhookRequest({ object: 'page', entry: [{ id: 'fb_page_1', messaging: [{
+            sender: { id: 'fb_page_1' }, recipient: { id: 'contact_psid_1' }, timestamp: Date.parse('2026-10-08T12:00:00Z'),
+            message: { mid: 'mid.human', is_echo: true, text: 'PHP 450 for two songs' }
+        }] }] }));
+        expect(response.status).toBe(200);
+        expect(mocks.sendMessage).not.toHaveBeenCalled();
+        if (automatic) expect(rpc).not.toHaveBeenCalled();
+        else expect(rpc).toHaveBeenCalledWith('record_chatbot_human_takeover', expect.objectContaining({ p_price_quote: 'PHP 450 for two songs', p_resume_at: '2026-10-08T15:59:00.000Z' }));
+    });
+
+    it('answers a first text inquiry directly rather than allowing a welcome to swallow it', async () => {
+        const supabase = createPhotoChatbotSupabaseMock({ config: {}, newContact: true });
+        mocks.getSupabaseAdmin.mockReturnValue(supabase);
+        expect((await POST(createWebhookRequest())).status).toBe(200);
+        expect(supabase.welcomeSelect).not.toHaveBeenCalled();
+        expect(mocks.generateChatbotResponse).toHaveBeenCalledWith(expect.objectContaining({ inboundMessage: 'hello there' }));
+        expect(mocks.sendMessage).toHaveBeenCalledTimes(1);
+        expect(supabase.replyInsert).toHaveBeenCalledTimes(1);
+    });
+
+    it('answers a Messenger button inquiry without requiring a message object or mid', async () => {
+        const supabase = createPhotoChatbotSupabaseMock({ config: {}, newContact: true });
+        mocks.getSupabaseAdmin.mockReturnValue(supabase);
+        const request = createWebhookRequest({ object: 'page', entry: [{ id: 'fb_page_1', messaging: [{
+            sender: { id: 'contact_psid_1' }, recipient: { id: 'fb_page_1' }, timestamp: 1791451200000,
+            postback: { title: 'How much is a song?', payload: 'PRICE' }
+        }] }] });
+        expect((await POST(request)).status).toBe(200);
+        expect(mocks.generateChatbotResponse).toHaveBeenCalledWith(expect.objectContaining({ inboundMessage: 'How much is a song?' }));
+        expect(mocks.sendMessage).toHaveBeenCalledTimes(1);
+        expect(supabase.replyInsert).toHaveBeenCalledWith(expect.objectContaining({ inbound_message_id: expect.stringMatching(/^postback:/) }));
+        expect(mocks.handleFollowUpWorkflowContactReply).toHaveBeenCalled();
+    });
+
+    it.each(['audio', 'video', 'file'])('replies to a first %s attachment without claiming to understand it', async type => {
+        const supabase = createPhotoChatbotSupabaseMock({ config: {}, newContact: true });
+        mocks.getSupabaseAdmin.mockReturnValue(supabase);
+        expect((await POST(createWebhookRequest({ object: 'page', entry: [{ id: 'fb_page_1', messaging: [{
+            sender: { id: 'contact_psid_1' }, recipient: { id: 'fb_page_1' }, timestamp: 1791451200000,
+            message: { mid: 'mid.media', attachments: [{ type, payload: { url: 'https://example.test/file' } }] }
+        }] }] }))).status).toBe(200);
+        expect(mocks.generateChatbotResponse).toHaveBeenCalledWith(expect.objectContaining({ inboundMessage: expect.stringContaining('contents are unavailable') }));
+        expect(mocks.analyzeInboundCustomerImages).not.toHaveBeenCalled();
+        expect(mocks.sendMessage).toHaveBeenCalledTimes(1);
+    });
+
+    it('uses a safe fallback if the first generated answer is suppressed and the configured fallback is blank', async () => {
+        const supabase = createPhotoChatbotSupabaseMock({ config: { fallback_reply: '' }, newContact: true });
+        mocks.getSupabaseAdmin.mockReturnValue(supabase);
+        mocks.generateChatbotResponse.mockResolvedValue({ messages: [], collected_details: {}, missing_details: [], details_complete: false, reply_suppressed: true });
+        expect((await POST(createWebhookRequest())).status).toBe(200);
+        expect(mocks.sendMessage).toHaveBeenCalledTimes(1);
+        expect(mocks.sendMessage.mock.calls[0][3].trim().length).toBeGreaterThan(0);
+    });
+
+    it('keeps repetitive replies suppressed when the customer already received the same fallback', async () => {
+        const supabase = createPhotoChatbotSupabaseMock({ config: {} });
+        mocks.getSupabaseAdmin.mockReturnValue(supabase);
+        mocks.getConversationForPsid.mockResolvedValue({ messages: { data: [{ id: 'prior.reply', from: { id: 'fb_page_1' }, message: 'A teammate will reply soon.' }] } });
+        mocks.generateChatbotResponse.mockRejectedValue(new Error('AI temporarily unavailable'));
+        expect((await POST(createWebhookRequest())).status).toBe(200);
+        expect(mocks.sendMessage).not.toHaveBeenCalled();
+    });
+
+    it.each(['model', 'reservation'])('retains follow-ups when %s suppresses a duplicate immediate reply', async mode => {
+        const supabase = createPhotoChatbotSupabaseMock({ config: { follow_up_enabled: true,
+            follow_up_quick_delays_minutes: [30], follow_up_best_time_days: [] } });
+        mocks.getSupabaseAdmin.mockReturnValue(supabase);
+        mocks.getConversationForPsid.mockResolvedValue({ messages: { data: [{ id: 'prior.reply',
+            from: { id: 'fb_page_1' }, message: 'A teammate will reply soon.' }] } });
+        mocks.generateChatbotResponse.mockResolvedValue({ messages: mode === 'model' ? [] : ['A new reply.'],
+            collected_details: {}, missing_details: [], details_complete: false, reply_suppressed: mode === 'model' });
+        if (mode === 'reservation') mocks.reserveChatbotMessage.mockResolvedValue(null);
+        expect((await POST(createWebhookRequest())).status).toBe(200);
+        expect(mocks.sendMessage).not.toHaveBeenCalled();
+        expect(supabase.followUpUpsert).toHaveBeenCalledWith(expect.arrayContaining([
+            expect.objectContaining({ schedule_type: 'response', status: 'pending', sequence_index: 0 })
+        ]), expect.objectContaining({ onConflict: 'contact_id,anchor_inbound_at,schedule_type,sequence_index' }));
+    });
+
+    it.each(['read', 'delivery'])('does not send a welcome or chatbot reply for a first %s receipt', async type => {
+        const supabase = createPhotoChatbotSupabaseMock({ config: {}, newContact: true });
+        mocks.getSupabaseAdmin.mockReturnValue(supabase);
+        expect((await POST(createWebhookRequest({ object: 'page', entry: [{ id: 'fb_page_1', messaging: [{
+            sender: { id: 'contact_psid_1' }, recipient: { id: 'fb_page_1' }, timestamp: 1791451200000,
+            [type]: { watermark: 1791451200000 }
+        }] }] }))).status).toBe(200);
+        expect(supabase.welcomeSelect).not.toHaveBeenCalled();
+        expect(mocks.generateChatbotResponse).not.toHaveBeenCalled();
+        expect(mocks.sendMessage).not.toHaveBeenCalled();
+    });
+
     it('analyzes and replies to an image-only first message instead of sending only a welcome', async () => {
         const supabase = createPhotoChatbotSupabaseMock();
         mocks.getSupabaseAdmin.mockReturnValue(supabase);
@@ -1127,7 +1698,9 @@ describe('POST /api/facebook/webhook', () => {
             undefined,
             undefined,
             undefined,
-            undefined
+            undefined,
+            undefined,
+            expect.any(Function)
         );
     });
 

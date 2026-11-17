@@ -25,6 +25,14 @@ export type ChatbotContactState = {
     last_inbound_at: string | null;
     last_bot_reply_at: string | null;
     history_start_at?: string | null;
+    form_sent_at?: string | null;
+    human_pause_status?: 'paused' | 'checking' | 'held' | 'released' | null;
+    human_takeover_at?: string | null;
+    human_resume_at?: string | null;
+    human_message_id?: string | null;
+    human_hold_reason?: string | null;
+    conversation_price_quote?: string | null;
+    conversation_price_quoted_at?: string | null;
 };
 
 type SupabaseLike = {
@@ -199,7 +207,7 @@ export async function getChatbotContactState(
 ): Promise<ChatbotContactState | null> {
     const { data, error } = await supabase
         .from('chatbot_contact_states')
-        .select('id, page_id, contact_id, status, started_at, window_expires_at, collected_details, missing_details, stop_reason, stopped_at, last_inbound_at, last_bot_reply_at, history_start_at')
+        .select('id, page_id, contact_id, status, started_at, window_expires_at, collected_details, missing_details, stop_reason, stopped_at, last_inbound_at, last_bot_reply_at, history_start_at, form_sent_at, human_pause_status, human_takeover_at, human_resume_at, human_message_id, human_hold_reason, conversation_price_quote, conversation_price_quoted_at')
         .eq('page_id', pageId)
         .eq('contact_id', contactId)
         .maybeSingle();
@@ -246,7 +254,11 @@ export async function saveChatbotContactState(
         }),
         missing_details: normalizeDetailsToCollect(input.missingDetails || input.existingState?.missing_details || []),
         stop_reason: stopReason,
-        stopped_at: stopReason ? now.toISOString() : null,
+        stopped_at: stopReason
+            ? input.existingState?.status === 'stopped' && input.existingState.stop_reason === stopReason
+                ? input.existingState.stopped_at || now.toISOString()
+                : now.toISOString()
+            : null,
         last_inbound_at: input.inboundAt || input.existingState?.last_inbound_at || null,
         last_bot_reply_at: input.botRepliedAt || input.existingState?.last_bot_reply_at || null,
         history_start_at: input.existingState?.history_start_at || null,
@@ -257,6 +269,7 @@ export async function saveChatbotContactState(
         .upsert(payload, { onConflict: 'page_id,contact_id' });
     if (error) throw new Error(error.message || 'Could not save chatbot contact state');
 }
+
 
 export function getChatbotStateStopReason(
     state: ChatbotContactState | null,

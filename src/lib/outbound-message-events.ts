@@ -1,3 +1,5 @@
+import { pauseChatbotForHumanTakeover } from '@/lib/chatbot-human-takeover';
+
 export type OutboundMessageSource = 'manual' | 'campaign' | 'automation' | 'welcome' | 'chatbot';
 
 type SupabaseLike = {
@@ -15,6 +17,7 @@ export type OutboundMessageEventInput = {
     actorName?: string | null;
     messageKind?: string | null;
     sentAt?: string;
+    messageText?: string;
 };
 
 export type ChatbotInterruptionInput = {
@@ -150,6 +153,10 @@ export async function recordOutboundMessageEvent(
     if (!event.messageId?.trim()) return;
 
     try {
+        if (event.sourceType === 'manual' && event.contactId) {
+            await pauseChatbotForHumanTakeover(supabase, { pageId: event.pageId, contactId: event.contactId,
+                messageId: event.messageId, messageText: event.messageText, takenOverAt: event.sentAt }).catch(warnOnce);
+        }
         const { error } = await supabase
             .from('outbound_message_events')
             .upsert({

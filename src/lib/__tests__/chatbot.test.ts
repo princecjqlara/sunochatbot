@@ -64,6 +64,21 @@ afterEach(() => {
 });
 
 describe('Sunobot chatbot', () => {
+    it('enforces a priority form when the provider chooses only a creative question', async () => {
+        process.env.OPENROUTER_API_KEY = 'test-key';
+        vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: true, json: async () => ({ choices: [{
+            message: { content: JSON.stringify({ messages: ['Pop or acoustic?'], collected_details: {} }) }
+        }] }) }));
+        const response = await generateChatbotResponse({ config: { ...config,
+            instructions: 'PRIORITIZE_FILL_UP_FORM: true\nALLOW_BRIEF_FORM: true\nFORM-FIRST COLLECTION\nSONG_BRIEF_FORM: hiraya-seven-fields\nSHORT_HUMAN_REPLIES: true',
+            details_to_collect: ['Business name', 'Main products or services', 'Tagline or slogan', 'Lyrics language', 'Vocal preference', 'Preferred mood/style', 'Additional requests'] },
+            pageId: 'page-facebook-id', inboundMessage: 'Hello' });
+        expect(response.messages).toHaveLength(1);
+        expect(response.messages[0]).toContain('1. Business Name:');
+        expect(response.messages[0]).toContain('7. Additional requests:');
+        expect(response.messages[0]).not.toContain('Pop or acoustic?');
+        expect(response.collected_details).toEqual({});
+    });
     it('retries an overlong reminder with a substantially shorter target', async () => {
         process.env.OPENROUTER_API_KEY = 'test-key';
         const body = (message: string) => ({ ok: true, json: async () => ({ choices: [{ message: { content: JSON.stringify({ message, personalization_basis: 'Bakery pandesal inquiry' }) } }] }) });
@@ -138,11 +153,11 @@ describe('Sunobot chatbot', () => {
     const priorMessage = (text: string) => ({ id: 'prior', message: text, from: { id: 'page-facebook-id', name: 'Studio' }, created_time: '2026-10-08T08:00:00Z' });
     const shortInstructions = 'SHORT_HUMAN_REPLIES: true\nMAX_REPLY_CHARACTERS: 180\nMAX_FORM_CHARACTERS: 700\nALLOW_BRIEF_FORM: true\nSONG_BRIEF_FORM: hiraya-seven-fields';
 
-    it('combines normal replies into one short bubble despite older split settings', async () => {
+    it('preserves natural ordinary reply bubbles while keeping the total short', async () => {
         process.env.OPENROUTER_API_KEY = 'test-key';
         vi.stubGlobal('fetch', vi.fn().mockResolvedValue(replyBody(['PHP399 ang isang kanta.', 'PHP699 naman ang dalawa.'])));
         const response = await generateChatbotResponse({ config: { ...config, instructions: shortInstructions, split_messages: true, max_message_parts: 6 }, pageId: 'page-facebook-id', inboundMessage: 'Magkano?' });
-        expect(response.messages).toEqual(['PHP399 ang isang kanta. PHP699 naman ang dalawa.']);
+        expect(response.messages).toEqual(['PHP399 ang isang kanta.', 'PHP699 naman ang dalawa.']);
         expect(response.reply.length).toBeLessThanOrEqual(180);
     });
 
@@ -208,11 +223,11 @@ describe('Sunobot chatbot', () => {
         expect(response.reply).toBe('PHP399 po ang isang kanta. Kanta muna bago bayad.');
     });
 
-    it('keeps a scheduled follow-up in one bubble under 120 characters', async () => {
+    it('allows brief follow-up bubbles under 120 total characters when splitting is enabled', async () => {
         process.env.OPENROUTER_API_KEY = 'test-key';
         vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok:true, json:async()=>({choices:[{message:{content:JSON.stringify({messages:['Para sa bakery jingle, puwedeng upbeat.', 'Anong produkto ang bida?'],personalization_basis:'Bakery jingle request'})}}]}) }));
         const response = await generateChatbotFollowUp({ config: { ...config, instructions:shortInstructions, split_messages:true, max_message_parts:6 }, pageId:'page-facebook-id', sequenceNumber:1, scheduleLabel:'first-hour', history:[{id:'customer',message:'Bakery jingle sana.',from:{id:'customer-id',name:'Customer'},created_time:'2026-10-08T10:00:00Z'}] });
-        expect(response.messages).toHaveLength(1);
+        expect(response.messages).toHaveLength(2);
         expect(response.message.length).toBeLessThanOrEqual(120);
     });
 
@@ -600,6 +615,25 @@ describe('Sunobot chatbot', () => {
         expect(fetchMock).not.toHaveBeenCalled();
     });
 
+    it('retains the latest customer inquiry after more than 100 Page messages', async () => {
+        process.env.OPENROUTER_API_KEY = 'test-key';
+        const fetchMock = vi.fn().mockResolvedValue({ ok: true, json: async () => ({ choices: [{
+            message: { content: JSON.stringify({ message: 'For your premium haircut next Friday, would morning work?',
+                personalization_basis: 'Customer premium haircut inquiry for next Friday' }) }
+        }] }) });
+        vi.stubGlobal('fetch', fetchMock);
+        const inquiry = { id: 'inquiry', message: 'Interested in a premium haircut next Friday.',
+            from: { id: 'customer-id', name: 'CJ' }, created_time: '2026-09-22T10:00:00Z' };
+        const pageMessages = Array.from({ length: 110 }, (_, index) => ({ id: `page-${index}`,
+            message: `Page update number ${index}.`, from: { id: 'page-facebook-id', name: 'Page' },
+            created_time: new Date(Date.parse(inquiry.created_time) + (index + 1) * 60000).toISOString() }));
+        await expect(generateChatbotFollowUp({ config, pageId: 'page-facebook-id', sequenceNumber: 2,
+            scheduleLabel: 'first 24 hours', history: [inquiry, ...pageMessages] })).resolves.toHaveProperty('message');
+        const body = JSON.parse(fetchMock.mock.calls[0][1].body);
+        expect(body.messages).toContainEqual(expect.objectContaining({ role: 'user', content: inquiry.message }));
+        expect(body.messages[0].content).toContain('LATEST CUSTOMER MESSAGE:\n' + inquiry.message);
+    });
+
     it('fails closed instead of using a generic follow-up when AI personalization is invalid', async () => {
         process.env.OPENROUTER_API_KEY = 'test-key';
         const fetchMock = vi.fn().mockResolvedValue({
@@ -876,7 +910,7 @@ describe('Sunobot chatbot', () => {
         expect(response.reply.match(/\?/g)).toHaveLength(1);
     });
 
-    it('keeps every numbered song field while splitting the full form into tiny bubbles', async () => {
+    it('keeps every numbered song field together while leaving the follow-up question separate', async () => {
         process.env.OPENROUTER_API_KEY = 'test-key';
         const form = 'Pa-sagutan po para sa kanta\n1. Business Name:\n2. Specialty/Products:\n3. Tagline:\n4. English or Tagalog lyrics:\n5. Male or Female singer:\n6. Genre:\n(sample: Pop)\n7. Additional requests:';
         const fetchMock = vi.fn().mockResolvedValue({ ok: true, json: async () => ({
@@ -887,9 +921,9 @@ describe('Sunobot chatbot', () => {
             config: { ...config, instructions: 'ALLOW_BRIEF_FORM: true\nSONG_BRIEF_FORM: hiraya-seven-fields\nMAX_BUBBLE_CHARACTERS: 110\nMAX_REPLY_CHARACTERS: 400', split_messages: true, max_message_parts: 5 },
             pageId: 'page-facebook-id', inboundMessage: 'Ano ang kailangan para sa kanta?'
         });
-        expect(response.messages.every(message => message.length <= 110)).toBe(true);
-        expect(response.messages).toHaveLength(3);
-        expect(response.messages.slice(0, -1).join('\n')).toBe(form);
+        expect(response.messages).toHaveLength(2);
+        expect(response.messages[0]).toBe(form);
+        expect(response.messages[1]).toBe('Pop o acoustic ang peg ninyo?');
         expect(response.reply).toContain('7. Additional requests:');
         expect(response.reply).toContain('(sample: Pop)');
         expect(fetchMock).toHaveBeenCalledTimes(1);
@@ -915,7 +949,7 @@ describe('Sunobot chatbot', () => {
         expect(response.reply).toContain('7. Additional requests:');
         expect(response.reply).not.toMatch(/1\. Tagline|Haba ng kanta|Target audience|Para makapagsimula/);
         expect(response.reply).toContain('PHP699');
-        expect(response.messages.every(message => message.length <= 110)).toBe(true);
+        expect(response.messages.filter(message => !message.includes('3. Tagline:')).every(message => message.length <= 110)).toBe(true);
         expect(response.generation_warning).toBeUndefined();
     });
 

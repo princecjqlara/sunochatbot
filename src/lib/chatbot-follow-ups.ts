@@ -1,4 +1,7 @@
-import { getConversationForPsid, sendMessage, sendMessengerGenericCarousel } from '@/lib/facebook';
+import { isChatbotHumanPaused } from '@/lib/chatbot-human-takeover';
+import { finishChatbotMessage, hasRepeatedChatbotMessage, loadChatbotDeliveryHistory, mergeChatbotDeliveryHistory, reserveChatbotMessage } from '@/lib/chatbot-message-delivery';
+import { resolveConversationPriceQuote } from '@/lib/chatbot-conversation-pricing';
+import { getConversationForPsid, getConversationMessages, sendMessage, sendMessengerGenericCarousel } from '@/lib/facebook';
 import {
     createChatbotMediaPublicViewUrl,
     createChatbotMediaSignedUrl,
@@ -10,9 +13,10 @@ import { getPhilippinesDateParts, getPhilippinesHour, getPhilippinesScheduledAtI
 import { replaceTemplateVariables } from '@/lib/placeholders';
 import { getSupabaseAdmin } from '@/lib/supabase';
 import { generateChatbotFollowUp, getChatbotKnowledgePageId, type ChatbotConfig } from '@/lib/chatbot';
-import { filterChatbotConversationHistory, hasReachedChatbotDetailTarget, isChatbotContactAllowed, isChatbotFollowUpPauseRequest } from '@/lib/chatbot-control';
+import { filterChatbotConversationHistory, getChatbotContactState, saveChatbotContactState, hasReachedChatbotDetailTarget, isChatbotContactAllowed, isChatbotFollowUpPauseRequest } from '@/lib/chatbot-control';
+import { getLiveChatbotLeadStage } from '@/lib/chatbot-lead-stage';
 import { getReadyChatbotDriveFilesForDocuments, getReadyChatbotDriveFolderForDocument, type ChatbotDriveFile, type ChatbotDriveFolder } from '@/lib/chatbot-drive-folders';
-import { isPipelineClosedForAutomation, type ContactPipelineStage } from '@/lib/contact-pipeline';
+import { isPipelineClosedForAutomation, updateContactPipelineStage, type ContactPipelineStage } from '@/lib/contact-pipeline';
 
 const RESPONSE_WINDOW_MS = 24 * 60 * 60 * 1000;
 const HUMAN_AGENT_WINDOW_MS = 7 * RESPONSE_WINDOW_MS;
@@ -47,7 +51,7 @@ export function isChatbotFollowUpWithinLimit(
     return Number.isInteger(sequenceIndex) && sequenceIndex >= 0 && sequenceIndex < groupCount && overallIndex < limit;
 }
 
-type SupabaseLike = { from: (table: string) => any };
+type SupabaseLike = { from: (table: string) => any; rpc?: (name: string, args: Record<string, unknown>) => any };
 
 type ScheduleContact = {
     id: string;
@@ -267,7 +271,7 @@ export async function processDueChatbotFollowUps(input: {
     const jobs = (data || []) as FollowUpJob[];
     result.checked = jobs.length;
 
-    for (const job of jobs) {
+    jobsLoop: for (const job of jobs) {
         const { data: claimed, error: claimError } = await supabase
             .from('chatbot_follow_up_jobs')
             .update({ status: 'processing', claimed_at: now.toISOString(), updated_at: now.toISOString() })
@@ -283,7 +287,7 @@ export async function processDueChatbotFollowUps(input: {
                 supabase.from('pages').select('id, name, fb_page_id, access_token').eq('id', job.page_id).maybeSingle(),
                 supabase.from('contacts').select('id, page_id, psid, name, last_interaction_at, last_inbound_at, pipeline_stage').eq('id', job.contact_id).maybeSingle(),
                 supabase.from('chatbot_configs').select('*').eq('page_id', job.page_id).maybeSingle(),
-                supabase.from('chatbot_contact_states').select('status, collected_details, missing_details, history_start_at').eq('page_id', job.page_id).eq('contact_id', job.contact_id).maybeSingle()
+                supabase.from('chatbot_contact_states').select('status, collected_details, missing_details, history_start_at, human_pause_status, conversation_price_quote, conversation_price_quoted_at').eq('page_id', job.page_id).eq('contact_id', job.contact_id).maybeSingle()
             ]);
             if (eligibilityResults.some(result => result.error)) {
                 throw new Error('Could not load follow-up eligibility; retrying instead of cancelling');
@@ -299,7 +303,7 @@ export async function processDueChatbotFollowUps(input: {
             if (!page?.access_token || !contact?.psid || !config?.enabled || !config?.follow_up_enabled ||
                 !isChatbotFollowUpWithinLimit(config as ChatbotConfig, job.schedule_type, job.sequence_index) ||
                 !isChatbotContactAllowed(config, job.contact_id) ||
-                state?.status === 'stopped' || isPipelineClosedForAutomation(contact?.pipeline_stage) ||
+                isChatbotHumanPaused(state) || state?.status === 'stopped' || isPipelineClosedForAutomation(contact?.pipeline_stage) ||
                 hasReachedChatbotDetailTarget(config, state?.collected_details) ||
                 (state?.history_start_at && anchorTime < Date.parse(state.history_start_at)) ||
                 latestInboundTime > anchorTime ||
@@ -321,15 +325,51 @@ export async function processDueChatbotFollowUps(input: {
             let selectedMediaItems: ChatbotMediaAsset[] = [];
             let selectedDriveFiles: ChatbotDriveFile[] = [];
             let selectedDriveFolder: ChatbotDriveFolder | null = null;
-            const conversation = await getConversationForPsid(
+            let conversation = await getConversationForPsid(
                 page.fb_page_id,
                 contact.psid,
                 page.access_token,
                 { throwOnError: true, timeoutMs: 5000 }
             );
-            const conversationHistory = filterChatbotConversationHistory(
+            // Page messages can push every readable customer message beyond
+            // the embedded page. Retrieve the rest before declaring it absent.
+            if (conversation?.messages?.paging?.next && !hasReadableCustomerConversationHistory(
+                filterChatbotConversationHistory(conversation.messages.data || [], state?.history_start_at), page.fb_page_id
+            )) {
+                const messages = await getConversationMessages(conversation.id, page.access_token, 2000, {
+                    initialPage: conversation.messages, throwOnError: true, requireComplete: true, timeoutMs: 5000
+                });
+                conversation = { ...conversation, messages: {
+                    data: messages as NonNullable<typeof conversation.messages>['data']
+                } };
+            }
+            const conversationHistory = mergeChatbotDeliveryHistory(filterChatbotConversationHistory(
                 conversation?.messages?.data || [], state?.history_start_at
-            );
+            ), await loadChatbotDeliveryHistory({ supabase, pageId: job.page_id, contactId: job.contact_id,
+                facebookPageId: page.fb_page_id, historyStartAt: state?.history_start_at }));
+            const stopForLiveStage = async (existingConversation?: typeof conversation) => {
+                const existingState = await getChatbotContactState(supabase, job.page_id, job.contact_id);
+                if (Date.parse(existingState?.history_start_at || '') > anchorTime) {
+                    await markClaimedJob({ status: 'cancelled', cancelled_at: now.toISOString(),
+                        claimed_at: null, error_message: 'Conversation was reset during follow-up processing' });
+                    result.cancelled += 1;
+                    return true;
+                }
+                const signal = await getLiveChatbotLeadStage({
+                    facebookPageId: page.fb_page_id, psid: contact.psid, accessToken: page.access_token,
+                    historyStartAt: existingState?.history_start_at, conversation: existingConversation
+                });
+                if (!signal) return false;
+                await saveChatbotContactState(supabase, { pageId: job.page_id, contactId: job.contact_id,
+                    existingState, stopReason: signal });
+                if (signal !== 'manual') await updateContactPipelineStage(supabase, { pageId: job.page_id, contactId: job.contact_id,
+                    stage: signal, source: 'messenger' });
+                await cancelPendingChatbotFollowUps({ supabase, pageId: job.page_id,
+                    contactId: job.contact_id, reason: 'Lead Center stage changed', now });
+                result.cancelled += 1;
+                return true;
+            };
+            if (await stopForLiveStage(conversation)) continue;
             const hasCustomerMessage = hasReadableCustomerConversationHistory(
                 conversationHistory,
                 page.fb_page_id
@@ -348,7 +388,10 @@ export async function processDueChatbotFollowUps(input: {
             }
             try {
                 const knowledgePageId = getChatbotKnowledgePageId(config as ChatbotConfig);
+                const conversationPriceQuote = await resolveConversationPriceQuote({ supabase, pageId: job.page_id,
+                    facebookPageId: page.fb_page_id, contactId: job.contact_id, history: conversationHistory, state });
                 const generated = await generateChatbotFollowUp({
+                    conversationPriceQuote,
                     config: config as ChatbotConfig,
                     contactName: contact.name,
                     pageName: page.name,
@@ -402,10 +445,12 @@ export async function processDueChatbotFollowUps(input: {
 
             const selectedMedia = selectedMediaItems[0] || null;
 
+            if (await stopForLiveStage()) continue;
+
             // The customer may answer or qualify while personalization is running.
             const [currentContactResult, currentStateResult, currentConfigResult, currentJobResult] = await Promise.all([
                 supabase.from('contacts').select('pipeline_stage,last_inbound_at').eq('id', job.contact_id).eq('page_id', job.page_id).maybeSingle(),
-                supabase.from('chatbot_contact_states').select('status,collected_details,history_start_at').eq('page_id', job.page_id).eq('contact_id', job.contact_id).maybeSingle(),
+                supabase.from('chatbot_contact_states').select('status,collected_details,history_start_at,human_pause_status').eq('page_id', job.page_id).eq('contact_id', job.contact_id).maybeSingle(),
                 supabase.from('chatbot_configs').select('*').eq('page_id', job.page_id).maybeSingle(),
                 supabase.from('chatbot_follow_up_jobs').select('status,claimed_at').eq('id', job.id).maybeSingle()
             ]);
@@ -423,7 +468,7 @@ export async function processDueChatbotFollowUps(input: {
             if (!currentContact || !currentConfig?.enabled || !currentConfig?.follow_up_enabled ||
                 !isChatbotContactAllowed(currentConfig, job.contact_id) ||
                 !isChatbotFollowUpWithinLimit(currentConfig as ChatbotConfig, job.schedule_type, job.sequence_index) ||
-                currentState?.status === 'stopped' || isPipelineClosedForAutomation(currentContact?.pipeline_stage) ||
+                isChatbotHumanPaused(currentState) || currentState?.status === 'stopped' || isPipelineClosedForAutomation(currentContact?.pipeline_stage) ||
                 hasReachedChatbotDetailTarget(currentConfig, currentState?.collected_details) ||
                 Date.parse(currentContact?.last_inbound_at || '') > anchorTime ||
                 (currentState?.history_start_at && Date.parse(currentState.history_start_at) > anchorTime)) {
@@ -466,9 +511,69 @@ export async function processDueChatbotFollowUps(input: {
             const followUpSourceName = job.schedule_type === 'human_agent'
                 ? 'AI Chatbot day 2-7 follow-up'
                 : 'AI Chatbot quick follow-up';
+            const stopBeforeDelivery = async () => {
+                if (await stopForLiveStage()) return true;
+                const [contactCheck, stateCheck, jobCheck] = await Promise.all([
+                    supabase.from('contacts').select('pipeline_stage,last_inbound_at')
+                        .eq('id', job.contact_id).eq('page_id', job.page_id).maybeSingle(),
+                    supabase.from('chatbot_contact_states').select('status,history_start_at,human_pause_status')
+                        .eq('page_id', job.page_id).eq('contact_id', job.contact_id).maybeSingle(),
+                    supabase.from('chatbot_follow_up_jobs').select('status,claimed_at').eq('id', job.id).maybeSingle()
+                ]);
+                if (contactCheck.error || stateCheck.error || jobCheck.error) {
+                    throw new Error('Could not verify follow-up stage before delivery');
+                }
+                if (jobCheck.data?.status !== 'processing' || Date.parse(jobCheck.data?.claimed_at || '') !== now.getTime()) {
+                    result.cancelled += 1;
+                    return true;
+                }
+                if (!contactCheck.data || isPipelineClosedForAutomation(contactCheck.data.pipeline_stage) ||
+                    isChatbotHumanPaused(stateCheck.data) || stateCheck.data?.status === 'stopped' ||
+                    Date.parse(contactCheck.data.last_inbound_at || '') > anchorTime ||
+                    Date.parse(stateCheck.data?.history_start_at || '') > anchorTime) {
+                    await cancelPendingChatbotFollowUps({ supabase, pageId: job.page_id, contactId: job.contact_id,
+                        reason: 'Contact stage or conversation changed before delivery', now });
+                    result.cancelled += 1;
+                    return true;
+                }
+                return false;
+            };
+            const assertRetryAllowed = async () => {
+                if (await stopBeforeDelivery()) {
+                    throw new Error('Follow-up delivery stopped because conversation eligibility changed');
+                }
+            };
             let lastSendResult: { message_id: string } | null = null;
+            const latestDelivered = await loadChatbotDeliveryHistory({ supabase, pageId: job.page_id, contactId: job.contact_id,
+                facebookPageId: page.fb_page_id, historyStartAt: state?.history_start_at });
+            if (hasRepeatedChatbotMessage(messageParts, [...conversationHistory, ...latestDelivered]
+                .filter(message => message.from?.id === page.fb_page_id).map(message => message.message || ''))) {
+                await markClaimedJob({ status: 'cancelled', claimed_at: null, error_message: 'Duplicate follow-up suppressed' });
+                result.cancelled += 1;
+                continue;
+            }
+            const reservePart = (message: string, suffix: string) => reserveChatbotMessage({ supabase,
+                pageId: job.page_id, contactId: job.contact_id, message, historyStartAt: state?.history_start_at,
+                sourceKey: `follow-up:${job.id}:${suffix}` });
+            let batchId: string | null = null;
+            if (messageParts.length > 1) {
+                if (await stopBeforeDelivery()) continue jobsLoop;
+                batchId = await reservePart(messageParts.join('\n\n'), 'batch');
+                if (!batchId) {
+                    await markClaimedJob({ status: 'cancelled', claimed_at: null, error_message: 'Duplicate follow-up suppressed' });
+                    result.cancelled += 1;
+                    continue jobsLoop;
+                }
+            }
             for (const [partIndex, message] of messageParts.entries()) {
                 const isFinalPart = partIndex === messageParts.length - 1;
+                if (await stopBeforeDelivery()) continue jobsLoop;
+                const deliveryId = await reservePart(message, String(partIndex));
+                if (!deliveryId) {
+                    await markClaimedJob({ status: 'cancelled', claimed_at: null, error_message: 'Duplicate follow-up bubble suppressed' });
+                    result.cancelled += 1;
+                    continue jobsLoop;
+                }
                 const sendResult = selectedDriveFolder && isFinalPart
                     ? await sendMessage(
                         page.fb_page_id,
@@ -483,16 +588,21 @@ export async function processDueChatbotFollowUps(input: {
                             type: 'URL',
                             text: selectedDriveFolder.button_text,
                             url: selectedDriveFolder.folder_url
-                        }]
+                        }],
+                        undefined,
+                        assertRetryAllowed
                     )
                     : await sendMessage(
                         page.fb_page_id,
                         page.access_token,
                         contact.psid,
                         message,
-                        messagingType || 'RESPONSE'
+                        messagingType || 'RESPONSE',
+                        undefined, undefined, undefined, undefined, undefined,
+                        assertRetryAllowed
                     );
                 lastSendResult = sendResult;
+                await finishChatbotMessage({ supabase, deliveryId, messageId: sendResult.message_id });
                 await recordOutboundMessageEvent(supabase, {
                     pageId: job.page_id,
                     contactId: job.contact_id,
@@ -506,8 +616,10 @@ export async function processDueChatbotFollowUps(input: {
                 });
             }
             if (!lastSendResult) throw new Error('AI follow-up was not sent');
+            if (batchId) await finishChatbotMessage({ supabase, deliveryId: batchId, messageId: lastSendResult.message_id });
 
             if (selectedDriveFiles.length > 0) {
+                if (await stopBeforeDelivery()) continue;
                 try {
                     const mediaResult = await sendMessengerGenericCarousel(
                         page.fb_page_id,
@@ -555,6 +667,7 @@ export async function processDueChatbotFollowUps(input: {
                                 buttonTitle: media.media_type === 'image' ? 'View image' : 'Watch video'
                             };
                         }));
+                        if (await stopBeforeDelivery()) continue jobsLoop;
                         const mediaResult = await sendMessengerGenericCarousel(
                             page.fb_page_id,
                             page.access_token,

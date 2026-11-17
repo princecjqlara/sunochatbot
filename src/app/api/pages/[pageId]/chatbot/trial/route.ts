@@ -44,7 +44,7 @@ export async function GET(
                     .maybeSingle(),
                 supabase
                     .from('chatbot_contact_states')
-                    .select('status, collected_details, missing_details, stop_reason, started_at, window_expires_at, last_inbound_at, last_bot_reply_at, history_start_at')
+                    .select('status, collected_details, missing_details, stop_reason, started_at, window_expires_at, last_inbound_at, last_bot_reply_at, history_start_at, human_pause_status, human_resume_at, human_hold_reason')
                     .eq('page_id', pageId)
                     .eq('contact_id', config.trial_contact_id)
                     .maybeSingle(),
@@ -153,6 +153,9 @@ export async function POST(
                     last_inbound_at: null,
                     last_bot_reply_at: null,
                     history_start_at: ignorePastConversation ? now : null,
+                    human_pause_status: 'released', human_takeover_at: null, human_resume_at: null,
+                    human_message_id: null, human_hold_reason: null,
+                    ...(ignorePastConversation ? { form_sent_at: null, conversation_price_quote: null, conversation_price_quoted_at: null } : {}),
                     updated_at: now
                 }, { onConflict: 'page_id,contact_id' }),
             supabase

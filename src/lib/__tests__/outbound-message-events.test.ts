@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { recordChatbotInterruptionIfNeeded } from '@/lib/outbound-message-events';
+import { recordChatbotInterruptionIfNeeded, recordOutboundMessageEvent } from '@/lib/outbound-message-events';
 
 function queryResult(data: unknown) {
     const query: any = {
@@ -11,6 +11,30 @@ function queryResult(data: unknown) {
 }
 
 describe('chatbot interruption attribution', () => {
+    it('pauses the chatbot and saves the new quote when staff send through the application', async () => {
+        const rpc = vi.fn().mockResolvedValue({ error: null });
+        const upsert = vi.fn().mockResolvedValue({ error: null });
+        const supabase = { rpc, from: vi.fn((table: string) => table === 'outbound_message_events'
+            ? { upsert } : queryResult(null)) };
+        await recordOutboundMessageEvent(supabase, {
+            pageId: 'page_1', contactId: 'contact_1', messageId: 'manual.1', sourceType: 'manual',
+            messageText: '450 na lang po for two songs', sentAt: '2026-10-17T05:00:00Z'
+        });
+        expect(rpc).toHaveBeenCalledWith('record_chatbot_human_takeover', expect.objectContaining({
+            p_message_id: 'manual.1', p_resume_at: '2026-10-17T15:59:00.000Z',
+            p_price_quote: '450 na lang po for two songs'
+        }));
+        expect(upsert).toHaveBeenCalledWith(expect.objectContaining({ source_type: 'manual' }), { onConflict: 'message_id' });
+    });
+
+    it('does not mistake an automatic chatbot reply for a human takeover', async () => {
+        const rpc = vi.fn();
+        const supabase = { rpc, from: vi.fn(() => ({ upsert: vi.fn().mockResolvedValue({ error: null }) })) };
+        await recordOutboundMessageEvent(supabase, {
+            pageId: 'page_1', contactId: 'contact_1', messageId: 'bot.1', sourceType: 'chatbot', messageText: 'PHP 199'
+        });
+        expect(rpc).not.toHaveBeenCalled();
+    });
     it('records the staff sender when a manual message interrupts active detail collection', async () => {
         const configQuery = queryResult({
             details_to_collect: ['Name', 'Budget', 'Schedule', 'Service'],

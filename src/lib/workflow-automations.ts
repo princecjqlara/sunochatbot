@@ -2,6 +2,11 @@ import { sendMessage, sendMessengerMediaAttachment } from './facebook';
 import { ContactRecord, replaceTemplateVariables } from './placeholders';
 import { recordOutboundMessageEvent } from './outbound-message-events';
 import { isPipelineClosedForAutomation } from './contact-pipeline';
+import { getLiveChatbotLeadStage } from './chatbot-lead-stage';
+import { getChatbotContactState } from './chatbot-control';
+import { isChatbotHumanPaused } from './chatbot-human-takeover';
+
+class WorkflowDeliveryStopped extends Error {}
 
 const STANDARD_REPLY_WINDOW_MS = 24 * 60 * 60 * 1000;
 const MAX_FOLLOW_UP_STEPS = 10;
@@ -549,13 +554,27 @@ export async function processDueFollowUpAutomationSteps(params: {
                 continue;
             }
 
+            const assertDeliveryAllowed = async () => {
+                const currentState = await getChatbotContactState(supabase, automation.page_id, contact.id);
+                const liveStage = await getLiveChatbotLeadStage({ facebookPageId: page.fb_page_id,
+                    psid: contact.psid, accessToken: page.access_token, historyStartAt: currentState?.history_start_at });
+                const { data: currentContact, error: contactError } = await supabase.from('contacts')
+                    .select('id,pipeline_stage').eq('id', contact.id).eq('page_id', automation.page_id).maybeSingle();
+                if (contactError) throw new Error('Could not verify workflow lead stage');
+                if (liveStage || !currentContact || isPipelineClosedForAutomation(currentContact.pipeline_stage) ||
+                    currentState?.status === 'stopped' || isChatbotHumanPaused(currentState)) {
+                    throw new WorkflowDeliveryStopped('Lead stage or human handoff stopped automatic delivery');
+                }
+            };
+
             if (messageToSend) {
+                await assertDeliveryAllowed();
                 const sendResult = await sendMessage(
                     page.fb_page_id,
                     page.access_token,
                     contact.psid,
                     messageToSend,
-                    'RESPONSE'
+                    'RESPONSE', undefined, undefined, undefined, undefined, undefined, assertDeliveryAllowed
                 );
                 await recordOutboundMessageEvent(supabase, {
                     pageId: automation.page_id,
@@ -569,6 +588,7 @@ export async function processDueFollowUpAutomationSteps(params: {
             }
 
             if (mediaUrl) {
+                await assertDeliveryAllowed();
                 const mediaSendResult = await sendMessengerMediaAttachment(
                     page.fb_page_id,
                     page.access_token,
@@ -613,6 +633,12 @@ export async function processDueFollowUpAutomationSteps(params: {
 
             result.sent += 1;
         } catch (error) {
+            if (error instanceof WorkflowDeliveryStopped) {
+                await updateAutomationState(supabase, state.id, { status: 'stopped',
+                    stopped_at: now.toISOString(), stopped_reason: 'lead_stage_or_human_handoff', next_step_at: null });
+                result.stopped += 1;
+                continue;
+            }
             result.errors += 1;
             console.error('[FOLLOW_UP_AUTOMATION] Failed to send due step', {
                 stateId: state.id,
