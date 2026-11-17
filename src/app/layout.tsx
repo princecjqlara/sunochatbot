@@ -7,7 +7,7 @@ import { ToastProvider } from '@/components/Toast';
 const inter = Inter({ subsets: ['latin'] });
 
 export const metadata: Metadata = {
-  title: 'Sunobot - Facebook Page Management',
+  title: 'Sunochatbot Workspace',
   description: 'Manage your Facebook Page contacts, tags, and messaging in one place',
 };
 

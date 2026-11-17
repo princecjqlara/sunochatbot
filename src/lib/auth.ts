@@ -1,10 +1,17 @@
 import { NextAuthOptions } from 'next-auth';
 import FacebookProvider from 'next-auth/providers/facebook';
+import CredentialsProvider from 'next-auth/providers/credentials';
 import { getSupabaseAdmin } from './supabase';
 import { FACEBOOK_PERMISSION_SCOPE } from './facebook-permissions';
+import { authorizePasswordSignIn } from './password-sign-in';
 
 export const authOptions: NextAuthOptions = {
     providers: [
+        CredentialsProvider({
+            name: 'Suno account',
+            credentials: { email: { label: 'Email', type: 'email' }, password: { label: 'Password', type: 'password' } },
+            authorize: authorizePasswordSignIn
+        }),
         FacebookProvider({
             clientId: process.env.FACEBOOK_CLIENT_ID!,
             clientSecret: process.env.FACEBOOK_CLIENT_SECRET!,
@@ -17,6 +24,15 @@ export const authOptions: NextAuthOptions = {
     ],
     callbacks: {
         async jwt({ token, account, user }) {
+            if (account?.provider === 'credentials' && user) {
+                token.id = user.id;
+                token.email = user.email;
+                token.name = user.name;
+                token.picture = user.image;
+                delete token.accessToken;
+                delete token.facebookId;
+                return token;
+            }
             if (account && user) {
                 token.accessToken = account.access_token;
                 token.facebookId = account.providerAccountId;

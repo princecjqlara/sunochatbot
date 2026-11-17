@@ -35,6 +35,10 @@ yarn-error.log*
 # vercel
 .vercel
 
+# Checkout-local deployment and verification state
+/.private/
+/reports/*.log
+
 # Local production audit evidence and settings rollback snapshots
 /reports/*.json
 
