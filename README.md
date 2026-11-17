@@ -18,6 +18,8 @@ To review the Veo-style interface during setup, use **Preview workspace UI** on 
 
 With the setup deployment running, `node scripts/verify-workspace-preview.mjs --base=http://127.0.0.1:3100` checks the served preview and anonymous API/worker restrictions. Use `--expect-hidden` when checking an active production deployment instead. Both modes make only anonymous GET requests.
 
+These checks do **not** verify live feature or data parity. The current Owner preview has three sample views and 27 placeholder destinations. The original Veo page/API files exist in the authenticated workspace, but its database and tenant integration remain incomplete. See the [November 17 UI/data audit](docs/suno-ui-data-parity-audit-2026-11-17.md) for the verified gaps. Reproduce the source comparison with `py verification/audit_suno_veo_ui.py --veo-root "<original Veo app checkout>"`.
+
 ```powershell
 npm run typecheck
 npm test

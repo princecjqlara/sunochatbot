@@ -43,4 +43,12 @@ if (process.argv.includes('--expect-hidden')) {
     await check('/api/cron/workspace', 401, undefined, { 'x-middleware-subrequest': 'middleware:middleware:middleware:middleware:middleware' });
     await check('/api/test-facebook', 404);
 }
-console.log(JSON.stringify({ base: base.origin, passed: true, checks: results.length, results }, null, 2));
+console.log(JSON.stringify({
+    base: base.origin,
+    verification_scope: 'setup_preview_and_anonymous_access_controls_only',
+    live_feature_parity_verified: false,
+    sample_data_only: true,
+    passed: true,
+    checks: results.length,
+    results
+}, null, 2));

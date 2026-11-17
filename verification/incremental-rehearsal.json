@@ -1,7 +1,7 @@
 {
   "read_only_production": true,
   "customer_rows": 0,
-  "schema_sha256": "c8ffe0134a7f245326e269380b132f345cdf9f7823ccf721a32dabe29a5f5f83",
+  "schema_sha256": "566d166861f05b8032a21d789df352c73d08ca9effa2b5033ac3394e0e21b917",
   "skipped": [
     {
       "name": "001_initial_schema.sql",
