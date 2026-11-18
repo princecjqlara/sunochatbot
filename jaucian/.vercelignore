@@ -1,0 +1,14 @@
+.env*
+!.env.example
+.git/
+.venv/
+.vercel/
+veo messages files/
+telegram_insights.sqlite3
+telegram_insights.sqlite3-*
+*.dpapi
+.insights-base-url
+*.log
+__pycache__/
+.audit/
+.test-tmp/

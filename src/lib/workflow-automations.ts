@@ -1,12 +1,9 @@
 import { sendMessage, sendMessengerMediaAttachment } from './facebook';
+import { getAutomationPageScope, scopeAutomationQuery } from './page-automation-scope';
 import { ContactRecord, replaceTemplateVariables } from './placeholders';
 import { recordOutboundMessageEvent } from './outbound-message-events';
 import { isPipelineClosedForAutomation } from './contact-pipeline';
-import { getLiveChatbotLeadStage } from './chatbot-lead-stage';
-import { getChatbotContactState } from './chatbot-control';
-import { isChatbotHumanPaused } from './chatbot-human-takeover';
-
-class WorkflowDeliveryStopped extends Error {}
+import { assertMessengerAutomationDeliveryAllowed, ChatbotDeliveryStoppedError } from './chatbot-delivery';
 
 const STANDARD_REPLY_WINDOW_MS = 24 * 60 * 60 * 1000;
 const MAX_FOLLOW_UP_STEPS = 10;
@@ -440,6 +437,7 @@ export async function processDueFollowUpAutomationSteps(params: {
     limit?: number;
 }): Promise<FollowUpCronResult> {
     const { supabase } = params;
+    const scope=await getAutomationPageScope(supabase);
     const now = params.now ?? new Date();
     const limit = Math.max(1, Math.min(params.limit || 10, 50));
     const result: FollowUpCronResult = {
@@ -451,7 +449,7 @@ export async function processDueFollowUpAutomationSteps(params: {
         errors: 0
     };
 
-    const { data, error } = await supabase
+    const { data, error } = await scopeAutomationQuery(supabase
         .from('workflow_automation_states')
         .select(`
             id,
@@ -460,7 +458,7 @@ export async function processDueFollowUpAutomationSteps(params: {
             status,
             current_step_index,
             next_step_at,
-            workflow_automations(
+            workflow_automations${scope===null?'':'!inner'}(
                 id,
                 page_id,
                 name,
@@ -473,10 +471,10 @@ export async function processDueFollowUpAutomationSteps(params: {
                 reply_action,
                 pages(fb_page_id, access_token)
             ),
-            contacts(id, psid, page_id, name, last_interaction_at, pipeline_stage)
+            contacts(id, psid, page_id, name, last_interaction_at, last_inbound_at, pipeline_stage, pipeline_stage_source)
         `)
         .eq('status', 'active')
-        .lte('next_step_at', now.toISOString())
+        .lte('next_step_at', now.toISOString()),scope,'workflow_automations.page_id')
         .order('next_step_at', { ascending: true })
         .limit(limit);
 
@@ -501,7 +499,7 @@ export async function processDueFollowUpAutomationSteps(params: {
                 continue;
             }
 
-            if (isPipelineClosedForAutomation(contact.pipeline_stage)) {
+            if (isPipelineClosedForAutomation(contact.pipeline_stage, contact.pipeline_stage_source)) {
                 await updateAutomationState(supabase, state.id, {
                     status: 'stopped',
                     stopped_at: now.toISOString(),
@@ -554,27 +552,19 @@ export async function processDueFollowUpAutomationSteps(params: {
                 continue;
             }
 
-            const assertDeliveryAllowed = async () => {
-                const currentState = await getChatbotContactState(supabase, automation.page_id, contact.id);
-                const liveStage = await getLiveChatbotLeadStage({ facebookPageId: page.fb_page_id,
-                    psid: contact.psid, accessToken: page.access_token, historyStartAt: currentState?.history_start_at });
-                const { data: currentContact, error: contactError } = await supabase.from('contacts')
-                    .select('id,pipeline_stage').eq('id', contact.id).eq('page_id', automation.page_id).maybeSingle();
-                if (contactError) throw new Error('Could not verify workflow lead stage');
-                if (liveStage || !currentContact || isPipelineClosedForAutomation(currentContact.pipeline_stage) ||
-                    currentState?.status === 'stopped' || isChatbotHumanPaused(currentState)) {
-                    throw new WorkflowDeliveryStopped('Lead stage or human handoff stopped automatic delivery');
-                }
-            };
-
+            const checkDelivery = () => assertMessengerAutomationDeliveryAllowed({
+                supabase, pageId: automation.page_id, facebookPageId: page.fb_page_id,
+                accessToken: page.access_token, contactId: contact.id, psid: contact.psid,
+                anchorInboundAt: contact.last_inbound_at || undefined
+            });
             if (messageToSend) {
-                await assertDeliveryAllowed();
+                await checkDelivery();
                 const sendResult = await sendMessage(
                     page.fb_page_id,
                     page.access_token,
                     contact.psid,
                     messageToSend,
-                    'RESPONSE', undefined, undefined, undefined, undefined, undefined, assertDeliveryAllowed
+                    'RESPONSE'
                 );
                 await recordOutboundMessageEvent(supabase, {
                     pageId: automation.page_id,
@@ -588,7 +578,8 @@ export async function processDueFollowUpAutomationSteps(params: {
             }
 
             if (mediaUrl) {
-                await assertDeliveryAllowed();
+                // A stage edit can arrive after text but before the attachment.
+                await checkDelivery();
                 const mediaSendResult = await sendMessengerMediaAttachment(
                     page.fb_page_id,
                     page.access_token,
@@ -633,9 +624,11 @@ export async function processDueFollowUpAutomationSteps(params: {
 
             result.sent += 1;
         } catch (error) {
-            if (error instanceof WorkflowDeliveryStopped) {
-                await updateAutomationState(supabase, state.id, { status: 'stopped',
-                    stopped_at: now.toISOString(), stopped_reason: 'lead_stage_or_human_handoff', next_step_at: null });
+            if (error instanceof ChatbotDeliveryStoppedError) {
+                await updateAutomationState(supabase, state.id, {
+                    status: 'stopped', stopped_at: now.toISOString(),
+                    stopped_reason: 'lead_stage_or_handoff', next_step_at: null
+                });
                 result.stopped += 1;
                 continue;
             }

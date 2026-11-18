@@ -1,0 +1,152 @@
+'use client';
+import VeoDealIncentive from './VeoDealIncentive';
+import { useEffect, useRef, useState, type FormEvent } from 'react';
+import Link from 'next/link';
+import { receiptHoldLabels } from '@/lib/veo-receipts';
+import VeoReceiptSaleDetails from './VeoReceiptSaleDetails';
+import VeoDealEvidenceInbox from './VeoDealEvidenceInbox';
+const today = () => new Date(Date.now() + 8 * 3600000).toISOString().slice(0, 10);
+const field = 'block w-full rounded border border-slate-300 bg-white p-2 text-sm';
+const money = (v: number | null, c: string | null) => v == null || !c ? 'Unverified' : new Intl.NumberFormat('en-PH', { style: 'currency', currency: c }).format(v / 100);
+type ReceiptProps = { scope: any; accounts: any[]; compact?: boolean; initialContactId?: string; initialKind?: 'closed' | 'done' };
+export default function VeoReceiptInbox(props: ReceiptProps) {
+    return props.scope.reviewed_deals_enabled ? <VeoDealEvidenceInbox {...props}/> : <LegacyVeoReceiptInbox {...props}/>;
+}
+function LegacyVeoReceiptInbox({ scope, accounts, compact = false, initialContactId = '', initialKind = 'closed' }: ReceiptProps) {
+    const [data, setData] = useState<any>(null), [message, setMessage] = useState(''), [busy, setBusy] = useState(false), [version, setVersion] = useState(0);
+    const [from, setFrom] = useState(() => new Date(Math.max(Date.parse(scope.launch_at), Date.now() - 29 * 86400000) + 8 * 3600000).toISOString().slice(0, 10)), [to, setTo] = useState(today), [worker, setWorker] = useState(''), [offset, setOffset] = useState(0);
+    const [search, setSearch] = useState(''), [contacts, setContacts] = useState<any[]>([]), [picked, setPicked] = useState<any>(null), [client, setClient] = useState(initialContactId), [orders, setOrders] = useState<any[]>([]), [seller, setSeller] = useState(['manager', 'member'].includes(scope.role) ? scope.user_id : '');
+    const [kind, setKind] = useState(initialKind), [order, setOrder] = useState(''), [links, setLinks] = useState<Record<string, string>>({}), [photos, setPhotos] = useState<Record<string, string>>({});
+    const [payments, setPayments] = useState<any[]>([]), [loadingClient, setLoadingClient] = useState(false), [closedDeals, setClosedDeals] = useState<any[]>([]), [closedDeal, setClosedDeal] = useState('');
+    const [dealMode, setDealMode] = useState<'' | 'new' | 'existing'>('');
+    const [eligibility, setEligibility] = useState<any>(null), [checking, setChecking] = useState(false);
+    const openClosed = closedDeals.filter(d => d.seller_id === seller && (!d.order_id || !orders.find(o => o.id === d.order_id)?.done_at));
+    const mode = dealMode || (!openClosed.length ? 'new' : '');
+    const selectedClosed = mode === 'existing' ? closedDeals.find(d => d.id === closedDeal && d.seller_id === seller) : undefined;
+    const checkKey = [client, seller, kind, order, selectedClosed?.id || '', mode, version].join(':');
+    const currentCheck = eligibility?.key === checkKey ? eligibility : null;
+      const canSubmit = currentCheck?.allowed === true && !!order;
+    const requestId = useRef(''), selling = accounts.filter(a => a.active !== false && ['manager', 'member'].includes(a.role));
+    useEffect(() => { requestId.current = crypto.randomUUID(); }, [client, seller, kind, order, selectedClosed?.id, mode]);
+    useEffect(() => {
+        const c = new AbortController();
+        fetch('/api/workspace/receipts?' + new URLSearchParams({ from, to, offset: String(offset), ...(worker ? { worker_id: worker } : {}) }), { cache: 'no-store', signal: c.signal }).then(async r => { const b = await r.json(); if (!r.ok) throw Error(b.error); setData(b); }).catch(e => { if (!c.signal.aborted) setMessage(e.message); });
+        return () => c.abort();
+    }, [from, to, worker, offset, version]);
+    useEffect(() => {
+        if (compact) return;
+        const c = new AbortController(), timer = setTimeout(() => {
+            void fetch('/api/workspace/contacts?' + new URLSearchParams({ search, offset: '0' }), { signal: c.signal }).then(async r => { const b = await r.json(); if (!r.ok) throw Error(b.error); setContacts(b.items || []); }).catch(e => { if (!c.signal.aborted) setMessage(e.message); });
+        }, 250);
+        return () => { clearTimeout(timer); c.abort(); };
+    }, [search, compact]);
+    useEffect(() => { setOrder(''); setPicked(null); setOrders([]); setPayments([]); setClosedDeals([]); setClosedDeal(''); setDealMode(''); }, [client]);
+    useEffect(() => {
+        if (!client) { setLoadingClient(false); return; } setLoadingClient(true);
+        const c = new AbortController();
+        void fetch('/api/workspace?contact_id=' + client, { cache: 'no-store', signal: c.signal }).then(async r => { const b = await r.json(); if (!r.ok) throw Error(b.error); if (!c.signal.aborted) { setOrders(b.orders || []); setPicked(b.contact); setPayments(b.payments || []); setClosedDeals(b.closed_deals || []); } }).catch(e => { if (!c.signal.aborted) { setPicked(null); setOrders([]); setPayments([]); setClosedDeals([]); setMessage(e.message); } }).finally(() => { if (!c.signal.aborted) setLoadingClient(false); });
+        return () => c.abort();
+    }, [client, version]);
+    async function checkFacebook() {
+        setChecking(true); setMessage(''); setEligibility(null);
+        try {
+            const r = await fetch('/api/workspace/receipts', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'check', contact_id: client, seller_id: seller, receipt_kind: kind, order_id: order || undefined }) });
+            const b = await r.json(); if (!r.ok) throw Error(b.error);
+            setEligibility({ ...b, key: checkKey });
+            setPicked((old: any) => old?.id === client ? { ...old, pipeline_stage: b.lead_stage || old.pipeline_stage } : old);
+        } catch (e: any) { setMessage(e.message); } finally { setChecking(false); }
+    }
+    async function uploadReceipt(e: FormEvent<HTMLFormElement>) {
+        e.preventDefault(); if (!canSubmit || checking) { setMessage('Check Facebook requirements and complete every listed step before submitting.'); return; }
+        const form = e.currentTarget, body = new FormData(form); body.set('contact_id', client); body.set('seller_id', seller); body.set('receipt_kind', kind); body.set('request_id', requestId.current); if (order) body.set('order_id', order);
+        body.set('deal_mode', mode);
+        if (kind === 'closed') body.set('closed_occurred_at', new Date(String(body.get('closed_occurred_at')) + '+08:00').toISOString());
+        if (kind === 'done' && selectedClosed) body.set('closed_deal_id', selectedClosed.id);
+        setBusy(true); setMessage('');
+        try { const r = await fetch('/api/workspace/receipts', { method: 'POST', body }); const b = await r.json(); if (!r.ok) { setEligibility(b.requirements ? { ...b.requirements, key: checkKey } : null); throw Error(b.error); } setMessage(b.saved.duplicate ? 'This receipt is already recorded; no duplicate sale or delivery was created. Its existing notes are retained; use Edit receipt notes to change them.' : 'Receipt submitted after verification and queued for Jaucian.'); requestId.current = crypto.randomUUID(); form.reset(); setVersion(v => v + 1); }
+        catch (err: any) { setMessage(err.message); } finally { setBusy(false); }
+    }
+    async function recheck(id: string, selected?: string) {
+        setBusy(true); setMessage('');
+        try {
+            const r = await fetch('/api/workspace/receipts', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'recheck', receipt_id: id, order_id: selected || undefined }) });
+            const b = await r.json(); if (!r.ok) throw Error(b.error);
+            setMessage(b.holds?.length ? 'Rechecked. Complete the listed steps; salary remains on hold until the verified ledger qualifies.' : 'Rechecked. Eligible evidence is queued for Jaucian; each milestone is delivered once.'); setVersion(v => v + 1);
+        } catch (e: any) { setMessage(e.message); } finally { setBusy(false); }
+    }
+    return <section aria-label="Receipt inbox and salary holds" className="rounded-xl border bg-white p-5 space-y-4">
+        <div className="flex flex-wrap justify-between gap-3"><h2 className="text-xl font-bold">Receipts and salary on hold</h2><button className="text-sm underline" onClick={() => setVersion(v => v + 1)}>Recheck list</button></div>
+        <p className="text-sm">Create order and Mark as paid are separate steps. Create and link an order for a Closed Deal. To make it a Done Deal, select that same Closed Deal and order, then verify the payment and mark it paid.</p>
+      <p className="text-xs text-slate-500">Receipt checks use the latest saved Facebook stage and order evidence. Refresh runs in the background; unavailable or conflicting evidence keeps submission blocked until refreshed or reviewed by a supervisor. Jaucian receives eligible receipts automatically. Photos are private and expire after seven days.</p>
+        {compact && <Link className="underline text-sm" href="/dashboard/workspace?view=receipts">Open Receipts to submit a Closed or Done Deal photo</Link>}
+        {message && <p role="status" className="rounded border bg-amber-50 p-3 text-sm">{message}</p>}
+        {!compact && <><div className="grid gap-3 rounded border p-4 md:grid-cols-2">
+            <label className="text-sm">1. Search client<input className={field} value={search} onChange={e => { setSearch(e.target.value);setClient(''); }} placeholder="Search client name, ID or saved details" /></label>
+            <label className="text-sm">2. Pick client<select required className={field} value={client} onChange={e => setClient(e.target.value)}><option value="">Choose a client</option>{(picked && !contacts.some(c => c.id === picked.id) ? [picked, ...contacts] : contacts).map(c => <option key={c.id} value={c.id}>{c.name || 'Unknown client'} · {c.page_name || 'Assigned Page'}</option>)}</select></label>
+            {picked && !loadingClient && <label className="text-sm">Seller<select required className={field} value={seller} onChange={e => { setSeller(e.target.value); setOrder(''); setClosedDeal(''); setDealMode(''); }}><option value="">Choose a selling worker</option>{selling.map(a => <option key={a.id} value={a.id}>{a.name} · {a.role}</option>)}</select></label>}
+        </div>
+        {picked && !loadingClient && seller && <section aria-label="Client Closed Deals" className="rounded border bg-blue-50 p-4 space-y-3"><h3 className="font-semibold">3. {openClosed.length ? 'Choose the Closed Deal to complete' : 'No open Closed Deal for this client and seller'}</h3>
+        {openClosed.map(d => <article key={d.id} className={`rounded border p-3 text-sm ${selectedClosed?.id === d.id ? 'border-blue-700 bg-white' : ''}`}><p>Down payment: <strong>{money(d.amount_minor,d.currency)}</strong> · {new Date(d.occurred_at).toLocaleString('en-PH',{timeZone:'Asia/Manila'})}</p><button type="button" className="mt-2 underline" onClick={() => { setDealMode('existing');setKind('done');setClosedDeal(d.id);setOrder(d.order_id || ''); }}>{selectedClosed?.id === d.id ? 'Selected for Done Deal' : 'Turn this Closed Deal into Done Deal'}</button></article>)}
+        <div className="flex flex-wrap gap-4 text-sm"><button type="button" className="underline" onClick={() => { setDealMode('new');setKind('closed');setClosedDeal('');setOrder(''); }}>Create order: Closed Deal</button><button type="button" className="underline" onClick={() => { setDealMode('new');setKind('done');setClosedDeal('');setOrder(''); }}>Mark as paid: Done Deal</button></div>
+        {mode === 'new' && !!openClosed.length && <p className="text-xs">This is a new sale; earlier Closed Deals stay separate.</p>}</section>}
+        {picked && !loadingClient && mode && <label className="block text-sm">Order / total price<select className={field} value={order} disabled={!!selectedClosed?.order_id} onChange={e => setOrder(e.target.value)}><option value="">Choose or fetch the Facebook order</option>{orders.filter(o => o.seller_id === seller && (kind !== 'closed' || !o.done_at) && (selectedClosed?.order_id ? o.id === selectedClosed.order_id : mode === 'existing' ? !closedDeals.some(d => d.order_id === o.id && d.id !== selectedClosed?.id) : !closedDeals.some(d => d.order_id === o.id))).map(o => <option key={o.id} value={o.id}>{o.description} · {money(o.total_minor, o.currency)}</option>)}</select></label>}
+        <VeoReceiptSaleDetails contact={mode && (mode === 'new' || selectedClosed) ? picked : null} seller={picked ? seller : ''} order={orders.find(o => o.id === order && o.seller_id === seller)} payments={payments} closedDeals={selectedClosed ? [selectedClosed] : []} closedDealId={selectedClosed?.id || ''} dealMode={mode || 'new'} kind={kind} version={version} loading={loadingClient} onSaved={id => { setOrder(id); setVersion(v => v + 1); }} />
+        {picked && !loadingClient && mode && (mode === 'new' || selectedClosed) && <>
+        <section aria-label="Facebook receipt requirements" className="rounded border p-4 space-y-2">
+              <h3 className="font-semibold">Saved source requirements</h3>
+            <p className="text-sm">{kind === 'closed' ? 'Closed Deal: create and link the matching Facebook order and keep the lead Qualified or Converted. Creating the order does not mark it paid.' : 'Done Deal: Facebook lead stage must be Qualified or Converted, the matching Facebook order must be linked, and the full payment must be verified (up to ₱2 difference for PHP).'} Your team and seller Telegram mappings must also be complete.</p>
+              <button type="button" disabled={busy || checking || !seller || !order} className="underline text-sm disabled:opacity-40" onClick={() => void checkFacebook()}>{checking ? 'Checking saved requirements…' : 'Check saved requirements and queue Facebook refresh'}</button>
+            {currentCheck && <div role="status" className="space-y-1 text-sm">
+                <p>Latest accessible Facebook stage notice: <strong>{currentCheck.facebook?.stage?.replaceAll('_', ' ') || 'Unavailable'}</strong></p>
+                <p>Facebook checked: {currentCheck.facebook?.checked_at ? new Date(currentCheck.facebook.checked_at).toLocaleString('en-PH', { timeZone: 'Asia/Manila' }) + ' PHT' : 'Not checked'}</p>
+                {currentCheck.facebook?.stage_occurred_at && <p className="text-xs">Stage notice dated {new Date(currentCheck.facebook.stage_occurred_at).toLocaleString('en-PH', { timeZone: 'Asia/Manila' })} PHT</p>}
+                {!!currentCheck.blockers?.length && <ul className="list-disc pl-5">{currentCheck.blockers.map((key: string) => <li key={key}>{receiptHoldLabels[key] || key}</li>)}</ul>}
+                {currentCheck.facebook?.error && <p>{currentCheck.facebook.error}</p>}
+                <p className="text-xs">{currentCheck.facebook?.coverage || 'Facebook evidence unavailable.'}</p>
+                  <p className={canSubmit ? 'text-green-800' : 'text-amber-800'}>{canSubmit ? 'Saved source evidence passed. A newer Facebook update will be picked up by the background refresh.' : 'Submission blocked. Complete the listed steps, then check again.'}</p>
+            </div>}
+              {!currentCheck && <p className="text-xs">Submit stays disabled until saved source and deal evidence pass. Meta may not expose every Business Suite change; unavailable evidence cannot pass.</p>}
+        </section>
+        <form key={`${client}:${seller}:${kind}:${order}:${selectedClosed?.id || ''}`} className="grid gap-3 rounded border p-4 md:grid-cols-2" onSubmit={e => void uploadReceipt(e)}>
+            <h3 className="font-semibold md:col-span-2">{kind === 'closed' ? 'Closed Deal receipt' : 'Done Deal receipt'}</h3>
+            {kind === 'closed' && <><label className="text-sm">Down payment<input required name="closed_amount" inputMode="decimal" className={field} placeholder="How much was the down payment?" /></label><label className="text-sm">Currency<input required name="closed_currency" pattern="[A-Za-z]{3}" defaultValue="PHP" className={field} /></label><label className="text-sm">Payment time (PHT)<input required name="closed_occurred_at" type="datetime-local" defaultValue={new Date(Date.now() + 8 * 3600000).toISOString().slice(0, 16)} className={field} /></label><p className="text-xs self-center">The down payment is kept with this Closed Deal and matched when completing its Done Deal.</p></>}
+            <label className="text-sm">Receipt / conversation photo<input required className={field} name="photo" type="file" accept="image/jpeg,image/png,image/webp" onChange={() => { requestId.current = crypto.randomUUID(); }} /></label>
+            <label className="text-sm">Receipt notes (optional)<textarea name="notes" className={field} maxLength={2000} rows={3} placeholder="Payment context, client instructions, or steps still pending" /></label>
+            <button disabled={busy || checking || !canSubmit || !client || !seller || !mode || mode === 'existing' && !selectedClosed} className="rounded bg-slate-900 px-4 py-2 text-white disabled:opacity-40 md:col-span-2">{busy ? 'Verifying and submitting…' : 'Submit receipt evidence'}</button>
+        </form></>}</>}
+        <div className="flex flex-wrap gap-3"><label className="text-sm">From<input className={field} type="date" value={from} max={to} onChange={e => { setFrom(e.target.value); setOffset(0); }} /></label><label className="text-sm">Through<input className={field} type="date" value={to} min={from} max={today()} onChange={e => { setTo(e.target.value); setOffset(0); }} /></label>{scope.role !== 'member' && <label className="text-sm">Employee<select className={field} value={worker} onChange={e => { setWorker(e.target.value); setOffset(0); }}><option value="">All staff in your branch</option>{accounts.filter(a => ['member', 'manager'].includes(a.role)).map(a => <option key={a.id} value={a.id}>{a.name}</option>)}</select></label>}</div>
+        {!data && <p className="text-sm">Loading receipt evidence…</p>}
+        {data && !data.items.length && <p className="text-sm text-slate-500">No receipt evidence in these dates. Verified salary is shown separately in Salary.</p>}
+        {(data?.items || []).map((r: any) => <article key={r.id} className={`rounded border p-4 space-y-2 ${r.salary_status === 'on_hold' ? 'border-amber-300 bg-amber-50' : 'bg-slate-50'}`}>
+            <div className="flex flex-wrap justify-between gap-2"><Link className="font-semibold underline" href={`/dashboard/contacts/${r.contact_id}?pageId=${r.page_id}`}>{r.contact_name || 'Unknown client'}</Link><span className="text-xs">{r.receipt_kind === 'closed' ? 'Closed Deal receipt' : 'Done Deal receipt'} · {r.seller_name} · {r.page_name}</span></div>
+            <p className="text-sm font-semibold">Salary: {r.salary_status === 'on_hold' ? 'ON HOLD' : 'Eligible in the verified ledger — see Salary'} · Telegram: {r.delivery_status.replaceAll('_', ' ')}</p>
+            {r.receipt_kind === 'closed' && r.closed_deal_id && <p className="text-sm">Closed Deal: {['qualified', 'converted'].includes(r.lead_stage) ? 'Closed Deal recorded. Create/link order and Mark as paid remain separate steps; this sale is counted once.' : 'Waiting for the lead stage to be Qualified or Converted.'} Any order/payment steps below apply to Salary and Done Deal completion.</p>}
+            <p className="text-sm">Lead: {r.lead_stage || 'Unknown'} · Order: {r.order_description || 'Not created / linked'} · Verified payment: {money(r.paid_minor, r.currency)} / {money(r.total_minor, r.currency)}</p>
+            {r.facebook && <p className="text-xs">Facebook stage notice: {r.facebook.stage || 'Unavailable'} · Last checked: {r.facebook.checked_at ? new Date(r.facebook.checked_at).toLocaleString('en-PH', { timeZone: 'Asia/Manila' }) + ' PHT' : 'Not checked'}</p>}
+            {r.closed_amount_minor != null && <p className="text-sm">Down payment: {money(r.closed_amount_minor, r.currency)} · {r.closed_payment_verified ? 'Reconciled against verified payment records' : 'Pending financial verification / reconciliation'}</p>}
+            {r.receipt_kind === 'done' && <p className="text-sm">Client sent: <strong>{money(r.done_balance_paid_minor, r.currency)}</strong> · Total price: <strong>{money(r.total_minor, r.currency)}</strong></p>}
+            {r.receipt_kind === 'done' && r.settlement_difference_minor != null && <p className="text-sm">Payment difference from deal price: {money(r.settlement_difference_minor, r.currency)} · maximum allowed difference: {money(r.settlement_tolerance_minor, r.currency)}</p>}
+            <VeoDealIncentive kind="receipt" id={r.id} /><p className="text-sm whitespace-pre-wrap">Notes: {r.notes || 'None recorded'}</p>
+            <details><summary className="cursor-pointer text-sm underline">Edit receipt notes</summary><form key={`${r.id}:${r.notes || ''}`} className="space-y-2 mt-2" onSubmit={async e => {
+                e.preventDefault(); const notes = String(new FormData(e.currentTarget).get('notes') || ''); setBusy(true); setMessage('');
+                try { const res = await fetch('/api/workspace/receipts', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'notes', receipt_id: r.id, notes }) }), b = await res.json(); if (!res.ok) throw Error(b.error); setMessage('Receipt notes saved. Financial records are unchanged.'); setVersion(v => v + 1); } catch (err: any) { setMessage(err.message); } finally { setBusy(false); }
+            }}><textarea aria-label="Edit receipt notes" className={field} name="notes" rows={3} maxLength={2000} defaultValue={r.notes || ''} /><button className="text-sm underline disabled:opacity-40" disabled={busy}>Save receipt notes</button></form></details>
+            {!!r.salary_holds.length && <ul className="text-sm list-disc pl-5">{r.salary_holds.map((key: string) => <li key={key}>{receiptHoldLabels[key] || key}</li>)}</ul>}
+            {r.holds.filter((key: string) => !r.salary_holds.includes(key)).map((key: string) => <p className="text-xs" key={key}>{receiptHoldLabels[key] || key}</p>)}
+            {r.last_error && <p className="text-xs">{r.last_error}</p>}
+            {['manager','team_leader'].includes(scope.role)?<details className="border-t pt-2"><summary className="cursor-pointer text-sm text-red-700">Delete receipt</summary><form className="mt-2 space-y-2" onSubmit={async e => {
+                e.preventDefault();const f = new FormData(e.currentTarget);setBusy(true);setMessage('');
+                try {
+                    const res = await fetch('/api/workspace/receipts', {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'delete',receipt_id:r.id,reason:f.get('reason'),cancel_closed:f.get('cancel_closed')==='on'})}),b = await res.json();if(!res.ok)throw Error(b.error);
+                    setMessage(f.get('cancel_closed')==='on'?'Receipt deleted and the unlinked Closed Deal cancelled. The audit record is retained.':'Receipt deleted. Pending forwarding is stopped and Telegram removal is queued with automatic retries. Verified financial records and audit history are retained.');setPhotos(old=>{const next={...old};delete next[r.id];return next;});setVersion(v=>v+1);
+                } catch(err:any) {setMessage(err.message);} finally {setBusy(false);}
+            }}><p className="text-xs">Only Managers and Team Leaders can delete receipts within their permitted team and Pages. Jaucian will queue removal from Telegram. Verified payments and the audit history are retained.</p><label className="block text-sm">Deletion reason<input className={field} name="reason" required minLength={3} maxLength={500} placeholder="Duplicate receipt, wrong photo, or another correction" /></label>
+            {r.receipt_kind==='closed' && r.closed_deal_id && !r.order_id && !r.closed_payment_verified && <label className="flex gap-2 text-sm"><input type="checkbox" name="cancel_closed" />Also cancel this mistaken Closed Deal and remove it from quota counts. No order or verified payment is linked.</label>}
+            <button disabled={busy} className="rounded bg-red-700 px-3 py-2 text-sm text-white disabled:opacity-40">Delete this receipt</button></form></details>:<p className="text-xs text-slate-500">Mistaken receipt? Ask your Manager or Team Leader to delete it.</p>}
+            {!r.order_id && <label className="block text-sm">Link the created order<select className={field} value={links[r.id] || ''} onChange={e => setLinks(old => ({ ...old, [r.id]: e.target.value }))}><option value="">Choose the matching order</option>{r.order_options.map((o: any) => <option key={o.id} value={o.id}>{o.description} · {money(o.total_minor, o.currency)}</option>)}</select></label>}
+            <div className="flex gap-4 text-sm"><button disabled={busy} className="underline disabled:opacity-40" onClick={() => void recheck(r.id, links[r.id])}>Recheck receipt and salary eligibility</button>{r.photo_available && <button className="underline" onClick={async () => { try { const res = await fetch(`/api/workspace/receipts?receipt_id=${r.id}&preview=1`, { cache: 'no-store' }), b = await res.json(); if (!res.ok) throw Error(b.error); setPhotos(old => ({ ...old, [r.id]: b.photo_url })); } catch (e: any) { setMessage(e.message); } }}>View private photo</button>}</div>
+            {photos[r.id] && <img className="max-h-80 max-w-full object-contain" src={photos[r.id]} alt="Privately submitted receipt evidence" />}
+        </article>)}
+        {!!data?.total && <div className="flex justify-between text-sm"><button disabled={!offset} className="underline disabled:opacity-40" onClick={() => setOffset(Math.max(0, offset - 50))}>Previous</button><span>{data.total} receipts</span><button disabled={offset + 50 >= data.total} className="underline disabled:opacity-40" onClick={() => setOffset(offset + 50)}>Next</button></div>}
+    </section>;
+}

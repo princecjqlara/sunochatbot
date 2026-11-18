@@ -1,5 +1,3 @@
-import { pauseChatbotForHumanTakeover } from '@/lib/chatbot-human-takeover';
-
 export type OutboundMessageSource = 'manual' | 'campaign' | 'automation' | 'welcome' | 'chatbot';
 
 type SupabaseLike = {
@@ -17,7 +15,7 @@ export type OutboundMessageEventInput = {
     actorName?: string | null;
     messageKind?: string | null;
     sentAt?: string;
-    messageText?: string;
+    stateBeforeStop?: ChatbotInterruptionState | null;
 };
 
 export type ChatbotInterruptionInput = {
@@ -30,6 +28,7 @@ export type ChatbotInterruptionInput = {
     actorName?: string | null;
     leadStage?: string | null;
     interruptedAt?: string;
+    stateBeforeStop?: ChatbotInterruptionState | null;
 };
 
 type ChatbotInterruptionConfig = {
@@ -95,7 +94,9 @@ export async function recordChatbotInterruptionIfNeeded(
             .select('details_to_collect, details_completion_percent')
             .eq('page_id', event.pageId)
             .maybeSingle(),
-        supabase
+        event.stateBeforeStop !== undefined
+            ? Promise.resolve({ data: event.stateBeforeStop, error: null })
+            : supabase
             .from('chatbot_contact_states')
             .select('status, collected_details')
             .eq('page_id', event.pageId)
@@ -153,10 +154,6 @@ export async function recordOutboundMessageEvent(
     if (!event.messageId?.trim()) return;
 
     try {
-        if (event.sourceType === 'manual' && event.contactId) {
-            await pauseChatbotForHumanTakeover(supabase, { pageId: event.pageId, contactId: event.contactId,
-                messageId: event.messageId, messageText: event.messageText, takenOverAt: event.sentAt }).catch(warnOnce);
-        }
         const { error } = await supabase
             .from('outbound_message_events')
             .upsert({
@@ -186,7 +183,8 @@ export async function recordOutboundMessageEvent(
                 interruptionType: 'manual_message',
                 actorUserId: event.actorUserId,
                 actorName: event.actorName,
-                interruptedAt: event.sentAt
+                interruptedAt: event.sentAt,
+                stateBeforeStop: event.stateBeforeStop
             });
         }
     } catch (error) {

@@ -11,55 +11,19 @@ function createJsonResponse(ok: boolean, payload: unknown, status: number = 200,
 }
 
 afterEach(() => {
-    vi.useRealTimers();
     vi.restoreAllMocks();
     vi.unstubAllGlobals();
 });
 
 describe('sendMessage', () => {
-    it('recovers from an explicit temporary Facebook rejection', async () => {
-        vi.useFakeTimers();
-        const fetchMock = vi.fn()
-            .mockResolvedValueOnce(createJsonResponse(false, { error: {
-                message: '(#2) Service temporarily unavailable', code: 2
-            } }, 400, 'Bad Request'))
-            .mockResolvedValueOnce(createJsonResponse(true, { message_id: 'mid.recovered' }));
+    it('sends every video-length choice as a Messenger text quick reply', async () => {
+        const fetchMock = vi.fn().mockResolvedValue(createJsonResponse(true, { message_id: 'duration-mid' }));
         vi.stubGlobal('fetch', fetchMock);
-        const assertion = expect(sendMessage('page_1', 'token_1', 'psid_1', 'hello', 'RESPONSE'))
-            .resolves.toEqual({ message_id: 'mid.recovered' });
-        await vi.runAllTimersAsync();
-        await assertion;
-        expect(fetchMock).toHaveBeenCalledTimes(2);
-        expect(fetchMock.mock.calls[0][1].body).toBe(fetchMock.mock.calls[1][1].body);
-    });
-
-    it('bounds temporary rejection retries to three attempts', async () => {
-        vi.useFakeTimers();
-        const fetchMock = vi.fn().mockImplementation(async () => createJsonResponse(false, {
-            error: { message: '(#2) Service temporarily unavailable', code: 2 }
-        }, 503, 'Service Unavailable'));
-        vi.stubGlobal('fetch', fetchMock);
-        const assertion = expect(sendMessage('page_1', 'token_1', 'psid_1', 'hello', 'RESPONSE'))
-            .rejects.toThrow('Service temporarily unavailable');
-        await vi.runAllTimersAsync();
-        await assertion;
-        expect(fetchMock).toHaveBeenCalledTimes(3);
-    });
-
-    it('does not retry policy rejections even when marked transient', async () => {
-        const fetchMock = vi.fn().mockResolvedValue(createJsonResponse(false, {
-            error: { message: '(#10) Outside allowed window', code: 10, is_transient: true }
-        }, 400, 'Bad Request'));
-        vi.stubGlobal('fetch', fetchMock);
-        await expect(sendMessage('page_1', 'token_1', 'psid_1', 'hello', 'RESPONSE')).rejects.toThrow('Outside allowed window');
-        expect(fetchMock).toHaveBeenCalledTimes(1);
-    });
-
-    it('does not replay ambiguous network failures', async () => {
-        const fetchMock = vi.fn().mockRejectedValue(new TypeError('fetch failed'));
-        vi.stubGlobal('fetch', fetchMock);
-        await expect(sendMessage('page_1', 'token_1', 'psid_1', 'hello', 'RESPONSE')).rejects.toThrow('fetch failed');
-        expect(fetchMock).toHaveBeenCalledTimes(1);
+        const choices = [16, 20, 24, 30, 60].map(seconds => ({ title: seconds === 60 ? '1 min' : `${seconds}s`, payload: `VEO:DURATION:${seconds}` }));
+        await sendMessage('page', 'token', 'customer', 'Ilang seconds ang gusto mo?', 'RESPONSE', undefined, undefined, undefined, undefined, undefined, choices);
+        const payload = JSON.parse(fetchMock.mock.calls[0][1].body);
+        expect(payload.message.quick_replies).toEqual(choices.map(choice => ({ content_type: 'text', ...choice })));
+        expect(payload.message.attachment).toBeUndefined();
     });
 
     it('rejects invalid utility parameters before calling Facebook', async () => {

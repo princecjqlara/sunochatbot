@@ -1,6 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSessionFromRequest } from '@/lib/get-session';
 import { getSupabaseAdmin } from '@/lib/supabase';
+import { DatabaseReadTimeout, requestDeadline } from '@/lib/request-deadline';
+import { facebookWebhookConnectionStatus } from '@/lib/facebook-page-connection';
+import { workspaceEnabled, workspaceScope } from '@/lib/veo-workspace';
+import { pageConnectionCache } from '@/lib/page-connection-cache';
+import { fetchAllSupabaseRows } from '@/lib/supabase-pagination';
 
 export const dynamic = 'force-dynamic';
 
@@ -104,7 +109,7 @@ export async function GET(request: NextRequest) {
 
         const supabase = getSupabaseAdmin();
 
-        const { data: userPages, error } = await supabase
+        const userPages = await requestDeadline(signal => fetchAllSupabaseRows<any>(supabase
             .from('user_pages')
             .select(`
         page_id,
@@ -118,20 +123,29 @@ export async function GET(request: NextRequest) {
           access_token
         )
       `)
-            .eq('user_id', userId);
+            .eq('user_id', userId).order('page_id').abortSignal(signal)), 10000);
 
-        if (error) throw error;
-
+        const scope = workspaceEnabled() ? await workspaceScope(userId, request) : null;
         const pageRecords = (userPages
             ?.map((up) => Array.isArray(up.pages) ? up.pages[0] : up.pages)
-            .filter(Boolean) || []) as PageRecord[];
+            .filter(p => p && (!workspaceEnabled() || scope?.page_ids.includes(p.id))) || []) as PageRecord[];
 
-        const pageStatuses = await Promise.all(
-            pageRecords.map(async (page) => ({
-                page,
-                tokenStatus: await getPageTokenStatus(page)
-            }))
-        );
+        const connectionDetails = request.nextUrl?.searchParams.get('connectionDetails') === '1';
+        const checkWebhook = connectionDetails || process.env.VEO_ENFORCE_PAGE_RUNTIME_SCOPE === 'true';
+        const pageStatuses: Array<{ page: PageRecord; tokenStatus: PageTokenStatus; webhookStatus: 'ready' | 'incomplete' | 'unknown' }> = [];
+        let next = 0;
+        await Promise.all(Array.from({ length: Math.min(14, pageRecords.length) }, async () => {
+            while (next < pageRecords.length) {
+                const page = pageRecords[next++];
+                const status = await pageConnectionCache.read([page.id, page.fb_page_id, page.access_token || '', process.env.FACEBOOK_CLIENT_ID || '', String(checkWebhook)], async () => {
+                    const tokenStatus = await getPageTokenStatus(page);
+                    const webhookStatus = checkWebhook && tokenStatus !== 'invalid' && page.access_token
+                        ? await facebookWebhookConnectionStatus(page.fb_page_id, page.access_token, process.env.FACEBOOK_CLIENT_ID) : 'unknown';
+                    return { tokenStatus, webhookStatus };
+                }, connectionDetails);
+                pageStatuses.push({ page, ...status });
+            }
+        }));
 
         const sortedPages = pageStatuses
             .sort((a, b) => {
@@ -148,17 +162,21 @@ export async function GET(request: NextRequest) {
             });
 
         const pages = sortedPages
-            .filter(({ tokenStatus }) => tokenStatus !== 'invalid')
-            .map(({ page }) => withoutAccessToken(page));
+            .filter(({ tokenStatus, webhookStatus }) => tokenStatus !== 'invalid' && webhookStatus !== 'incomplete')
+            .map(({ page, tokenStatus, webhookStatus }) => ({ ...withoutAccessToken(page),
+                ...(connectionDetails ? { connectionStatus: tokenStatus === 'valid' && webhookStatus === 'ready' ? 'ready' : 'unknown' } : {})
+            }));
         const reconnectRequiredPages = sortedPages
-            .filter(({ tokenStatus }) => tokenStatus === 'invalid')
-            .map(({ page }) => ({
+            .filter(({ tokenStatus, webhookStatus }) => tokenStatus === 'invalid' || webhookStatus === 'incomplete')
+            .map(({ page, webhookStatus }) => ({
                 ...withoutAccessToken(page),
-                requiresReconnect: true
+                requiresReconnect: true,
+                ...(webhookStatus === 'incomplete' ? { connectionSetupIncomplete: true } : {})
             }));
 
-        return NextResponse.json({ pages, reconnectRequiredPages });
+        return NextResponse.json({ pages, reconnectRequiredPages }, { headers: { 'Cache-Control': 'no-store' } });
     } catch (error) {
+        if (error instanceof DatabaseReadTimeout) return NextResponse.json({ error: 'Connected Pages are temporarily unavailable. Please retry.', code: error.code, retryable: true }, { status: 503, headers: { 'Cache-Control': 'no-store' } });
         console.error('Error fetching pages:', error);
         return NextResponse.json(
             { error: 'Failed to fetch pages', message: (error as Error).message },

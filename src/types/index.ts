@@ -42,6 +42,10 @@ export interface UserPage {
 }
 
 export interface Contact {
+  lead_quality?:ReturnType<typeof import('@/lib/lead-quality').leadQualityForStage>;
+  chatbot_enabled?: boolean;
+  bot_control?: {enabled:boolean;can_reply:boolean;reason:string;loaded_at?:string};
+  conversion_projection?: any;
   id: string;
   page_id: string;
   psid: string;
@@ -63,6 +67,9 @@ export interface Contact {
 }
 
 export interface ChatbotConfig {
+    pricing_enabled?: boolean;
+  guided_sales_enabled?: boolean;
+  sales_form_fields?: string[];
   page_id: string;
   enabled: boolean;
   instructions: string;
@@ -221,6 +228,7 @@ export interface FacebookPage {
   name: string;
   access_token: string;
   category?: string;
+  tasks?: string[];
   picture?: {
     data: {
       url: string;
@@ -253,4 +261,5 @@ export interface FacebookMessage {
     name: string;
   };
   created_time: string;
+  tags?: { data?: Array<{ name?: string }> };
 }

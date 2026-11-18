@@ -1,4 +1,5 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+afterEach(()=>{vi.unstubAllEnvs();});
 
 const mocks = vi.hoisted(() => ({ conversation: vi.fn(), messages: vi.fn(), labels: vi.fn(), assess: vi.fn(), schedule: vi.fn() }));
 vi.mock('@/lib/facebook', () => ({ getConversationForPsid: mocks.conversation, getConversationMessages: mocks.messages,
@@ -74,6 +75,7 @@ function database() {
         const q: any = {
             select: () => q, order: () => q, limit: (n: number) => { cap = n; return q; },
             eq: (key: string, value: unknown) => { filters.push(row => row[key] === value); return q; },
+            in: (key:string,values:unknown[])=>{filters.push(row=>values.includes(row[key]));return q;},
             lt: (key: string, value: string) => { filters.push(row => row[key] < value); return q; },
             lte: (key: string, value: string) => { filters.push(row => row[key] <= value); return q; },
             update: (value: any) => { changes = value; return q; },
@@ -83,7 +85,15 @@ function database() {
         };
         return q;
     });
-    return { from, tables };
+    const rpc=vi.fn(async(_name:string,_args?:any):Promise<any>=>{
+        const state = tables.chatbot_contact_states[0];
+        if (state.human_message_id !== _args?.p_human_message || state.human_pause_status !== 'checking') {
+            return {data:{released:false,scheduled:false},error:null};
+        }
+        tables.chatbot_contact_states[0].human_pause_status='released';
+        return {data:{released:true,scheduled:true},error:null};
+    });
+    return { from, tables, rpc };
 }
 
 describe('11:59 PM human takeover review', () => {
@@ -100,9 +110,7 @@ describe('11:59 PM human takeover review', () => {
         const r = await processDueHumanTakeovers({ supabase: db, now });
         expect(r).toMatchObject({ released: 1, held: 0, scheduled: 1 });
         expect(db.tables.chatbot_contact_states[0].human_pause_status).toBe('released');
-        expect(db.tables.chatbot_follow_up_jobs[0]).toMatchObject({
-            anchor_inbound_at: '2026-10-17T06:00:00.000Z', schedule_type: 'response', due_at: now.toISOString()
-        });
+        expect(db.rpc).toHaveBeenCalledWith('suno_finish_takeover_review',{p_page:'p',p_contact:'c',p_human_message:'human.1',p_epoch:0,p_policy:1,p_anchor:'2026-10-17T06:00:00.000Z'});
         expect((await processDueHumanTakeovers({ supabase: db, now })).checked).toBe(0);
     });
     it('does not resume before 11:59 PM PH', async () => {
@@ -195,12 +203,26 @@ describe('11:59 PM human takeover review', () => {
     });
     it('does not manufacture a fresh 24-hour window at midnight', async () => {
         const db = database(); db.tables.contacts[0].last_inbound_at = '2026-10-15T06:00:00.000Z';
+        db.rpc.mockResolvedValue({data:{released:true,scheduled:false},error:null});
         expect((await processDueHumanTakeovers({ supabase: db, now })).released).toBe(1);
         expect(db.tables.chatbot_follow_up_jobs).toHaveLength(0);
     });
     it('does not re-send a reminder already delivered earlier', async () => {
         const db = database(); db.tables.chatbot_follow_up_jobs = [0, 1].map(sequence_index => ({ page_id: 'p', contact_id: 'c', anchor_inbound_at: '2026-10-17T06:00:00.000Z', schedule_type: 'response', sequence_index, status: 'sent' }));
+        db.rpc.mockResolvedValue({data:{released:true,scheduled:false},error:null});
         expect((await processDueHumanTakeovers({ supabase: db, now })).scheduled).toBe(0);
         expect(db.tables.chatbot_follow_up_jobs).toHaveLength(2);
+    });
+    it('leaves a changed conversation paused when the final atomic checkpoint rejects the review',async()=>{
+        const db=database();db.rpc.mockResolvedValue({data:{released:false,scheduled:false},error:null});
+        expect(await processDueHumanTakeovers({supabase:db,now})).toMatchObject({released:0,scheduled:0});
+        expect(db.tables.chatbot_contact_states[0].human_pause_status).toBe('paused');
+    });
+    it('does not inspect or release handovers outside the current Page automation scope',async()=>{
+        vi.stubEnv('VEO_WORKSPACE_ENABLED','false');vi.stubEnv('VEO_ENFORCE_PAGE_RUNTIME_SCOPE','true');
+        const db=database();db.rpc.mockResolvedValue({data:[],error:null});
+        expect(await processDueHumanTakeovers({supabase:db,now})).toMatchObject({checked:0,released:0});
+        expect(mocks.conversation).not.toHaveBeenCalled();
+        expect(db.tables.chatbot_contact_states[0].human_pause_status).toBe('paused');
     });
 });

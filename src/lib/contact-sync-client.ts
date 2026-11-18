@@ -1,3 +1,5 @@
+import { DatabaseReadTimeout, requestDeadline } from './request-deadline';
+
 export type ContactSyncResponse = {
     success?: boolean;
     partial?: boolean;
@@ -83,14 +85,17 @@ async function postSync(
         cursor: string | null;
         syncStartedAt: string | null;
         syncRunId: string;
+        forceFullSync: boolean;
     }
 ): Promise<ContactSyncResponse> {
+    try { return await requestDeadline(async signal => {
     const response = await fetch(`/api/pages/${pageId}/sync`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
+        signal,
         body: JSON.stringify({
-            forceFullSync: true,
+            forceFullSync: options.forceFullSync,
             paged: true,
             ...(options.resumePsids.length > 0 ? { resumePsids: options.resumePsids } : {}),
             ...(options.cursor ? { cursor: options.cursor } : {}),
@@ -100,12 +105,18 @@ async function postSync(
     });
 
     return parseSyncResponse(response);
+    }, 90000); } catch (error) {
+        if (error instanceof DatabaseReadTimeout) throw new ContactSyncRequestError('Contact sync timed out. Retry from Contacts to continue.', 504);
+        throw error;
+    }
 }
 
 export async function runContactSyncToCompletion(
     pageId: string,
     options: {
         onProgress?: (progress: ContactSyncProgress) => void;
+        /** Defaults to a full scan for manual sync actions; reconnects should use the incremental checkpoint. */
+        forceFullSync?: boolean;
     } = {}
 ): Promise<ContactSyncResult> {
     let resumePsids: string[] = [];
@@ -122,7 +133,7 @@ export async function runContactSyncToCompletion(
 
         for (let retry = 1; retry <= MAX_TIMEOUT_RETRIES_PER_STEP; retry++) {
             try {
-                data = await postSync(pageId, { resumePsids, cursor, syncStartedAt, syncRunId });
+                data = await postSync(pageId, { resumePsids, cursor, syncStartedAt, syncRunId, forceFullSync: options.forceFullSync ?? true });
                 break;
             } catch (error) {
                 if (error instanceof ContactSyncRequestError && error.status >= 400 && error.status < 500) {

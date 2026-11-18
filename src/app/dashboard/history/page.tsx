@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
     AlertTriangle,
     CheckCircle2,
@@ -133,6 +133,7 @@ function ActivityIcon({ kind }: { kind: HistoryItem['kind'] }) {
 }
 
 export default function HistoryPage() {
+    const generation = useRef(0), currentRequest = useRef<AbortController>();
     const [pages, setPages] = useState<Page[]>([]);
     const [selectedPageId, setSelectedPageId] = useState('');
     const [items, setItems] = useState<HistoryItem[]>([]);
@@ -164,7 +165,8 @@ export default function HistoryPage() {
                 if (!response.ok) throw new Error(data.message || 'Failed to load pages');
                 const nextPages = data.pages || [];
                 setPages(nextPages);
-                setSelectedPageId((current) => current || nextPages[0]?.id || '');
+                const requested = new URLSearchParams(window.location?.search || '').get('pageId');
+                setSelectedPageId(current => nextPages.some((page: Page) => page.id === current) ? current : nextPages.some((page: Page) => page.id === requested) ? requested! : nextPages[0]?.id || '');
             } catch (loadError) {
                 setError((loadError as Error).message);
                 setLoading(false);
@@ -182,6 +184,8 @@ export default function HistoryPage() {
     }, [searchInput]);
 
     const fetchHistory = useCallback(async () => {
+        const issue = ++generation.current;
+        currentRequest.current?.abort(); const controller = new AbortController(); currentRequest.current = controller;
         if (!selectedPageId) {
             setItems([]);
             setLoading(false);
@@ -197,23 +201,25 @@ export default function HistoryPage() {
             if (actorId) params.set('actorId', actorId);
             if (dateFrom) params.set('dateFrom', dateFrom);
             if (dateTo) params.set('dateTo', dateTo);
-            const response = await fetch(`/api/pages/${selectedPageId}/history?${params.toString()}`, { cache: 'no-store' });
+            const response = await fetch(`/api/pages/${selectedPageId}/history?${params.toString()}`, { cache: 'no-store', signal: controller.signal });
             const data: HistoryResponse = await response.json();
             if (!response.ok) throw new Error(data.message || 'Failed to load history');
+            if (issue !== generation.current || controller.signal.aborted) return;
             setItems(data.items || []);
             setTotal(data.total || 0);
             setTeam(data.team || []);
             setSummary(data.summary || { targets: 0, succeeded: 0, failed: 0, pending: 0 });
             setAuditEnabled(data.auditEnabled !== false);
         } catch (loadError) {
+            if (issue !== generation.current || controller.signal.aborted) return;
             setError((loadError as Error).message);
             setItems([]);
         } finally {
-            setLoading(false);
+            if (issue === generation.current && !controller.signal.aborted) setLoading(false);
         }
     }, [selectedPageId, page, pageSize, kind, statusFilter, actorId, dateFrom, dateTo, search]);
 
-    useEffect(() => { fetchHistory(); }, [fetchHistory]);
+    useEffect(() => { void fetchHistory(); return () => { currentRequest.current?.abort(); generation.current++; }; }, [fetchHistory]);
 
     const selectedPage = useMemo(() => pages.find((candidate) => candidate.id === selectedPageId), [pages, selectedPageId]);
 
@@ -256,14 +262,14 @@ export default function HistoryPage() {
     ];
 
     return (
-        <div className="space-y-5">
-            <div className="flex flex-col lg:flex-row lg:items-end justify-between gap-4 border-b-2 border-black pb-4">
+        <div className="dashboard-page">
+            <div className="flex flex-col justify-between gap-4 lg:flex-row lg:items-end">
                 <div>
                     <div className="flex items-center gap-2 mb-1">
                         <HistoryIcon className="w-6 h-6" />
                         <h1 className="text-2xl md:text-3xl font-bold text-black">Bulk History</h1>
                     </div>
-                    <p className="font-mono text-xs text-gray-600">
+                    <p className="max-w-2xl text-sm leading-6 text-slate-500">
                         Shared audit trail for everyone with access to {selectedPage?.name || 'this page'}.
                     </p>
                 </div>
@@ -401,7 +407,7 @@ function ActivityRows({ item, expanded, onToggle, errors, errorTotal, errorsLoad
                 </td>
                 <td>
                     <div className="flex items-center gap-2">
-                        {item.actor?.image ? <img src={item.actor.image} alt="" className="w-7 h-7 object-cover border border-black" /> : <span className="w-7 h-7 border border-black flex items-center justify-center"><User className="w-4 h-4" /></span>}
+                        {item.actor?.image ? <img src={item.actor.image} alt="" loading="lazy" decoding="async" width={28} height={28} className="h-7 w-7 rounded-full border border-slate-200 object-cover" /> : <span className="flex h-7 w-7 items-center justify-center rounded-full border border-slate-200 bg-slate-50"><User className="h-4 w-4" /></span>}
                         <span><span className="block text-xs font-bold">{actorLabel}</span>{item.actor?.email && item.actor.name && <span className="block font-mono text-[10px] text-gray-500">{item.actor.email}</span>}</span>
                     </div>
                 </td>

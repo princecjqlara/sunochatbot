@@ -12,6 +12,16 @@ export type ChatbotStopReason =
     | 'manual';
 
 export type ChatbotContactState = {
+    form_sent_at?: string | null;
+    human_pause_status?: 'paused' | 'checking' | 'held' | 'released' | null;
+    human_takeover_at?: string | null;
+    human_resume_at?: string | null;
+    human_message_id?: string | null;
+    human_hold_reason?: string | null;
+    conversation_price_quote?: string | null;
+    conversation_price_quoted_at?: string | null;
+    history_start_at?: string | null;
+    sales_progress?: import('@/lib/chatbot-sales-assistant').SalesProgress;
     id?: string;
     page_id: string;
     contact_id: string;
@@ -24,34 +34,38 @@ export type ChatbotContactState = {
     stopped_at: string | null;
     last_inbound_at: string | null;
     last_bot_reply_at: string | null;
-    history_start_at?: string | null;
-    form_sent_at?: string | null;
-    human_pause_status?: 'paused' | 'checking' | 'held' | 'released' | null;
-    human_takeover_at?: string | null;
-    human_resume_at?: string | null;
-    human_message_id?: string | null;
-    human_hold_reason?: string | null;
-    conversation_price_quote?: string | null;
-    conversation_price_quoted_at?: string | null;
+    detail_collection_target?: number | null;
+    collection_round?: number;
+    updated_at?: string;
+    pause_kind?: 'human_takeover' | 'explicit_hold' | 'ready_for_team' | null;
+    last_human_activity_at?: string | null;
+    automation_resumed_at?: string | null;
+    messenger_history_reset_at?: string | null;
+    automation_epoch?: number;
+    has_clear_request?: boolean;
+    request_type?: 'commercial_video' | 'free_concept' | 'free_script' | null;
+    request_evidence?: string | null;
 };
+
+/** A reviewed restart acknowledges older staff replies without erasing intake history. */
+export function getChatbotHandoffBoundary(state: ChatbotContactState | null | undefined, fallback?: string | null) {
+    if (state?.human_pause_status === 'released' && state.human_resume_at && Number.isFinite(Date.parse(state.human_resume_at))) {
+        const resumed = state.automation_resumed_at;
+        return resumed && Date.parse(resumed) > Date.parse(state.human_resume_at) ? resumed : state.human_resume_at;
+    }
+    return state?.automation_resumed_at || state?.started_at || fallback || undefined;
+}
+
+export function getChatbotHandoffOptions(state: ChatbotContactState | null | undefined, fallback?: string | null) {
+    return {
+        humanHandoffSince: getChatbotHandoffBoundary(state, fallback),
+        historyResetAt: state?.messenger_history_reset_at || state?.history_start_at
+    };
+}
 
 type SupabaseLike = {
     from: (table: string) => any;
 };
-
-export function filterChatbotConversationHistory<T extends { created_time?: string | null }>(
-    history: T[],
-    historyStartAt?: string | null
-): T[] {
-    if (!historyStartAt) return history;
-    const cutoff = Date.parse(historyStartAt);
-    // A broken cutoff or missing message date must not restore excluded history.
-    if (!Number.isFinite(cutoff)) return [];
-    return history.filter(message => {
-        const createdAt = Date.parse(message.created_time || '');
-        return Number.isFinite(createdAt) && createdAt >= cutoff;
-    });
-}
 
 export function isChatbotContactAllowed(
     config: { trial_mode_enabled?: unknown; trial_contact_id?: unknown } | null | undefined,
@@ -62,8 +76,7 @@ export function isChatbotContactAllowed(
 }
 
 const OPT_OUT_PATTERNS = [
-    /^(?:please\s+)?stop(?:\s+(?:po|na|please|pls))*[.!?]*$/i,
-    /\bstop(?:\s+(?:po|na|please|pls))*\s+(?:messaging|messages?|contacting|texting|replying|sending|(?:the\s+)?bot)\b/i,
+    /\bstop\b/i,
     /\bunsubscribe\b/i,
     /\bremove me\b/i,
     /\bdo not (?:message|contact|text|reply)\b/i,
@@ -74,16 +87,13 @@ const OPT_OUT_PATTERNS = [
     /\bhuwag (?:mo )?(?:akong )?(?:i-message|imessage|kontakin|kausapin)\b/i
 ];
 
-const TAGALOG_PURCHASE_REFUSAL = /\b(?:hindi|di)\b.{0,20}\b(?:itutuloy|tutuloy|magpapagawa|magpagawa|ppgawa)\b/i;
-
 const REFUSAL_PATTERNS = [
-    TAGALOG_PURCHASE_REFUSAL,
     /\bnot interested\b/i,
     /\bno thanks?\b/i,
     /\bno thank you\b/i,
     /\bi(?:'m| am) not buying\b/i,
     /\bi (?:do not|don't) want (?:it|this|that|to buy)\b/i,
-    /\bpass\b(?!\s+(?:the|me|it|on|along|through|by)\b)/i,
+    /\bpass(?: muna)?\b/i,
     /\bayoko\b/i,
     /\bhindi ako interesado\b/i,
     /\bdi ako interesado\b/i,
@@ -107,52 +117,19 @@ export function normalizeDetailsToCollect(value: unknown): string[] {
     return details;
 }
 
-/** Pause scheduled reminders until another customer message, without closing the lead. */
-export function isChatbotFollowUpPauseRequest(messageText: string): boolean {
-    const value = messageText.trim();
-    if (!value || isChatbotBriefEditRequest(value)) return false;
-    return /\b(?:not now|not ready(?: yet)?|maybe later|another time|no thanks?|not interested)\b/i.test(value) ||
-        /\b(?:hindi|di|wag|huwag)\s+na\s+(?:po\s+)?muna\b/i.test(value) ||
-        /\b(?:balikan|babalikan)\s+ko\s+(?:po\s+)?(?:kayo|kayong|na lang kayo)\b/i.test(value) ||
-        /\b(?:i(?:'ll| will)\s+(?:get back to|contact|message)\s+you|ako\s+(?:na\s+)?(?:po\s+)?(?:ang\s+)?(?:magme-message|mag-message|magmessage|magmemessage))\b/i.test(value);
-}
-
 export function classifyChatbotStopIntent(
     messageText: string,
     options: { stopOnOptOut: boolean; stopOnRefusal: boolean }
 ): ChatbotStopReason | null {
     const value = messageText.trim();
     if (!value) return null;
-    if (options.stopOnOptOut && hasChatbotOptOutIntent(value)) {
+    if (options.stopOnOptOut && OPT_OUT_PATTERNS.some((pattern) => pattern.test(value))) {
         return 'opt_out';
     }
-    if (isChatbotBriefEditRequest(value)) return null;
     if (options.stopOnRefusal && REFUSAL_PATTERNS.some((pattern) => pattern.test(value))) {
         return 'refusal';
     }
     return null;
-}
-
-function hasChatbotOptOutIntent(value: string): boolean {
-    const text = value.replace(/\b(?:don't|do not|never)\s+stop\s+(?:messaging|contacting|texting|replying|sending(?:\s+messages?)?)\b/gi, '');
-    return OPT_OUT_PATTERNS.some(pattern => pattern.test(text));
-}
-
-/** A verified change to the song brief must not become a model-generated stop. */
-export function isChatbotBriefEditRequest(messageText: string): boolean {
-    const value = messageText.trim();
-    if (hasChatbotOptOutIntent(value)) return false;
-    const optionRejection = /\b(?:ayoko|pass|wag na|huwag na|don't want|do not want)\b.{0,100}\b(?:boses|vocals?|style|genre|lyrics|mood|version|package|bundle|dalawa|tatlo|two songs|three songs)\b/i;
-    const requestsAnAlternative = /\b(?:gusto|prefer|instead|rather|palitan|change|switch|isa(?:ng)?|one|female|male)\b/i.test(value);
-    const clearlyDeclinesPurchase = TAGALOG_PURCHASE_REFUSAL.test(value) || /not interested|not buying|(?:don't|do not) want to buy|(?:hindi|di) ako interesado|ayoko.{0,20}(?:bumili|magpagawa|umorder)/i.test(value);
-    // Leaving something out of the song is a brief edit, not a cancelled order.
-    const contentOmission = /\b(?:wag|huwag)(?:\s+na)?(?:\s+(?:po|lang|muna))*\s+(?:isingit|isama|ilagay|banggitin|gamitin|include|mention)\b/i;
-    const otherRefusal = REFUSAL_PATTERNS.some(pattern => pattern.test(value.replace(contentOmission, '')));
-    return !clearlyDeclinesPurchase && (
-        (contentOmission.test(value) && !otherRefusal) ||
-        (optionRejection.test(value) && requestsAnAlternative &&
-            !REFUSAL_PATTERNS.some(pattern => pattern.test(value.replace(optionRejection, ''))))
-    );
 }
 
 export function getMissingChatbotDetails(
@@ -161,7 +138,7 @@ export function getMissingChatbotDetails(
 ): string[] {
     const collectedKeys = new Set(
         Object.entries(collectedDetails)
-            .filter(([, value]) => typeof value === 'string' && value.trim().length > 0)
+            .filter(([, value]) => isCollectedChatbotDetailValue(value))
             .map(([key]) => key.trim().toLowerCase())
     );
     return normalizeDetailsToCollect(detailsToCollect)
@@ -178,23 +155,25 @@ export function getRequiredChatbotDetailCount(totalDetails: number, targetPercen
     return Math.max(1, Math.ceil(totalDetails * normalizeChatbotDetailTargetPercent(targetPercent) / 100));
 }
 
-export function hasReachedChatbotDetailTarget(
-    config: { details_to_collect?: unknown; details_completion_percent?: unknown },
-    collectedDetails: Record<string, string> | null | undefined
-): boolean {
-    const details = normalizeDetailsToCollect(config.details_to_collect);
-    const required = getRequiredChatbotDetailCount(details.length, config.details_completion_percent);
-    return required > 0 && details.length - getMissingChatbotDetails(details, collectedDetails || {}).length >= required;
+export function isCollectedChatbotDetailValue(value: unknown): value is string {
+    return typeof value === 'string' && value.trim().length > 0 &&
+        !/^(?:unknown|not (?:provided|specified|stated|yet provided|yet specified)|n\/?a|null|undefined|pending|tbd|to be (?:confirmed|determined)|not sure|unsure|hindi pa alam)[.!?\s]*$/i.test(value.trim());
 }
 
-function normalizeCollectedDetails(value: unknown): Record<string, string> {
+export function normalizeCollectedChatbotDetails(value: unknown, requestedDetails?: string[]): Record<string, string> {
     if (!value || typeof value !== 'object' || Array.isArray(value)) return {};
+    const canonicalKeys = requestedDetails
+        ? new Map(normalizeDetailsToCollect(requestedDetails).map(key => [key.toLowerCase(), key]))
+        : null;
     return Object.fromEntries(
         Object.entries(value as Record<string, unknown>)
             .filter((entry): entry is [string, string] =>
-                typeof entry[1] === 'string' && entry[1].trim().length > 0
+                isCollectedChatbotDetailValue(entry[1])
             )
-            .map(([key, detail]) => [key.trim().slice(0, 80), detail.trim().slice(0, 500)])
+            .map(([key, detail]) => [
+                canonicalKeys ? canonicalKeys.get(key.trim().toLowerCase()) || '' : key.trim().slice(0, 80),
+                detail.trim().slice(0, 500)
+            ])
             .filter(([key]) => key.length > 0)
             .slice(0, 20)
     );
@@ -207,7 +186,7 @@ export async function getChatbotContactState(
 ): Promise<ChatbotContactState | null> {
     const { data, error } = await supabase
         .from('chatbot_contact_states')
-        .select('id, page_id, contact_id, status, started_at, window_expires_at, collected_details, missing_details, stop_reason, stopped_at, last_inbound_at, last_bot_reply_at, history_start_at, form_sent_at, human_pause_status, human_takeover_at, human_resume_at, human_message_id, human_hold_reason, conversation_price_quote, conversation_price_quoted_at')
+        .select('*')
         .eq('page_id', pageId)
         .eq('contact_id', contactId)
         .maybeSingle();
@@ -215,7 +194,7 @@ export async function getChatbotContactState(
     if (!data) return null;
     return {
         ...data,
-        collected_details: normalizeCollectedDetails(data.collected_details),
+        collected_details: normalizeCollectedChatbotDetails(data.collected_details),
         missing_details: normalizeDetailsToCollect(data.missing_details)
     } as ChatbotContactState;
 }
@@ -231,6 +210,11 @@ export async function saveChatbotContactState(
         inboundAt?: string;
         botRepliedAt?: string;
         stopReason?: ChatbotStopReason | null;
+        pauseKind?: ChatbotContactState['pause_kind'];
+        humanActivityAt?: string;
+        hasClearRequest?: boolean;
+        requestType?: ChatbotContactState['request_type'];
+        requestEvidence?: string | null;
         now?: Date;
     }
 ): Promise<void> {
@@ -241,43 +225,123 @@ export async function saveChatbotContactState(
     const expiresAt = Number.isFinite(activityAnchorTime)
         ? new Date(activityAnchorTime + CHATBOT_CONVERSATION_WINDOW_MS).toISOString()
         : new Date(now.getTime() + CHATBOT_CONVERSATION_WINDOW_MS).toISOString();
-    const stopReason = input.stopReason || null;
+    // Updating details must not implicitly restart a stopped conversation.
+    const stopReason = input.stopReason || (
+        input.existingState?.status === 'stopped' ? input.existingState.stop_reason || 'manual' : null
+    );
     const payload = {
         page_id: input.pageId,
         contact_id: input.contactId,
         status: stopReason ? 'stopped' : 'active',
         started_at: startedAt,
         window_expires_at: expiresAt,
-        collected_details: normalizeCollectedDetails({
+        collected_details: normalizeCollectedChatbotDetails({
             ...(input.existingState?.collected_details || {}),
             ...(input.collectedDetails || {})
         }),
         missing_details: normalizeDetailsToCollect(input.missingDetails || input.existingState?.missing_details || []),
         stop_reason: stopReason,
-        stopped_at: stopReason
-            ? input.existingState?.status === 'stopped' && input.existingState.stop_reason === stopReason
-                ? input.existingState.stopped_at || now.toISOString()
-                : now.toISOString()
-            : null,
+        stopped_at: stopReason ? input.existingState?.stopped_at || now.toISOString() : null,
         last_inbound_at: input.inboundAt || input.existingState?.last_inbound_at || null,
         last_bot_reply_at: input.botRepliedAt || input.existingState?.last_bot_reply_at || null,
-        history_start_at: input.existingState?.history_start_at || null,
-        updated_at: now.toISOString()
+        updated_at: now.toISOString(),
+        ...(input.pauseKind !== undefined ? { pause_kind: input.pauseKind } : {}),
+        ...(input.humanActivityAt ? { last_human_activity_at: input.humanActivityAt } : {}),
+        ...(input.hasClearRequest !== undefined ? { has_clear_request: input.hasClearRequest } : {}),
+        ...(input.requestType !== undefined ? { request_type: input.requestType } : {}),
+        ...(input.requestEvidence !== undefined ? { request_evidence: input.requestEvidence } : {})
     };
-    const { error } = await supabase
-        .from('chatbot_contact_states')
-        .upsert(payload, { onConflict: 'page_id,contact_id' });
+    const query = supabase.from('chatbot_contact_states');
+    const conditionalUpdate = input.existingState && (!stopReason || stopReason === 'details_collected' ||
+        (input.pauseKind === undefined && stopReason === input.existingState.stop_reason));
+    let result;
+    if (conditionalUpdate) {
+        // A worker or a person may have stopped this row since it was read.
+        // Intake completion and photo updates must not replace a human stop.
+        let update = query.update(payload).eq('page_id', input.pageId).eq('contact_id', input.contactId)
+            .eq('status', input.existingState!.status);
+        if (input.existingState!.status === 'stopped') update = update.eq('stop_reason', input.existingState!.stop_reason);
+        if (input.existingState!.updated_at) update = update.eq('updated_at', input.existingState!.updated_at);
+        result = await update;
+    } else {
+        result = await query.upsert(payload, {
+            onConflict: 'page_id,contact_id',
+            ...((!stopReason || stopReason === 'details_collected') && !input.existingState ? { ignoreDuplicates: true } : {})
+        });
+    }
+    const { error } = result;
     if (error) throw new Error(error.message || 'Could not save chatbot contact state');
 }
-
 
 export function getChatbotStateStopReason(
     state: ChatbotContactState | null,
     now: Date = new Date()
 ): ChatbotStopReason | null {
     if (!state) return null;
+    if (['paused', 'checking', 'held'].includes(state.human_pause_status || '')) return 'manual';
     if (state.status === 'stopped') return state.stop_reason || 'manual';
     const expiresAt = new Date(state.window_expires_at).getTime();
     if (!Number.isFinite(expiresAt) || now.getTime() >= expiresAt) return 'window_expired';
     return null;
 }
+
+
+export function filterChatbotConversationHistory<T extends { created_time?: string | null }>(
+    history: T[],
+    historyStartAt?: string | null
+): T[] {
+    if (!historyStartAt) return history;
+    const cutoff = Date.parse(historyStartAt);
+    // A broken cutoff or missing message date must not restore excluded history.
+    if (!Number.isFinite(cutoff)) return [];
+    return history.filter(message => {
+        const createdAt = Date.parse(message.created_time || '');
+        return Number.isFinite(createdAt) && createdAt >= cutoff;
+    });
+}
+
+
+export function isChatbotBriefEditRequest(messageText: string): boolean {
+    const value = messageText.trim();
+    if (hasChatbotOptOutIntent(value)) return false;
+    const optionRejection = /\b(?:ayoko|pass|wag na|huwag na|don't want|do not want)\b.{0,100}\b(?:boses|vocals?|style|genre|lyrics|mood|version|package|bundle|dalawa|tatlo|two songs|three songs)\b/i;
+    const requestsAnAlternative = /\b(?:gusto|prefer|instead|rather|palitan|change|switch|isa(?:ng)?|one|female|male)\b/i.test(value);
+    const clearlyDeclinesPurchase = TAGALOG_PURCHASE_REFUSAL.test(value) || /not interested|not buying|(?:don't|do not) want to buy|(?:hindi|di) ako interesado|ayoko.{0,20}(?:bumili|magpagawa|umorder)/i.test(value);
+    // Leaving something out of the song is a brief edit, not a cancelled order.
+    const contentOmission = /\b(?:wag|huwag)(?:\s+na)?(?:\s+(?:po|lang|muna))*\s+(?:isingit|isama|ilagay|banggitin|gamitin|include|mention)\b/i;
+    const otherRefusal = REFUSAL_PATTERNS.some(pattern => pattern.test(value.replace(contentOmission, '')));
+    return !clearlyDeclinesPurchase && (
+        (contentOmission.test(value) && !otherRefusal) ||
+        (optionRejection.test(value) && requestsAnAlternative &&
+            !REFUSAL_PATTERNS.some(pattern => pattern.test(value.replace(optionRejection, ''))))
+    );
+}
+
+
+export function isChatbotFollowUpPauseRequest(messageText: string): boolean {
+    const value = messageText.trim();
+    if (!value || isChatbotBriefEditRequest(value)) return false;
+    return /\b(?:not now|not ready(?: yet)?|maybe later|another time|no thanks?|not interested)\b/i.test(value) ||
+        /\b(?:hindi|di|wag|huwag)\s+na\s+(?:po\s+)?muna\b/i.test(value) ||
+        /\b(?:balikan|babalikan)\s+ko\s+(?:po\s+)?(?:kayo|kayong|na lang kayo)\b/i.test(value) ||
+        /\b(?:i(?:'ll| will)\s+(?:get back to|contact|message)\s+you|ako\s+(?:na\s+)?(?:po\s+)?(?:ang\s+)?(?:magme-message|mag-message|magmessage|magmemessage))\b/i.test(value);
+}
+
+
+export function hasReachedChatbotDetailTarget(
+    config: { details_to_collect?: unknown; details_completion_percent?: unknown },
+    collectedDetails: Record<string, string> | null | undefined
+): boolean {
+    const details = normalizeDetailsToCollect(config.details_to_collect);
+    const required = getRequiredChatbotDetailCount(details.length, config.details_completion_percent);
+    return required > 0 && details.length - getMissingChatbotDetails(details, collectedDetails || {}).length >= required;
+}
+
+
+function hasChatbotOptOutIntent(value: string): boolean {
+    const text = value.replace(/\b(?:don't|do not|never)\s+stop\s+(?:messaging|contacting|texting|replying|sending(?:\s+messages?)?)\b/gi, '');
+    return OPT_OUT_PATTERNS.some(pattern => pattern.test(text));
+}
+
+
+const TAGALOG_PURCHASE_REFUSAL = /\b(?:hindi|di)\b.{0,20}\b(?:itutuloy|tutuloy|magpapagawa|magpagawa|ppgawa)\b/i;

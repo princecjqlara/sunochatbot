@@ -7,8 +7,8 @@ import { ToastProvider } from '@/components/Toast';
 const inter = Inter({ subsets: ['latin'] });
 
 export const metadata: Metadata = {
-  title: 'Sunochatbot Workspace',
-  description: 'Manage your Facebook Page contacts, tags, and messaging in one place',
+  title: 'SUNO Workspace',
+  description: 'Your SUNO clients, sales, teams, and reports in one workspace.',
 };
 
 export default function RootLayout({

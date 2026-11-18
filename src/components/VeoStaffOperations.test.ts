@@ -1,0 +1,57 @@
+import { createElement } from 'react';
+import { act, create, type ReactTestRenderer } from 'react-test-renderer';
+import { afterEach, beforeEach, expect, it, vi } from 'vitest';
+vi.mock('next/link', () => ({ default: ({ href, children, ...props }: any) => createElement('a', { href, ...props }, children) }));
+import Operations from './VeoOperationsPanel';
+import Calendar from './VeoWorkCalendar';
+import Offboarding from './VeoStaffOffboarding';
+import { buildVeoCalendar } from '@/lib/veo-calendar-analytics';
+const flatten = (v: any): string => typeof v === 'string' || typeof v === 'number' ? String(v) : (v?.children || []).map(flatten).join('');
+let view: ReactTestRenderer;
+const scope = { user_id: 'worker', role: 'manager', launch_at: '2026-11-05T00:00:00Z' };
+const salary = { user_id: 'worker', name: 'Selling Manager', active: true, work_date: '2026-11-06', qualified_closed: 1, qualified_done: 1, target: 1, rate: 40, provisional: true, totals: [{ currency: 'PHP', gross_minor: 203, commission_minor: 81 }] };
+const record = { id: 'order', contact_id: 'client', page_id: 'page', contact_name: 'Previous Client', seller_name: 'Selling Manager', paid_minor: 203, total_minor: 203, balance_minor: 0, currency: 'PHP', converted: false, work_status: 'working', seller_active: true, done_at: '2026-11-06T01:00:00Z' };
+const payload = () => ({ employees: [], summary: {}, finance: { days: [salary] }, orders: [record], order_page: { total: 1 }, page_rankings: [], client_assignments: [] });
+beforeEach(() => { vi.useFakeTimers(); vi.setSystemTime(new Date('2026-11-06T04:00:00Z')); });
+afterEach(async () => { if (view) await act(async () => view.unmount()); vi.useRealTimers(); vi.unstubAllGlobals(); });
+it('shows actual daily commission and date-filtered clients, and routes receipt uploads through the strict checklist', async () => {
+    const fetcher = vi.fn(async () => new Response(JSON.stringify(payload()))); vi.stubGlobal('fetch', fetcher);
+    await act(async () => { view = create(createElement(Operations, { scope, pages: [], busy: false, submit: vi.fn(), mode: 'performance' })); });
+    await act(async () => { await vi.advanceTimersByTimeAsync(300); });
+    const text = flatten(view.toJSON()); expect(text).toContain('Previous Client'); expect(text).toContain('0.81'); expect(text).toContain('40%'); expect(text).toContain('Provisional');
+    await act(async () => view.root.findAllByType('button').find(b => flatten(b).includes('Payment, receipt'))!.props.onClick());
+    expect(view.root.findAllByProps({ name: 'photo' })).toHaveLength(0);
+    expect(view.root.findByProps({ href: '/dashboard/workspace?view=receipts&contact_id=client' })).toBeTruthy();
+    expect(flatten(view.toJSON())).toContain('check Facebook lead-stage and order evidence');
+    const from = view.root.findAllByType('input').find(i => i.props.type === 'date')!;
+    await act(async () => from.props.onChange({ target: { value: '2026-11-05' } }));
+    await act(async () => { await vi.advanceTimersByTimeAsync(300); });
+    expect(fetcher.mock.calls.some(([url]: any) => url.includes('from=2026-11-05'))).toBe(true);
+});
+it('keeps a removed seller receipt blocked even if settlement and conversion are complete', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => new Response(JSON.stringify({ ...payload(), orders: [{ ...record, converted: true, seller_active: false }] }))));
+    await act(async () => { view = create(createElement(Operations, { scope, pages: [], busy: false, submit: vi.fn() })); });
+    await act(async () => { await vi.advanceTimersByTimeAsync(300); });
+    await act(async () => view.root.findAllByType('button').find(b => flatten(b).includes('Payment, receipt'))!.props.onClick());
+    expect(view.root.findAllByProps({ name: 'photo' })).toHaveLength(0);
+    expect(flatten(view.toJSON())).toContain('A supervisor must review attribution');
+});
+it('restores inquiry and cohort metrics beside actual salary and keeps missing ad costs unavailable', async () => {
+    const input = { as_of: '2026-11-06T04:00:00Z', scope, pages: [{ id: 'page', name: 'VEO' }], leads: [{ id: 'client', page_id: 'page', name: 'Client', inquiry_at: '2026-11-06T01:00:00Z', stage: 'converted', converted_at: '2026-11-06T02:00:00Z' }], selected_clients: [], orders: [{ ...record, contact_id: 'client', done_date: '2026-11-06', done_at: '2026-11-06T02:00:00Z', commission_minor: 81, financial_source: 'workspace' }], cash: [], spend: [], team_plans: [], page_plans: [], employees: [], messages: [], message_coverage: [] };
+    vi.stubGlobal('fetch', vi.fn(async () => new Response(JSON.stringify(buildVeoCalendar(input, { salary_days: [salary] }, '2026-11', '2026-11-06')))));
+    await act(async () => { view = create(createElement(Calendar, { scope: { ...scope, role: 'team_leader' }, pages: [] })); });
+    const day = view.root.findAllByType('button').find(b => b.props['aria-label'] === 'Work date 2026-11-06')!;
+    expect(day.props.className).toContain('min-h-[76px]'); expect(flatten(day)).toContain('Inq 1');
+    const rendered = flatten(view.toJSON()); expect(rendered).toContain('0.81'); expect(rendered).toContain('Converted'); expect(rendered).toContain('Day 30');
+    expect(rendered).toContain('Ad data is missing or incomplete'); expect(rendered).toContain('Gross ROASAwaiting cost data'); expect(rendered).toContain('Recorded demographics');
+});
+it.each(['member', 'manager'])('does not request calendar data for a %s', async role => {
+    const fetcher = vi.fn(); vi.stubGlobal('fetch', fetcher);
+    await act(async () => { view = create(createElement(Calendar, { scope: { ...scope, role }, pages: [] })); });
+    expect(fetcher).not.toHaveBeenCalled(); expect(flatten(view.toJSON())).toContain('restricted');
+});
+it.each([['manager', ['member']], ['team_leader', ['manager', 'member']], ['owner', ['leader', 'manager', 'member']]])('limits %s removal choices to lower roles', async (role, expected) => {
+    const accounts = [{ id: 'owner', role: 'owner' }, { id: 'leader', role: 'team_leader' }, { id: 'manager', role: 'manager' }, { id: 'member', role: 'member' }, { id: 'removed', role: 'member', active: false }];
+    await act(async () => { view = create(createElement(Offboarding, { scope: { ...scope, user_id: 'self', role }, accounts, busy: false, submit: vi.fn() })); });
+    expect(view.root.findAllByType('option').map(o => o.props.value).filter(Boolean)).toEqual(expected);
+});

@@ -3,6 +3,7 @@
 import { Fragment, useCallback, useEffect, useMemo, useState } from 'react';
 import { AlertCircle, Bot, CheckCircle2, ChevronDown, ChevronUp, CircleDashed, Filter, GitBranch, RefreshCw, Search, Users } from 'lucide-react';
 import Pagination from '@/components/Pagination';
+import LeadQualityBadge from '@/components/LeadQualityBadge';
 import type { Page } from '@/types';
 import {
     CONTACT_PIPELINE_LABELS,
@@ -11,6 +12,7 @@ import {
 } from '@/lib/contact-pipeline';
 
 type ChatbotState = {
+    sales_progress?: import('@/lib/chatbot-sales-assistant').SalesProgress;
     status: 'active' | 'stopped';
     collected_details: Record<string, string> | null;
     missing_details: string[] | null;
@@ -29,7 +31,11 @@ type PipelineContact = {
     pipeline_stage: ContactPipelineStage;
     pipeline_stage_source: 'system' | 'chatbot' | 'messenger' | 'manual';
     pipeline_stage_updated_at: string;
+    messenger_stage_label?: string | null;
+    messenger_stage_event_at?: string | null;
+    stage_history_tags?: Array<{ id: string; name: string; color: string }>;
     chatbot_state: ChatbotState | null;
+    detail_progress: { collected_details: Record<string, string>; saved_count: number; collected_count: number; required_count: number; missing_details: string[]; complete: boolean };
 };
 
 type PipelineResponse = {
@@ -38,6 +44,7 @@ type PipelineResponse = {
     pageSize: number;
     total: number;
     stageCounts: Record<ContactPipelineStage, number>;
+    stage_sync?: { messaging_auto_tag_enabled: boolean; messaging_auto_tag_checked_at: string; messaging_auto_tag_last_error: string | null } | null;
 };
 
 const STAGE_COLORS: Record<ContactPipelineStage, string> = {
@@ -72,7 +79,7 @@ function formatDetailLabel(value: string) {
         .replace(/\b\w/g, (letter) => letter.toUpperCase());
 }
 
-function contactReadiness(state: ChatbotState | null) {
+function contactReadiness(state: ChatbotState | null, progress: PipelineContact['detail_progress']) {
     if (!state) {
         return {
             label: 'Bot not started',
@@ -82,13 +89,12 @@ function contactReadiness(state: ChatbotState | null) {
         };
     }
 
-    const collectedCount = Object.values(state.collected_details || {})
-        .filter((value) => typeof value === 'string' && value.trim().length > 0).length;
-    const missingCount = state.missing_details?.length || 0;
+    const collectedCount = progress.collected_count;
+    const missingCount = progress.missing_details.length;
 
-    if (collectedCount > 0 && missingCount === 0) {
+    if (progress.complete) {
         return {
-            label: 'Contact details complete',
+            label: 'Form complete',
             description: `${collectedCount} detail${collectedCount === 1 ? '' : 's'} available`,
             className: 'border-green-700 bg-green-50 text-green-900',
             icon: CheckCircle2
@@ -97,8 +103,8 @@ function contactReadiness(state: ChatbotState | null) {
 
     if (missingCount > 0) {
         return {
-            label: 'Needs more details',
-            description: `${missingCount} field${missingCount === 1 ? '' : 's'} still missing`,
+            label: 'Form incomplete',
+            description: `${collectedCount} / ${progress.required_count} details saved · ${missingCount} still missing`,
             className: 'border-amber-600 bg-amber-50 text-amber-900',
             icon: AlertCircle
         };
@@ -118,6 +124,7 @@ export default function PipelinePage() {
     const [contacts, setContacts] = useState<PipelineContact[]>([]);
     const [counts, setCounts] = useState(emptyCounts);
     const [stage, setStage] = useState<ContactPipelineStage | 'all'>('all');
+    const [detailsFilter, setDetailsFilter] = useState('all');
     const [searchInput, setSearchInput] = useState('');
     const [search, setSearch] = useState('');
     const [page, setPage] = useState(1);
@@ -127,6 +134,13 @@ export default function PipelinePage() {
     const [error, setError] = useState('');
     const [savingContactId, setSavingContactId] = useState('');
     const [expandedContactId, setExpandedContactId] = useState('');
+    const [stageSync, setStageSync] = useState<PipelineResponse['stage_sync']>(null);
+
+    useEffect(() => {
+        const params = new URLSearchParams(window.location.search);
+        if (params.get('details') === 'with_details') setDetailsFilter('with_details');
+        if (params.get('pageId')) setPageId(params.get('pageId')!);
+    }, []);
 
     useEffect(() => {
         const timer = window.setTimeout(() => {
@@ -161,6 +175,7 @@ export default function PipelinePage() {
         try {
             const params = new URLSearchParams({ page: String(page), pageSize: String(pageSize) });
             if (stage !== 'all') params.set('stage', stage);
+            if (detailsFilter === 'with_details') params.set('details', detailsFilter);
             if (search) params.set('search', search);
             const response = await fetch(`/api/pages/${pageId}/pipeline?${params}`);
             const data = await response.json();
@@ -169,14 +184,22 @@ export default function PipelinePage() {
             setContacts(pipeline.contacts);
             setCounts(pipeline.stageCounts);
             setTotal(pipeline.total);
+            setStageSync(pipeline.stage_sync);
         } catch (fetchError) {
             setError(fetchError instanceof Error ? fetchError.message : 'Could not load the pipeline');
         } finally {
             setLoading(false);
         }
-    }, [pageId, page, pageSize, stage, search]);
+    }, [pageId, page, pageSize, stage, search, detailsFilter]);
 
     useEffect(() => { void loadPipeline(); }, [loadPipeline]);
+    useEffect(()=>{
+        if(!pageId||savingContactId)return;
+        const tick=()=>{if(typeof document==='undefined'||!document.hidden)void loadPipeline();};
+        const timer=setInterval(tick,15_000);
+        window.addEventListener?.('focus',tick);
+        return()=>{clearInterval(timer);window.removeEventListener?.('focus',tick);};
+    },[pageId,savingContactId,loadPipeline]);
 
     const totalContacts = useMemo(
         () => Object.values(counts).reduce((sum, count) => sum + count, 0),
@@ -207,7 +230,7 @@ export default function PipelinePage() {
     }
 
     return (
-        <div className="space-y-6">
+        <div className="dashboard-page">
             <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
                 <div>
                     <div className="flex items-center gap-3">
@@ -320,9 +343,20 @@ export default function PipelinePage() {
                         <option key={pipelineStage} value={pipelineStage}>{CONTACT_PIPELINE_LABELS[pipelineStage]} ({counts[pipelineStage] || 0})</option>
                     ))}
                 </select>
+                <select aria-label="Saved client details" value={detailsFilter}
+                    onChange={(event) => { setDetailsFilter(event.target.value); setPage(1); }}
+                    className="h-9 border border-black bg-white px-3 text-sm font-semibold">
+                    <option value="all">All clients</option>
+                    <option value="with_details">Clients with details</option>
+                </select>
             </div>
+            {detailsFilter === 'with_details' && <p className="text-sm text-gray-600">Partial forms are included and stay marked incomplete. Saved answers are retained as the conversation continues.</p>}
 
             {error && <div className="border border-red-600 bg-red-50 p-3 text-sm text-red-800">{error}</div>}
+            {stageSync && <div className={`border p-3 text-sm ${stageSync.messaging_auto_tag_last_error ? 'border-amber-600 bg-amber-50 text-amber-900' : 'border-gray-300 bg-white text-gray-600'}`}>
+                <b>Meta stage sync:</b> {stageSync.messaging_auto_tag_enabled ? `Last completed ${formatDate(stageSync.messaging_auto_tag_checked_at)}` : 'Turned off for this Page'}
+                {stageSync.messaging_auto_tag_last_error && <p className="mt-1">{stageSync.messaging_auto_tag_last_error} <a className="font-bold underline" href="/dashboard/settings">Review Page settings</a></p>}
+            </div>}
 
             <div className="overflow-x-auto border-2 border-black bg-white">
                 <table className="w-full min-w-[1100px] border-collapse text-left text-sm">
@@ -337,11 +371,11 @@ export default function PipelinePage() {
                     </thead>
                     <tbody>
                         {!loading && contacts.map((contact) => {
-                            const collectedDetails = Object.entries(contact.chatbot_state?.collected_details || {})
+                            const collectedDetails = Object.entries(contact.detail_progress.collected_details)
                                 .filter(([, value]) => typeof value === 'string' && value.trim().length > 0);
                             const collectedCount = collectedDetails.length;
-                            const missingCount = contact.chatbot_state?.missing_details?.length || 0;
-                            const readiness = contactReadiness(contact.chatbot_state);
+                            const missingCount = contact.detail_progress.missing_details.length;
+                            const readiness = contactReadiness(contact.chatbot_state, contact.detail_progress);
                             const ReadinessIcon = readiness.icon;
                             const expanded = expandedContactId === contact.id;
                             return (
@@ -350,12 +384,12 @@ export default function PipelinePage() {
                                         <td className="p-3">
                                             <div className="flex items-center gap-3">
                                                 {contact.profile_pic ? (
-                                                    <img src={contact.profile_pic} alt="" className="h-10 w-10 border border-black object-cover" />
+                                                    <img src={contact.profile_pic} alt="" loading="lazy" decoding="async" width={40} height={40} className="h-10 w-10 rounded-full border border-slate-200 object-cover" />
                                                 ) : (
                                                     <div className="flex h-10 w-10 items-center justify-center border border-black bg-gray-100"><Users className="h-4 w-4" /></div>
                                                 )}
                                                 <div className="min-w-0">
-                                                    <div className="max-w-52 truncate font-semibold text-black">{contact.name || 'Messenger Contact'}</div>
+                                                    <a href={`/dashboard/contacts/${contact.id}?pageId=${pageId}`} className="block max-w-52 truncate font-semibold text-blue-800 hover:underline">{contact.name || 'Messenger Contact'}</a>
                                                     <div className="max-w-52 truncate font-mono text-[10px] text-gray-500" title={contact.psid}>{contact.psid}</div>
                                                 </div>
                                             </div>
@@ -369,6 +403,11 @@ export default function PipelinePage() {
                                             >
                                                 {CONTACT_PIPELINE_STAGES.map((pipelineStage) => <option key={pipelineStage} value={pipelineStage}>{CONTACT_PIPELINE_LABELS[pipelineStage]}</option>)}
                                             </select>
+                                            <div className="mt-2"><LeadQualityBadge stage={contact.pipeline_stage}/></div>
+                                            {contact.pipeline_stage_source === 'messenger' && contact.messenger_stage_label && <div className="mt-2 text-xs font-semibold">Last Meta stage: {contact.messenger_stage_label}<span className="block font-normal text-gray-500">{formatDate(contact.messenger_stage_event_at || null)}</span></div>}
+                                            {!!contact.stage_history_tags?.length && <div className="mt-2 flex max-w-64 flex-wrap gap-1" aria-label="Stage history">
+                                                {contact.stage_history_tags.map(tag => <span key={tag.id} className="rounded border bg-slate-50 px-1.5 py-0.5 text-[10px]" style={{ borderColor: tag.color }} title="Previously observed stage; retained when the current stage changes">{tag.name}</span>)}
+                                            </div>}
                                             <div className="mt-2 text-[10px] text-gray-500">
                                                 <span className="font-bold uppercase">{contact.pipeline_stage_source}</span> · {formatDate(contact.pipeline_stage_updated_at)}
                                             </div>
@@ -444,12 +483,19 @@ export default function PipelinePage() {
                                                         <p className="font-mono text-[10px] font-bold uppercase text-gray-500">Still missing</p>
                                                         {missingCount > 0 ? (
                                                             <div className="mt-2 flex flex-wrap gap-1.5">
-                                                                {contact.chatbot_state?.missing_details?.map((detail) => (
+                                                                {contact.detail_progress.missing_details.map((detail) => (
                                                                     <span key={detail} className="border border-amber-500 bg-amber-50 px-2 py-1 text-[11px] text-amber-900">{formatDetailLabel(detail)}</span>
                                                                 ))}
                                                             </div>
                                                         ) : <p className="mt-2 text-xs font-semibold text-green-700">No missing requested details.</p>}
                                                         <dl className="mt-4 space-y-2 border-t border-gray-300 pt-3 text-xs">
+                                                            {contact.chatbot_state?.sales_progress && <>
+                                                                <div><dt className="text-gray-500">Sales stage / priority</dt><dd className="font-semibold">{contact.chatbot_state.sales_progress.stage?.replaceAll('_', ' ')} / {contact.chatbot_state.sales_progress.temperature || 'warm'}</dd></div>
+                                                                <div><dt className="text-gray-500">Last question</dt><dd>{contact.chatbot_state.sales_progress.last_question || '—'}</dd></div>
+                                                                <div><dt className="text-gray-500">Samples sent</dt><dd>{contact.chatbot_state.sales_progress.samples_sent?.length || 0}</dd></div>
+                                                                <div><dt className="text-gray-500">Asked about pricing</dt><dd>{contact.chatbot_state.sales_progress.pricing_inquiry ? 'Yes' : 'No'}</dd></div>
+                                                                {Object.entries(contact.chatbot_state.sales_progress.assumptions || {}).map(([label, value]) => <div key={label}><dt className="text-gray-500">Suggested {label} (unconfirmed)</dt><dd>{value}</dd></div>)}
+                                                            </>}
                                                             <div className="flex justify-between gap-3"><dt className="text-gray-500">Last customer message</dt><dd className="text-right font-semibold">{formatDate(contact.chatbot_state?.last_inbound_at || null)}</dd></div>
                                                             <div className="flex justify-between gap-3"><dt className="text-gray-500">Last bot reply</dt><dd className="text-right font-semibold">{formatDate(contact.chatbot_state?.last_bot_reply_at || null)}</dd></div>
                                                             <div className="flex justify-between gap-3"><dt className="text-gray-500">Bot record updated</dt><dd className="text-right font-semibold">{formatDate(contact.chatbot_state?.updated_at || null)}</dd></div>

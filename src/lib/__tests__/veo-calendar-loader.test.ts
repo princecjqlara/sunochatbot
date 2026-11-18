@@ -1,0 +1,106 @@
+import { expect, it, vi } from 'vitest';
+import { loadVeoCalendarInputs, loadVeoCalendarDetails } from '../veo-calendar-loader';
+function slice(p: string, from: string, day: string) { return { as_of: '2026-11-06T00:00:00Z', scope: {}, pages: [{ id: p }], leads: [{ id: p + from }], selected_clients: [{ id: p + day, inquiry_at: day + 'T00:00:00+08:00' }], orders: [{ order_key: p + ':same' }], created_orders: [], cash: [{ contact_id: p, page_id: p, currency: 'PHP', source: 'workspace', paid_day: '2026-11-01', amount_minor: 20 }], spend: [], messages: [{ day: from, inbound: 1, answered: 1 }], page_plans: [], team_plans: [{ team_id: 'team', work_date: '2026-11-01' }], employees: [{ id: 'worker' }], message_coverage: [{ page_id: p }], peer_lag_hours: [24], missing_inquiry_dates: 4 }; }
+it('merges all Pages with bounded requests, unique records and summed daily response counts', async () => {
+    let running = 0, max = 0;
+    const db = { rpc: vi.fn(async (_: string, args: any) => { max = Math.max(max, ++running); await new Promise(r => setTimeout(r, 2)); running--; return { data: slice(args.p_page, args.p_from, args.p_day) }; }) };
+    const r = await loadVeoCalendarInputs(db, 'owner', ['p1', 'p2', 'p3', 'p4', 'p1'], '2026-11-01', '2026-11-06', '2026-11-05');
+    expect(max).toBeLessThanOrEqual(2); expect(r.pages).toHaveLength(4); expect(r.leads).toHaveLength(4);
+    expect(r.team_plans).toHaveLength(1); expect(r.employees).toHaveLength(1); expect(r.missing_inquiry_dates).toBe(16);
+    expect(r.messages[0]).toMatchObject({ inbound: 4, answered: 4 }); expect(r.peer_lag_hours).toHaveLength(4);
+});
+it('reads a month without expensive day detail and reads a selected day separately', async () => {
+    const db = { rpc: vi.fn(async (name: string, a: any) => ({ data: name === 'veo_calendar_day_details'
+        ? { selected_clients: [{ id: a.p_page }], peer_lag_hours: [24] } : slice(a.p_page, a.p_from, a.p_from) })) };
+    await loadVeoCalendarInputs(db, 'owner', ['one', 'two'], '2026-11-01', '2026-11-30', null);
+    expect(db.rpc.mock.calls.slice(0, 2).every(c => c[1].p_day === null)).toBe(true);
+    const details = await loadVeoCalendarDetails(db, 'owner', ['one', 'two'], '2026-11-05');
+    expect(details.selected_clients).toHaveLength(2); expect(details.peer_lag_hours).toEqual([24, 24]);
+});
+it('bisects a timed-out date range and deduplicates financial facts while using only the chosen day’s cohort and reference sample', async () => {
+    const db = { rpc: vi.fn(async (_: string, a: any) => a.p_from === '2026-11-01' && a.p_to === '2026-11-06' ? { error: { code: '57014' } } : { data: slice(a.p_page, a.p_from, a.p_day) }) };
+    const r = await loadVeoCalendarInputs(db, 'owner', ['page'], '2026-11-01', '2026-11-06', '2026-11-05');
+    expect(db.rpc).toHaveBeenCalledTimes(4); expect(r.completed_slices).toBe(2); expect(r.orders).toHaveLength(1); expect(r.cash).toHaveLength(1);
+    expect(r.selected_clients).toHaveLength(1); expect(r.selected_clients[0].inquiry_at).toContain('2026-11-05');
+    expect(r.missing_inquiry_dates).toBe(4); expect(r.peer_lag_hours).toHaveLength(1);
+});
+it('recovers a transient timeout on the original Page range before creating extra date slices', async () => {
+    const db = { rpc: vi.fn().mockResolvedValueOnce({ error: { code: '57014' } }).mockImplementation(async (_: string, a: any) => ({ data: slice(a.p_page, a.p_from, a.p_day) })) };
+    const r = await loadVeoCalendarInputs(db, 'owner', ['page'], '2026-11-01', '2026-11-06', '2026-11-05');
+    expect(db.rpc).toHaveBeenCalledTimes(2); expect(r.completed_slices).toBe(1);
+    expect(db.rpc.mock.calls[0][1]).toEqual(db.rpc.mock.calls[1][1]);
+});
+it('never returns partial totals after a Page failure or a one-day timeout', async () => {
+    const db = { rpc: vi.fn(async (_: string, a: any) => a.p_page === 'bad' ? { error: { code: '42501' } } : { data: slice(a.p_page, a.p_from, a.p_day) }) };
+    await expect(loadVeoCalendarInputs(db, 'owner', ['ok', 'bad'], '2026-11-01', '2026-11-02', '2026-11-01')).rejects.toMatchObject({ status: 403 });
+    db.rpc.mockResolvedValue({ error: { code: '57014' } } as any);
+    await expect(loadVeoCalendarInputs(db, 'owner', ['ok'], '2026-11-01', '2026-11-01', '2026-11-01')).rejects.toThrow('could not be completed');
+});
+it('loads the complete authorized scope with one RPC when all Pages are explicitly requested', async () => {
+    const data = { ...slice('p1', '2026-11-01', '2026-11-05'), pages: [{ id: 'p1' }, { id: 'p2' }] };
+    const db = { rpc: vi.fn(async () => ({ data })) };
+    const result = await loadVeoCalendarInputs(db, 'owner', ['p1', 'p2'], '2026-11-01', '2026-11-30', null, { allPages: true });
+    expect(db.rpc).toHaveBeenCalledTimes(1); expect(db.rpc).toHaveBeenCalledWith('veo_calendar_inputs', expect.objectContaining({ p_page: null }));
+    expect(result).toMatchObject({ completed_slices: 1, pages: data.pages, cash: data.cash, orders: data.orders });
+});
+it('falls back to complete Page slices when the combined report exceeds its SQL size guard', async () => {
+    let running = 0, max = 0;
+    const db = { rpc: vi.fn(async (_: string, a: any) => {
+        if (a.p_page === null) return { error: { code: 'P0001', message: 'Select one Page to complete this calendar' } };
+        max = Math.max(max, ++running); await new Promise(r => setTimeout(r, 2)); running--; return { data: slice(a.p_page, a.p_from, a.p_from) };
+    }) };
+    const r = await loadVeoCalendarInputs(db, 'owner', ['p1', 'p2'], '2026-11-01', '2026-11-30', null, { allPages: true });
+    expect(max).toBeLessThanOrEqual(2); expect(r.pages).toHaveLength(2); expect(r.cash).toHaveLength(2); expect(db.rpc).toHaveBeenCalledTimes(3);
+});
+it('does not broaden an explicit subset and rejects incomplete or unexpected Page coverage', async () => {
+    const db = { rpc: vi.fn(async (_: string, a: any) => ({ data: slice(a.p_page || 'p1', a.p_from, a.p_from) })) };
+    await loadVeoCalendarInputs(db, 'owner', ['p1', 'p2'], '2026-11-01', '2026-11-30', null);
+    expect(db.rpc.mock.calls.every(c => c[1].p_page !== null)).toBe(true);
+    db.rpc.mockClear();
+    await expect(loadVeoCalendarInputs(db, 'owner', ['p1', 'p2'], '2026-11-01', '2026-11-30', null, { allPages: true })).rejects.toMatchObject({ status: 503 });
+    expect(db.rpc).toHaveBeenCalledTimes(1);
+});
+it.each(['42501', 'SUPABASE_CIRCUIT_OPEN'])('does not multiply failed reads for %s', async code => {
+    const db = { rpc: vi.fn(async () => ({ error: { code } })) };
+    await expect(loadVeoCalendarInputs(db, 'owner', ['p1', 'p2'], '2026-11-01', '2026-11-30', null, { allPages: true })).rejects.toMatchObject({ status: code === '42501' ? 403 : 503 });
+    expect(db.rpc).toHaveBeenCalledTimes(1);
+});
+it('uses one day-detail read and rejects clients outside the current Page scope', async () => {
+    const data = { selected_day: '2026-11-05', selected_clients: [{ id: 'client', page_id: 'p1' }], peer_lag_hours: [24] };
+    const db = { rpc: vi.fn(async () => ({ data })) };
+    expect(await loadVeoCalendarDetails(db, 'owner', ['p1', 'p2'], '2026-11-05', { allPages: true })).toEqual(data);
+    expect(db.rpc).toHaveBeenCalledTimes(1);
+    data.selected_clients[0].page_id = 'foreign';
+    await expect(loadVeoCalendarDetails(db, 'owner', ['p1', 'p2'], '2026-11-05', { allPages: true })).rejects.toMatchObject({ status: 503 });
+});
+it('rejects missing monetary sources instead of presenting them as zero', async () => {
+    const data: any = { ...slice('p1', '2026-11-01', '2026-11-05'), pages: [{ id: 'p1' }, { id: 'p2' }] }; delete data.cash;
+    const db = { rpc: vi.fn(async () => ({ data })) };
+    await expect(loadVeoCalendarInputs(db, 'owner', ['p1', 'p2'], '2026-11-01', '2026-11-30', null, { allPages: true })).rejects.toMatchObject({ status: 503 });
+});
+it('recovers a combined SQL timeout using bounded Page reads after the cooldown', async () => {
+    const db = { rpc: vi.fn(async (_: string, a: any) => a.p_page === null
+        ? { error: { code: '57014' } } : { data: slice(a.p_page, a.p_from, a.p_from) }) };
+    const r = await loadVeoCalendarInputs(db, 'owner', ['p1', 'p2'], '2026-11-01', '2026-11-30', null, { allPages: true });
+    expect(r.pages).toHaveLength(2); expect(db.rpc).toHaveBeenCalledTimes(3);
+});
+it('cancels sibling reads and stops scheduling after a Page failure', async () => {
+    let aborted = false;
+    const db = { rpc: vi.fn((_name: string, a: any) => ({ abortSignal: (signal: AbortSignal) => a.p_page === 'bad'
+        ? Promise.resolve({ error: { code: '42501' } })
+        : new Promise((_resolve, reject) => signal.addEventListener('abort', () => { aborted = true; reject(signal.reason); }, { once: true })) })) };
+    await expect(loadVeoCalendarInputs(db, 'owner', ['bad', 'slow', 'never'], '2026-11-01', '2026-11-30', null)).rejects.toMatchObject({ status: 403 });
+    expect(aborted).toBe(true); expect(db.rpc).toHaveBeenCalledTimes(2);
+});
+it('falls back after a combined read budget only when a fresh scope probe succeeds', async () => {
+    vi.useFakeTimers();
+    try {
+        const db = { rpc: vi.fn((name: string, a: any) => name === 'veo_scope'
+            ? Promise.resolve({ data: { launch_at: '2026-11-01', page_ids: ['p1', 'p2'] } })
+            : a.p_page === null ? new Promise(() => {}) : Promise.resolve({ data: slice(a.p_page, a.p_from, a.p_from) })) };
+        const result = loadVeoCalendarInputs(db, 'owner', ['p1', 'p2'], '2026-11-01', '2026-11-30', null, { allPages: true });
+        await vi.advanceTimersByTimeAsync(8000);
+        expect((await result).pages).toHaveLength(2);
+        expect(db.rpc).toHaveBeenCalledWith('veo_scope', { p_actor: 'owner' }); expect(db.rpc).toHaveBeenCalledTimes(4);
+    } finally { vi.useRealTimers(); }
+});

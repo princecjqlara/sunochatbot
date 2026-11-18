@@ -1,84 +1,12 @@
-import { processDueHumanTakeovers } from '@/lib/chatbot-human-takeover';
-import { NextRequest, NextResponse } from 'next/server';
-import { getSupabaseAdmin } from '@/lib/supabase';
-import { processDueFollowUpAutomationSteps } from '@/lib/workflow-automations';
-import { processOneMessagingAutoTagPage } from '@/lib/messaging-auto-tag-worker';
-import { processDueChatbotFollowUps } from '@/lib/chatbot-follow-ups';
+import { retainedCronUnauthorized } from '@/lib/retained-cron-auth';
+import { NextRequest } from 'next/server';
+import * as retained from '@/legacy-runtime/app/api/cron/follow-up-automations/route';
 
+// Existing Sunochatbot implementation; only Next.js route-context adaptation.
 export const dynamic = 'force-dynamic';
+export const maxDuration = 300;
 
-// GET /api/cron/follow-up-automations - Called by cron-jobs.org every minute.
-export async function GET(_request: NextRequest) {
-    const startTime = Date.now();
-
-    try {
-        // Follow-ups are this route's primary job. Run them before the nested
-        // campaign worker, which can consume almost the entire external cron
-        // request timeout when campaign delivery is slow.
-        const humanTakeovers = await processDueHumanTakeovers({ supabase: getSupabaseAdmin(), limit: 20 });
-        const result = await processDueFollowUpAutomationSteps({
-            supabase: getSupabaseAdmin(),
-            limit: 10
-        });
-        const chatbotFollowUps = await processDueChatbotFollowUps({
-            supabase: getSupabaseAdmin(),
-            limit: 20
-        });
-
-        // Reuse the already-configured minute job on cron-jobs.org to advance
-        // durable immediate campaigns. Atomic recipient claims make this safe
-        // even when a separate campaign-scheduled job also exists.
-        let campaignWorker: Record<string, unknown> = { skipped: true };
-        try {
-            const campaignUrl = new URL('/api/cron/campaign-scheduled', _request.url);
-            const campaignResponse = await fetch(campaignUrl, {
-                method: 'GET',
-                cache: 'no-store',
-                signal: AbortSignal.timeout(25_000)
-            });
-            const campaignBody = await campaignResponse.json().catch(() => ({}));
-            campaignWorker = {
-                ok: campaignResponse.ok,
-                status: campaignResponse.status,
-                ...campaignBody
-            };
-        } catch (campaignError) {
-            campaignWorker = {
-                ok: false,
-                retryable: true,
-                message: campaignError instanceof Error ? campaignError.message : String(campaignError)
-            };
-            console.warn('Campaign continuation from follow-up cron failed:', campaignError);
-        }
-
-        // The existing minute scheduler also advances one Messenger page per run.
-        // Keep this isolated so an unavailable Meta token cannot delay follow-ups.
-        let messagingAutoTag: Record<string, unknown> = { skipped: true };
-        try {
-            messagingAutoTag = await processOneMessagingAutoTagPage();
-        } catch (error) {
-            messagingAutoTag = { ok: false, message: error instanceof Error ? error.message : String(error) };
-            console.warn('Messaging auto-tag continuation failed:', error);
-        }
-
-        return NextResponse.json({
-            success: true,
-            ...result,
-            chatbotFollowUps,
-            humanTakeovers,
-            campaignWorker,
-            messagingAutoTag,
-            duration: Date.now() - startTime
-        });
-    } catch (error) {
-        console.error('Follow-up automation cron failed:', error);
-        return NextResponse.json(
-            {
-                error: 'Follow-up automation cron failed',
-                message: (error as Error).message,
-                duration: Date.now() - startTime
-            },
-            { status: 500 }
-        );
-    }
+export async function GET(request: NextRequest) {
+    const denied = retainedCronUnauthorized(request); if (denied) return denied;
+    return (retained.GET as any)(request);
 }

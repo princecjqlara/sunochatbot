@@ -11,29 +11,21 @@ function queryResult(data: unknown) {
 }
 
 describe('chatbot interruption attribution', () => {
-    it('pauses the chatbot and saves the new quote when staff send through the application', async () => {
-        const rpc = vi.fn().mockResolvedValue({ error: null });
-        const upsert = vi.fn().mockResolvedValue({ error: null });
-        const supabase = { rpc, from: vi.fn((table: string) => table === 'outbound_message_events'
-            ? { upsert } : queryResult(null)) };
+    it('retains the pre-stop staff interruption audit after a manual reply has stopped the bot', async () => {
+        const interruptionUpsert = vi.fn().mockResolvedValue({ error: null });
+        const supabase = { from: (table: string) => {
+            if (table === 'outbound_message_events') return { upsert: vi.fn().mockResolvedValue({ error: null }) };
+            if (table === 'chatbot_configs') return queryResult({ details_to_collect: ['Name', 'Budget'], details_completion_percent: 100 });
+            if (table === 'chatbot_interruption_events') return { upsert: interruptionUpsert };
+            throw new Error('The pre-stop snapshot should avoid reading stopped state');
+        } };
         await recordOutboundMessageEvent(supabase, {
-            pageId: 'page_1', contactId: 'contact_1', messageId: 'manual.1', sourceType: 'manual',
-            messageText: '450 na lang po for two songs', sentAt: '2026-10-17T05:00:00Z'
+            pageId: 'page', contactId: 'contact', messageId: 'manual-reply', sourceType: 'manual',
+            actorName: 'Agent', stateBeforeStop: { status: 'active', collected_details: { Name: 'Customer' } }
         });
-        expect(rpc).toHaveBeenCalledWith('record_chatbot_human_takeover', expect.objectContaining({
-            p_message_id: 'manual.1', p_resume_at: '2026-10-17T15:59:00.000Z',
-            p_price_quote: '450 na lang po for two songs'
-        }));
-        expect(upsert).toHaveBeenCalledWith(expect.objectContaining({ source_type: 'manual' }), { onConflict: 'message_id' });
-    });
-
-    it('does not mistake an automatic chatbot reply for a human takeover', async () => {
-        const rpc = vi.fn();
-        const supabase = { rpc, from: vi.fn(() => ({ upsert: vi.fn().mockResolvedValue({ error: null }) })) };
-        await recordOutboundMessageEvent(supabase, {
-            pageId: 'page_1', contactId: 'contact_1', messageId: 'bot.1', sourceType: 'chatbot', messageText: 'PHP 199'
-        });
-        expect(rpc).not.toHaveBeenCalled();
+        expect(interruptionUpsert).toHaveBeenCalledWith(expect.objectContaining({
+            interruption_type: 'manual_message', actor_name: 'Agent', collected_detail_count: 1
+        }), expect.anything());
     });
     it('records the staff sender when a manual message interrupts active detail collection', async () => {
         const configQuery = queryResult({
@@ -142,6 +134,23 @@ describe('chatbot interruption attribution', () => {
             lead_stage: 'qualified',
             collected_detail_count: 1,
             required_detail_count: 4
+        }), { onConflict: 'message_id' });
+    });
+
+    it('uses the pre-stop snapshot after the worker has already saved a durable stop', async () => {
+        const upsert = vi.fn().mockResolvedValue({ error: null });
+        const supabase = { from: vi.fn((table: string) => {
+            if (table === 'chatbot_configs') return queryResult({ details_to_collect: ['Name', 'Budget'], details_completion_percent: 100 });
+            if (table === 'chatbot_interruption_events') return { upsert };
+            throw new Error(`Snapshot should avoid reloading ${table}`);
+        }) };
+        await recordChatbotInterruptionIfNeeded(supabase, {
+            pageId: 'page', contactId: 'contact', messageId: 'stage-event',
+            source: 'business_suite', interruptionType: 'lead_stage_change', leadStage: 'qualified',
+            stateBeforeStop: { status: 'active', collected_details: { Name: 'Customer' } }
+        });
+        expect(upsert).toHaveBeenCalledWith(expect.objectContaining({
+            interruption_type: 'lead_stage_change', collected_detail_count: 1, required_detail_count: 2
         }), { onConflict: 'message_id' });
     });
 });

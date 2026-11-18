@@ -1,0 +1,906 @@
+"""Supabase Data API access for Vercel and local archive migration."""
+
+from __future__ import annotations
+
+import datetime as dt
+import json
+import os
+import re
+import urllib.error
+import urllib.parse
+import urllib.request
+from automation_controls import enabled_chat_ids, chat_enabled
+
+
+READ_PAGE_SIZE = 100
+
+
+class SupabaseError(RuntimeError):
+    def __init__(self, message: str, *, http_status: int | None = None,
+                 api_code: str | None = None, restriction: str | None = None):
+        super().__init__(message)
+        self.http_status = http_status
+        self.api_code = api_code
+        self.restriction = restriction
+
+
+def allowed_chat_ids() -> set[int]:
+    raw = os.environ.get("ALLOWED_CHAT_IDS", "")
+    try:
+        return {int(part.strip()) for part in raw.split(",") if part.strip()}
+    except ValueError as error:
+        raise RuntimeError("ALLOWED_CHAT_IDS must contain comma-separated numeric chat IDs") from error
+
+
+def credentials() -> tuple[str, str]:
+    url = os.environ.get("SUPABASE_URL", "").rstrip("/")
+    key = os.environ.get("SUPABASE_SERVICE_ROLE_KEY", "")
+    if not url.startswith("https://") or not key:
+        raise RuntimeError("SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY are required")
+    from suno_profile import validate_archive
+    validate_archive(url)
+    return url, key
+
+
+def request(
+    path: str,
+    payload: object | None = None,
+    *,
+    prefer: str | None = None,
+    method: str | None = None,
+):
+    if os.environ.get("ARCHIVE_TRANSPORT", "http").strip() == "postgres":
+        from postgres_archive import request as postgres_request
+        return postgres_request(path, payload, prefer=prefer, method=method)
+    url, key = credentials()
+    headers = {"apikey": key, "Authorization": "Bearer " + key, "Accept": "application/json"}
+    body = None
+    if payload is not None:
+        headers["Content-Type"] = "application/json"
+        body = json.dumps(payload, ensure_ascii=False).encode("utf-8")
+    if prefer:
+        headers["Prefer"] = prefer
+    target = url + "/rest/v1/" + path
+    http_request = urllib.request.Request(
+        target,
+        data=body,
+        headers=headers,
+        method=method or ("POST" if body is not None else "GET"),
+    )
+    try:
+        with urllib.request.urlopen(http_request, timeout=30) as response:
+            content = response.read()
+            return json.loads(content) if content else None
+    except urllib.error.HTTPError as error:
+        restriction = None
+        try:
+            detail = json.loads(error.read().decode("utf-8"))
+            code = detail.get("code", "unknown") if isinstance(detail, dict) else "unknown"
+            if error.code == 402 and isinstance(detail, dict):
+                message = str(detail.get("message", ""))
+                restriction = next((reason for reason in (
+                    "exceed_egress_quota", "overdue_payment",
+                ) if reason in message), None)
+        except (json.JSONDecodeError, UnicodeError):
+            code = "unknown"
+        description = f"Supabase Data API HTTP {error.code} ({code})"
+        if restriction:
+            description += f": {restriction}"
+        raise SupabaseError(description, http_status=error.code,
+                            api_code=code, restriction=restriction) from error
+    except urllib.error.URLError as error:
+        raise SupabaseError(f"Supabase network error ({type(error.reason).__name__})") from error
+
+
+def save_update(update: dict, allowed: set[int]) -> bool:
+    result = request("rpc/insights_ingest_update", {"p_update": update, "p_allowed_ids": sorted(allowed)})
+    if result:
+        from concern_reports import observe_topic
+        observe_topic(update, allowed)
+        from member_presence import observe
+        observe(update, allowed)
+    return bool(result)
+
+
+def save_poll_answer(update: dict, allowed: set[int]) -> bool:
+    from page_access import save_answer
+    page = save_answer(update, allowed)
+    if page is not None:
+        return page
+    from hourly_availability import save_answer
+    hourly = save_answer(update, allowed)
+    if hourly is not None:
+        return hourly
+    answer = update.get("poll_answer") or {}
+    if answer.get("option_ids") == []:
+        # Withdrawing a vote is unanswered, rather than a No response.
+        poll_id, user_id = answer.get("poll_id"), (answer.get("user") or {}).get("id")
+        if not poll_id or not isinstance(user_id, int) or user_id <= 0:
+            return False
+        rows = request("daily_polls?" + urllib.parse.urlencode({
+            "select": "chat_id", "poll_id": f"eq.{poll_id}", "limit": 1})) or []
+        if not rows or int(rows[0]["chat_id"]) not in allowed:
+            return False
+        request("daily_poll_answers?" + urllib.parse.urlencode({
+            "poll_id": f"eq.{poll_id}", "user_id": f"eq.{user_id}"}),
+            method="DELETE", prefer="return=minimal")
+        return True
+    result = request(
+        "rpc/insights_ingest_poll_answer",
+        {"p_update": update, "p_allowed_ids": sorted(allowed)},
+    )
+    return bool(result)
+
+
+def archive_status(allowed: set[int]) -> list[dict]:
+    return request("rpc/insights_status", {"p_allowed_ids": sorted(allowed)}) or []
+
+
+def known_chats(allowed: set[int]) -> list[dict]:
+    rows = request(
+        "chats?select=chat_id,title,chat_type,membership,last_seen_utc&order=last_seen_utc.desc"
+    ) or []
+    for row in rows:
+        row["approved"] = row.get("chat_id") in allowed
+    return rows
+
+
+def archive_messages(
+    allowed: set[int], *, since: dt.datetime, limit: int,
+    group: int | None = None, query: str | None = None,
+) -> list[dict]:
+    return request("rpc/insights_messages", {
+        "p_allowed_ids": sorted(allowed),
+        "p_since": since.isoformat(),
+        "p_limit": limit,
+        "p_group": group,
+        "p_query": query or None,
+    }) or []
+
+
+def daily_messages(chat_id: int, start_utc: dt.datetime, end_utc: dt.datetime) -> list[dict]:
+    """Read one local workday, including author IDs for poll/deal matching."""
+    result: list[dict] = []
+    while len(result) <= 10000:
+        filters = urllib.parse.urlencode([
+            ("select", "message_id,sent_utc,author_id,author_name,text,content_type,thread_id,source"),
+            ("chat_id", f"eq.{chat_id}"),
+            ("sent_utc", f"gte.{start_utc.isoformat()}"),
+            ("sent_utc", f"lt.{end_utc.isoformat()}"),
+            ("order", "sent_utc.desc,message_id.desc"),
+            ("limit", READ_PAGE_SIZE),
+            ("offset", len(result)),
+        ])
+        rows = request("messages?" + filters) or []
+        result.extend(rows)
+        if len(rows) < READ_PAGE_SIZE:
+            break
+    return result[:10001]
+
+
+def upsert_chats(chats: list[dict]) -> None:
+    if chats:
+        request("chats?on_conflict=chat_id", chats, prefer="resolution=merge-duplicates,return=minimal")
+
+
+def import_messages(messages: list[dict]) -> None:
+    if messages:
+        request("messages?on_conflict=chat_id,message_id", messages, prefer="resolution=ignore-duplicates,return=minimal")
+
+
+def create_scheduled_action(
+    *,
+    chat_id: int,
+    action_type: str,
+    payload: dict,
+    scheduled_for: dt.datetime,
+    repeat_interval_minutes: int | None,
+) -> dict:
+    rows = request(
+        "scheduled_actions",
+        {
+            "chat_id": chat_id,
+            "action_type": action_type,
+            "payload": payload,
+            "scheduled_for": scheduled_for.isoformat(),
+            "repeat_interval_minutes": repeat_interval_minutes,
+        },
+        prefer="return=representation",
+    ) or []
+    if not rows:
+        raise SupabaseError("Supabase did not return the created schedule")
+    return rows[0]
+
+
+def enqueue_scheduled_action(
+    *,
+    chat_id: int,
+    action_type: str,
+    payload: dict,
+    scheduled_for: dt.datetime,
+    dedupe_key: str,
+    repeat_interval_minutes: int | None = None,
+) -> bool:
+    if not chat_enabled(chat_id):
+        return False
+    from automation_controls import new_client_delivery_allowed
+    if not new_client_delivery_allowed({"chat_id": chat_id, "action_type": action_type,
+                                        "payload": payload, "dedupe_key": dedupe_key}):
+        return False
+    rows = request(
+        "scheduled_actions?on_conflict=dedupe_key&select=id",
+        {
+            "chat_id": chat_id,
+            "action_type": action_type,
+            "payload": payload,
+            "scheduled_for": scheduled_for.isoformat(),
+            "dedupe_key": dedupe_key,
+            "repeat_interval_minutes": repeat_interval_minutes,
+        },
+        prefer="resolution=ignore-duplicates,return=representation",
+    ) or []
+    return bool(rows)
+
+
+def record_automation_marker(chat_id: int, dedupe_key: str, now: dt.datetime) -> bool:
+    """Atomically record a checkpoint that can never be delivered to Telegram."""
+    return bool(request(
+        "scheduled_actions?on_conflict=dedupe_key&select=id",
+        {"chat_id": chat_id, "action_type": "message", "payload": {},
+         "status": "cancelled", "scheduled_for": now.isoformat(), "dedupe_key": dedupe_key},
+        prefer="resolution=ignore-duplicates,return=representation",
+    ))
+
+
+def claim_automation_slot(
+    allowed: set[int], now: dt.datetime, *, workflow: str = "", interval_seconds: int = 300,
+) -> bool:
+    """Limit a workflow's periodic scans across instances using one durable checkpoint."""
+    if not allowed:
+        return False
+    if interval_seconds <= 0:
+        raise ValueError("Automation interval must be positive")
+    slot = dt.datetime.fromtimestamp(int(now.timestamp()) // interval_seconds * interval_seconds, dt.timezone.utc).isoformat()
+    scope = ",".join(str(chat_id) for chat_id in sorted(allowed))
+    dedupe_key = f"automation-clock:{workflow + ':' if workflow else ''}{scope}"
+    payload = {"automation_slot": slot}
+    created = request("scheduled_actions?on_conflict=dedupe_key&select=id", {
+        "chat_id": min(allowed), "action_type": "message", "payload": payload,
+        "status": "cancelled", "scheduled_for": now.isoformat(), "dedupe_key": dedupe_key,
+    }, prefer="resolution=ignore-duplicates,return=representation")
+    if created:
+        return True
+    # One durable row per team scope; the database predicate chooses one winner
+    # even when dispatchers attempt the same next slot concurrently.
+    return bool(request("scheduled_actions?" + urllib.parse.urlencode({
+        "select": "id", "dedupe_key": f"eq.{dedupe_key}", "status": "eq.cancelled",
+        "payload->>automation_slot": f"lt.{slot}",
+    }), {"payload": payload, "updated_at": now.isoformat()}, method="PATCH", prefer="return=representation"))
+
+
+def existing_closeout_chats(work_date: dt.date, allowed: set[int]) -> set[int]:
+    if not allowed:
+        return set()
+    rows = request("scheduled_actions?" + urllib.parse.urlencode({
+        "select": "chat_id", "chat_id": "in.(" + ",".join(str(c) for c in sorted(allowed)) + ")",
+        "dedupe_key": f'like."daily-closeout-complete:{work_date.isoformat()}:*"',
+    })) or []
+    return {int(row["chat_id"]) for row in rows}
+
+
+def existing_daily_reminder_chats(work_date: dt.date, hour: int, allowed: set[int]) -> set[int]:
+    if not allowed:
+        return set()
+    filters = urllib.parse.urlencode({
+        "select": "chat_id",
+        "chat_id": "in.(" + ",".join(str(value) for value in sorted(allowed)) + ")",
+        "dedupe_key": f'like."daily-reminder:{work_date.isoformat()}:{hour}:*"',
+    })
+    rows = request("scheduled_actions?" + filters) or []
+    return {int(row["chat_id"]) for row in rows}
+
+
+def list_scheduled_actions(
+    allowed: set[int], *, status: str | None = None, limit: int = 100, newest: bool = False
+) -> list[dict]:
+    if not allowed:
+        return []
+    filters = [
+        "select=id,chat_id,action_type,payload,scheduled_for,repeat_interval_minutes,status,attempts,telegram_message_id,last_error,created_at,updated_at,sent_at",
+        "chat_id=in.(" + ",".join(str(value) for value in sorted(allowed)) + ")",
+        "order=id.desc" if newest else "order=scheduled_for.asc,id.asc",
+        "limit=" + str(limit),
+    ]
+    if status:
+        filters.append("status=eq." + urllib.parse.quote(status, safe=""))
+    return request("scheduled_actions?" + "&".join(filters)) or []
+
+
+def cancel_scheduled_action(allowed: set[int], schedule_id: int) -> dict | None:
+    if not allowed:
+        return None
+    filters = [
+        "id=eq." + str(schedule_id),
+        "chat_id=in.(" + ",".join(str(value) for value in sorted(allowed)) + ")",
+        "status=in.(pending,failed)",
+    ]
+    rows = request(
+        "scheduled_actions?" + "&".join(filters),
+        {"status": "cancelled", "updated_at": dt.datetime.now(dt.timezone.utc).isoformat()},
+        method="PATCH",
+        prefer="return=representation",
+    ) or []
+    return rows[0] if rows else None
+
+
+def claim_scheduled_actions(allowed: set[int], *, limit: int = 10) -> list[dict]:
+    allowed = enabled_chat_ids(allowed)
+    if not allowed:
+        return []
+    return request(
+        "rpc/insights_claim_scheduled_actions",
+        {"p_allowed_ids": sorted(allowed), "p_limit": limit},
+    ) or []
+
+
+def finish_scheduled_action(
+    schedule_id: int,
+    *,
+    success: bool,
+    telegram_message_id: int | None = None,
+    error: str | None = None,
+    claim: dict | None = None,
+) -> bool:
+    if claim is not None:
+        now = dt.datetime.now(dt.timezone.utc)
+        payload = dict(claim.get("payload") or {})
+        failures = 0 if success else int(payload.get("_delivery_failures", 0)) + 1
+        payload["_delivery_failures"] = failures
+        repeat = claim.get("repeat_interval_minutes")
+        changes = {
+            "payload": payload, "attempts": failures, "updated_at": now.isoformat(),
+            "status": ("pending" if repeat else "sent") if success else ("failed" if failures >= 5 else "pending"),
+            "last_error": None if success else (error or "delivery failed")[:500],
+        }
+        if success and repeat:
+            changes["scheduled_for"] = (now + dt.timedelta(minutes=repeat)).isoformat()
+        elif not success and failures < 5:
+            changes["scheduled_for"] = (now + dt.timedelta(minutes=5)).isoformat()
+        if success and telegram_message_id is not None:
+            if not payload.get("_first_delivery_at"):
+                payload["_first_delivery_at"] = now.isoformat()
+            changes.update(telegram_message_id=telegram_message_id, sent_at=now.isoformat())
+        return _update_claim(claim, changes)
+    result = request(
+        "rpc/insights_finish_scheduled_action",
+        {
+            "p_id": schedule_id,
+            "p_success": success,
+            "p_telegram_message_id": telegram_message_id,
+            "p_error": error,
+        },
+    )
+    return bool(result)
+
+
+def _update_claim(claim: dict, changes: dict) -> bool:
+    filters = {"select": "id", "id": f"eq.{claim['id']}", "status": "eq.processing"}
+    if claim.get("updated_at"):
+        filters["updated_at"] = "eq." + claim["updated_at"]
+    return bool(request("scheduled_actions?" + urllib.parse.urlencode(filters), changes,
+                        method="PATCH", prefer="return=representation"))
+
+
+def defer_scheduled_action(claim: dict) -> bool:
+    """Reschedule a suppressed reminder without recording a delivery."""
+    now = dt.datetime.now(dt.timezone.utc)
+    return _update_claim(claim, {
+        "status": "pending", "updated_at": now.isoformat(),
+        "scheduled_for": (now + dt.timedelta(minutes=claim.get("repeat_interval_minutes") or 15)).isoformat(),
+        "attempts": max(int(claim.get("attempts") or 1) - 1, 0),
+    })
+
+
+def register_daily_poll(
+    *, poll_id: str, chat_id: int, thread_id: int,
+    work_date: dt.date, telegram_message_id: int,
+) -> bool:
+    result = request("rpc/insights_register_daily_poll", {
+        "p_poll_id": poll_id,
+        "p_chat_id": chat_id,
+        "p_thread_id": thread_id,
+        "p_work_date": work_date.isoformat(),
+        "p_telegram_message_id": telegram_message_id,
+    })
+    return bool(result)
+
+
+def daily_poll_counts(allowed: set[int], work_date: dt.date) -> dict[int, dict]:
+    rows = request("rpc/insights_daily_poll_counts", {
+        "p_work_date": work_date.isoformat(),
+        "p_allowed_ids": sorted(allowed),
+    }) or []
+    from hourly_availability import counts
+    result = {**{int(row["chat_id"]): row for row in rows}, **counts(allowed, work_date)}
+    from daily_automation import AVAILABILITY_GROUPS
+    from page_access import scoped_voters
+    for chat, row in result.items():
+        if AVAILABILITY_GROUPS.get(chat, {}).get("client_page_scope") and row.get("poll_id"):
+            row["active_workers"] = len(scoped_voters(chat, daily_poll_active_users(row["poll_id"]), work_date))
+    return result
+
+
+def daily_poll_active_users(poll_id: str) -> list[dict]:
+    if poll_id.startswith("hourly:"):
+        return [user for user in daily_poll_answers(poll_id) if user["active"]]
+    filters = urllib.parse.urlencode({
+        "select": "user_id,user_name,updated_at",
+        "poll_id": f"eq.{poll_id}",
+        "active": "eq.true",
+        "order": "user_name.asc,user_id.asc",
+    })
+    return request("daily_poll_answers?" + filters) or []
+
+
+def daily_poll_answers(poll_id: str) -> list[dict]:
+    """Return every recorded response, including people who chose Not Active."""
+    if poll_id.startswith("hourly:"):
+        from hourly_availability import answers
+        _, chat_id, date = poll_id.split(":", 2)
+        return answers(int(chat_id), dt.date.fromisoformat(date))
+    filters = urllib.parse.urlencode({
+        "select": "user_id,user_name,active,updated_at",
+        "poll_id": f"eq.{poll_id}",
+        "order": "user_name.asc,user_id.asc",
+    })
+    return request("daily_poll_answers?" + filters) or []
+
+
+def activity_messages(
+    chat_id: int,
+    start_utc: dt.datetime,
+    end_utc: dt.datetime,
+    thread_ids: set[int],
+) -> list[dict]:
+    """Read all deal-topic messages in a bounded period, with pagination."""
+    result: list[dict] = []
+    offset = 0
+    while True:
+        filters = urllib.parse.urlencode([
+            ("select", "message_id,sent_utc,author_id,author_name,text,content_type,thread_id,source"),
+            ("chat_id", f"eq.{chat_id}"),
+            ("sent_utc", f"gte.{start_utc.isoformat()}"),
+            ("sent_utc", f"lt.{end_utc.isoformat()}"),
+            ("thread_id", "in.(" + ",".join(str(value) for value in sorted(thread_ids)) + ")"),
+            ("order", "sent_utc.asc,message_id.asc"),
+            ("limit", READ_PAGE_SIZE),
+            ("offset", offset),
+        ])
+        rows = request("messages?" + filters) or []
+        result.extend(rows)
+        if len(rows) < READ_PAGE_SIZE:
+            return result
+        offset += len(rows)
+
+
+def capacity_export_messages(chat_id: int, done_thread: int, start_utc: dt.datetime, end_utc: dt.datetime,
+                             *, close_thread: int | None = None) -> list[dict]:
+    """Backread unthreaded export candidates, with bounded, paginated queries.
+
+    A direct reply to DONE DEALS supplies topic evidence. Otherwise the shared
+    historical parser still requires an explicit paid marker, page and amount.
+    """
+    found = {}
+    filters = [("reply_to_message_id", f"eq.{done_thread}"),
+               ("text", "ilike.*paid*"), ("text", "ilike.*total*pay*"), ("text", "ilike.*tp:*")]
+    if close_thread is not None:
+        filters += [("reply_to_message_id", f"eq.{close_thread}"),
+                    ("text", "ilike.*price*deal*"), ("text", "ilike.*pd:*")]
+    for field, value in filters:
+        offset = 0
+        while True:
+            page = request("messages?" + urllib.parse.urlencode([
+                ("select", "message_id,sent_utc,author_id,author_name,text,content_type,thread_id,reply_to_message_id,source"),
+                ("chat_id", f"eq.{chat_id}"), ("thread_id", "is.null"), ("source", "eq.export"),
+                ("sent_utc", f"gte.{start_utc.isoformat()}"), ("sent_utc", f"lt.{end_utc.isoformat()}"),
+                (field, value), ("order", "sent_utc.asc,message_id.asc"), ("limit", 1000), ("offset", offset),
+            ])) or []
+            for row in page:
+                thread = row.get("reply_to_message_id")
+                found[row["message_id"]] = ({**row, "thread_id": thread}
+                    if thread == done_thread or close_thread is not None and thread == close_thread else row)
+            if len(page) < 1000:
+                break
+            offset += len(page)
+    return sorted(found.values(), key=lambda row: (row["sent_utc"], row["message_id"]))
+
+
+def receipt_messages(chat_id: int, start_utc: dt.datetime, end_utc: dt.datetime) -> list[dict]:
+    """Read receipt captions and replies, retaining ancestry missing from HTML thread IDs."""
+    fields = "chat_id,message_id,sent_utc,edited_utc,author_id,author_name,text,content_type,thread_id,reply_to_message_id,source"
+    result = []
+    while True:
+        filters = urllib.parse.urlencode([
+            ("select", fields), ("chat_id", f"eq.{chat_id}"),
+            ("sent_utc", f"gte.{start_utc.isoformat()}"), ("sent_utc", f"lt.{end_utc.isoformat()}"),
+            ("order", "sent_utc.asc,message_id.asc"), ("limit", READ_PAGE_SIZE), ("offset", len(result)),
+        ])
+        rows = request("messages?" + filters) or []
+        result.extend(rows)
+        if len(rows) < READ_PAGE_SIZE:
+            break
+    # A receipt may reply to an older receipt or image outside the reporting period.
+    # Fetch ancestors for topic membership only; reporting filters the original dates.
+    known = {row["message_id"] for row in result}
+    attempted = {4}
+    frontier = result
+    for _ in range(32):
+        missing = sorted({r["reply_to_message_id"] for r in frontier
+                          if r.get("thread_id") is None and r.get("reply_to_message_id") is not None
+                          and r["reply_to_message_id"] not in known | attempted})
+        if not missing:
+            break
+        frontier = []
+        for offset in range(0, len(missing), READ_PAGE_SIZE):
+            batch = missing[offset:offset + READ_PAGE_SIZE]
+            filters = urllib.parse.urlencode({
+                "select": fields, "chat_id": f"eq.{chat_id}",
+                "message_id": "in.(" + ",".join(map(str, batch)) + ")", "limit": READ_PAGE_SIZE,
+            })
+            frontier.extend(request("messages?" + filters) or [])
+            attempted.update(batch)
+        known.update(r["message_id"] for r in frontier)
+        result.extend(frontier)
+    return result
+
+
+def poll_answers_for_range(chat_id: int, start_date: dt.date, end_date: dt.date) -> list[dict]:
+    """Read every poll answer for a team over an inclusive date range."""
+    result: list[dict] = []
+    while True:
+        filters = urllib.parse.urlencode([
+            ("select", "user_id,user_name,active,daily_polls!inner(work_date,chat_id)"),
+            ("daily_polls.chat_id", f"eq.{chat_id}"),
+            ("daily_polls.work_date", f"gte.{start_date.isoformat()}"),
+            ("daily_polls.work_date", f"lte.{end_date.isoformat()}"),
+            ("order", "poll_id.asc,user_id.asc"),
+            ("limit", READ_PAGE_SIZE),
+            ("offset", len(result)),
+        ])
+        rows = request("daily_poll_answers?" + filters) or []
+        result.extend(rows)
+        if len(rows) < READ_PAGE_SIZE:
+            break
+    from hourly_availability import enabled_for_chat, answers
+    work_date = start_date
+    while work_date <= end_date:
+        if enabled_for_chat(chat_id, work_date):
+            result = [row for row in result if row["daily_polls"]["work_date"] != work_date.isoformat()]
+            result.extend(dict(user, daily_polls={"chat_id": chat_id, "work_date": work_date.isoformat()})
+                          for user in answers(chat_id, work_date))
+        work_date += dt.timedelta(days=1)
+    return result
+
+
+FREEBIE_HISTORY_KEYS = (
+    "freebie_token", "freebie_assignee_id", "freebie_assignee_name", "freebie_contact_id",
+    "freebie_contact_name", "freebie_page", "freebie_thread_id", "freebie_assigned_at",
+    "freebie_completed_at", "freebie_completion_message_id", "freebie_cancelled_at",
+    "freebie_cancelled_reason",
+)
+NEW_CLIENT_HISTORY_KEYS = (
+    "new_client_token", "new_client_assignee_id", "new_client_assignee_name",
+    "new_client_contact_id", "new_client_contact_identity", "new_client_contact_page_id",
+    "new_client_contact_psid", "new_client_contact_name", "new_client_page",
+    "new_client_thread_id", "new_client_work_date", "new_client_round",
+    "new_client_assigned_at", "new_client_assignment_attempt", "new_client_acknowledged_at",
+    "new_client_ack_message_id", "new_client_ack_update_id", "new_client_cancelled_at", "new_client_cancelled_reason",
+    "_first_delivery_at",
+    "new_client_response_minutes", "new_client_volunteer_minutes", "new_client_phase",
+    "new_client_original_assignee_id",
+    "new_client_superseded_by", "new_client_revoked_acknowledged_at",
+    "new_client_retirement_complete",
+    "new_client_ack_pending", "new_client_ack_queued_at",
+    "new_client_offer_generation",
+    "new_client_original_assignee_name", "new_client_direct_timeout_minutes",
+    "new_client_ready_protocol", "new_client_reservation_key",
+    "new_client_handover_revision", "new_client_handover", "new_client_handover_events",
+    "new_client_initial_assignee_id", "new_client_initial_assignee_name",
+)
+
+
+def _assignment_history(allowed: set[int], namespace: str, keys: tuple[str, ...]) -> list[dict]:
+    """Keep every assignment's identity/ownership while excluding message bodies and details."""
+    if not allowed:
+        return []
+    result: list[dict] = []
+    offset = 0
+    while True:
+        filters = urllib.parse.urlencode({
+            "select": "id,chat_id,status,scheduled_for,sent_at,telegram_message_id," + ",".join(
+                f"p{index}:payload->{key}" for index, key in enumerate(keys)
+            ),
+            "chat_id": "in.(" + ",".join(str(chat_id) for chat_id in sorted(allowed)) + ")",
+            "dedupe_key": f"like.{namespace}:*",
+            "order": "id.asc",
+            "limit": READ_PAGE_SIZE,
+            "offset": offset,
+        })
+        rows = request("scheduled_actions?" + filters) or []
+        for row in rows:
+            payload = {}
+            for index, key in enumerate(keys):
+                value = row.pop(f"p{index}", None)
+                if value is not None:
+                    payload[key] = value
+            row["payload"] = payload
+        result.extend(rows)
+        if len(rows) < READ_PAGE_SIZE:
+            return result
+        offset += len(rows)
+
+
+def freebie_actions(allowed: set[int]) -> list[dict]:
+    return _assignment_history(allowed, "freebie", FREEBIE_HISTORY_KEYS)
+
+
+def _update_assignment(action_id: int, payload: dict, status: str,
+                       statuses: str, confirmation_key: str) -> dict | None:
+    """Merge a compact history update into the full stored payload under a revision guard."""
+    filters = {"id": f"eq.{action_id}", "status": f"in.({statuses})",
+               f"payload->>{confirmation_key}": "is.null"}
+    current = request("scheduled_actions?" + urllib.parse.urlencode({
+        **filters, "select": "payload,updated_at", "limit": 1,
+    })) or []
+    if not current:
+        return None
+    merged = {**(current[0].get("payload") or {}), **payload}
+    if current[0].get("updated_at"):
+        filters["updated_at"] = "eq." + current[0]["updated_at"]
+    if confirmation_key == "new_client_acknowledged_at" and payload.get(confirmation_key) and os.environ.get("ARCHIVE_TRANSPORT", "http").strip() == "postgres":
+        filters["new_client_latest_guard"] = "true"
+    rows = request(
+        "scheduled_actions?" + urllib.parse.urlencode({**filters, "select": "id"}),
+        {"payload": merged, "status": status, "updated_at": dt.datetime.now(dt.timezone.utc).isoformat()},
+        method="PATCH", prefer="return=representation",
+    ) or []
+    return rows[0] if rows else None
+
+
+def update_freebie_action(action_id: int, payload: dict, *, status: str) -> dict | None:
+    """Atomically confirm one still-open assignment from a matching Telegram reply."""
+    return _update_assignment(action_id, payload, status, "pending,processing,failed,sent", "freebie_completed_at")
+
+
+def freebie_action_state(action_id: int) -> dict | None:
+    rows = request("scheduled_actions?" + urllib.parse.urlencode({
+        "select": "id,status,confirmed:payload->freebie_completed_at", "id": f"eq.{action_id}", "limit": 1,
+    })) or []
+    if not rows:
+        return None
+    row = rows[0]
+    row["payload"] = {"freebie_completed_at": row.pop("confirmed", None)}
+    return row
+
+
+def new_client_actions(allowed: set[int]) -> list[dict]:
+    """Read durable new-client round-robin assignments."""
+    return _assignment_history(allowed, "new-client", NEW_CLIENT_HISTORY_KEYS)
+
+
+SONG_JOB_KEYS = (
+    "song_token", "song_assignment_id", "song_assignee_id", "song_assignee_name",
+    "song_contact_name", "song_started_at", "song_deadline_at", "song_completed_at",
+    "song_completion_message_id",
+    "song_ack_queued_at",
+    "song_cancelled_at", "song_cancelled_reason",
+    "song_owner_since",
+)
+
+
+def song_jobs(chat_id: int) -> list[dict]:
+    return [job for job in _assignment_history({chat_id}, "trabawho-song-job", SONG_JOB_KEYS)
+            if not job["payload"].get("song_cancelled_at")]
+
+
+def song_notices(chat_id: int) -> list[dict]:
+    return _assignment_history({chat_id}, "trabawho-song-notice", ("song_job_id", "song_stage"))
+
+
+def create_song_job(chat_id: int, assignment_id: int, payload: dict, now: dt.datetime) -> bool:
+    # Durable state only. Cancelled markers never enter the Telegram delivery queue.
+    return bool(request("scheduled_actions?on_conflict=dedupe_key&select=id", {
+        "chat_id": chat_id, "action_type": "message", "payload": payload, "status": "cancelled",
+        "scheduled_for": now.isoformat(), "dedupe_key": f"trabawho-song-job:{assignment_id}",
+    }, prefer="resolution=ignore-duplicates,return=representation"))
+
+
+def complete_song_job(job_id: int, completed_at: dt.datetime, message_id: int) -> bool:
+    return bool(_update_assignment(job_id, {
+        "song_completed_at": completed_at.isoformat(), "song_completion_message_id": message_id,
+    }, "cancelled", "cancelled", "song_completed_at"))
+
+
+def mark_song_ack_queued(job_id: int, now: dt.datetime) -> bool:
+    return bool(_update_assignment(job_id, {"song_ack_queued_at": now.isoformat()},
+                                   "cancelled", "cancelled", "song_ack_queued_at"))
+
+
+def song_job_state(job_id: int, chat_id: int) -> dict | None:
+    rows = request("scheduled_actions?" + urllib.parse.urlencode({
+        "select": "id,chat_id,payload", "id": f"eq.{job_id}", "chat_id": f"eq.{chat_id}",
+        "dedupe_key": "like.trabawho-song-job:*", "limit": 1,
+    })) or []
+    return rows[0] if rows and not rows[0]["payload"].get("song_cancelled_at") else None
+
+
+def sync_song_owner(job_id: int, assignment: dict, now: dt.datetime) -> bool:
+    """Change an outstanding song's editor without resetting its deadline."""
+    rows = request("scheduled_actions?" + urllib.parse.urlencode({
+        "select": "id,payload,updated_at", "id": f"eq.{job_id}", "chat_id": f"eq.{assignment['chat_id']}",
+        "dedupe_key": "like.trabawho-song-job:*", "limit": 1,
+    })) or []
+    if not rows or rows[0]["payload"].get("song_completed_at") or rows[0]["payload"].get("song_cancelled_at"):
+        return False
+    row = rows[0]
+    p = assignment["payload"]
+    events = [e for e in p.get("new_client_handover_events") or [] if e.get("state") == "accepted"]
+    changed = dict(row["payload"], song_assignee_id=p["new_client_assignee_id"],
+                   song_assignee_name=p.get("new_client_assignee_name") or str(p["new_client_assignee_id"]),
+                   song_owner_since=events[-1]["resolved_at"] if events else p["new_client_acknowledged_at"])
+    return bool(request("scheduled_actions?" + urllib.parse.urlencode({"id": f"eq.{job_id}",
+        "updated_at": f"eq.{row['updated_at']}", "payload->>song_completed_at": "is.null", "select": "id"}),
+        {"payload": changed, "updated_at": now.isoformat()}, method="PATCH", prefer="return=representation"))
+
+
+def song_assignment_owner(assignment_id: int, chat_id: int) -> int | None:
+    """Check assignment ownership even before the next song-job synchronization."""
+    rows = request("scheduled_actions?" + urllib.parse.urlencode({
+        "select": "owner:payload->>new_client_assignee_id,accepted:payload->>new_client_acknowledged_at",
+        "id": f"eq.{assignment_id}", "chat_id": f"eq.{chat_id}", "dedupe_key": "like.new-client:*", "limit": 1,
+    })) or []
+    return int(rows[0]["owner"]) if rows and rows[0].get("accepted") and rows[0].get("owner") else None
+
+
+def song_reply_messages(chat_id: int, thread_id: int, since: dt.datetime,
+                        before: dt.datetime, author_ids: set[int]) -> list[dict]:
+    if not author_ids:
+        return []
+    filters = [
+        ("select", "message_id,sent_utc,edited_utc,author_id,text,thread_id,reply_to_message_id"),
+        ("chat_id", f"eq.{chat_id}"), ("thread_id", f"eq.{thread_id}"),
+        ("sent_utc", f"gte.{since.isoformat()}"), ("sent_utc", f"lte.{before.isoformat()}"),
+        ("author_id", "in.(" + ",".join(map(str, sorted(author_ids))) + ")"),
+        ("order", "sent_utc.asc,message_id.asc"), ("limit", READ_PAGE_SIZE),
+    ]
+    result = []
+    while True:
+        rows = request("messages?" + urllib.parse.urlencode(filters + [("offset", len(result))])) or []
+        result.extend(rows)
+        if len(rows) < READ_PAGE_SIZE:
+            return result
+
+
+def new_client_reply_messages(
+    chat_id: int, thread_id: int, since: dt.datetime, before: dt.datetime,
+    *, author_ids: set[int] | None = None,
+) -> list[dict]:
+    """Read archived WORKING/TAKE/MINE replies scoped to the team's editors."""
+    filters = [
+        ("select", "message_id,sent_utc,author_id,author_name,text,thread_id,reply_to_message_id"),
+        ("chat_id", f"eq.{chat_id}"),
+        ("thread_id", f"eq.{thread_id}"),
+        ("sent_utc", f"gte.{since.isoformat()}"),
+        ("sent_utc", f"lte.{before.isoformat()}"),
+        ("order", "sent_utc.asc,message_id.asc"),
+        ("limit", READ_PAGE_SIZE),
+    ]
+    if author_ids is not None:
+        if not author_ids:
+            return []
+        filters.append(("author_id", "in.(" + ",".join(str(i) for i in sorted(author_ids)) + ")"))
+    result = []
+    while True:
+        rows = request("messages?" + urllib.parse.urlencode(filters + [("offset", len(result))])) or []
+        result.extend(rows)
+        if len(rows) < READ_PAGE_SIZE:
+            return [row for row in result if re.search(r"\b/?(?:working|take|mine)\b", row.get("text") or "", re.I)]
+
+
+def update_new_client_action(
+    action_id: int, payload: dict, *, status: str, include_cancelled: bool = False,
+) -> dict | None:
+    """Atomically update one unacknowledged new-client assignment."""
+    statuses = "pending,processing,failed,cancelled" if include_cancelled else "pending,processing,failed"
+    return _update_assignment(action_id, payload, status, statuses, "new_client_acknowledged_at")
+
+
+def mark_new_client_ack_queued(action_id: int, now: dt.datetime) -> dict | None:
+    """Clear the recovery flag only after the deduplicated confirmation exists."""
+    return _update_assignment(action_id, {
+        "new_client_ack_pending": False, "new_client_ack_queued_at": now.isoformat(),
+    }, "cancelled", "cancelled", "new_client_ack_queued_at")
+
+
+def retire_new_client_action(action_id: int, chat_id: int, latest_id: int, now: dt.datetime) -> dict | None:
+    """Keep an audit of revoked ownership and stop its pending acknowledgments/jobs."""
+    filters = {"id": f"eq.{action_id}", "chat_id": f"eq.{chat_id}", "dedupe_key": "like.new-client:*"}
+    current = request("scheduled_actions?" + urllib.parse.urlencode({**filters, "select": "payload,updated_at", "limit": 1})) or []
+    if not current:
+        return None
+    stored = current[0]["payload"]
+    if stored.get("new_client_superseded_by") != latest_id or stored.get("new_client_acknowledged_at"):
+        if not stored.get("new_client_acknowledged_at"):
+            return None
+        revised = dict(stored, new_client_revoked_acknowledged_at=stored["new_client_acknowledged_at"],
+                       new_client_acknowledged_at=None, new_client_superseded_by=latest_id,
+                       new_client_cancelled_reason="assignment_superseded", new_client_cancelled_at=now.isoformat(),
+                       new_client_phase="superseded", new_client_retirement_complete=False)
+        changed = request("scheduled_actions?" + urllib.parse.urlencode({
+            **filters, "select": "id", "updated_at": f"eq.{current[0]['updated_at']}",
+        }), {"payload": revised, "status": "cancelled", "updated_at": now.isoformat()},
+            method="PATCH", prefer="return=representation")
+        if not changed:
+            return None
+        stored = revised
+    request("scheduled_actions?" + urllib.parse.urlencode({
+        "select": "id", "chat_id": f"eq.{chat_id}", "dedupe_key": f"eq.new-client-ack:{action_id}",
+        "status": "in.(pending,processing,failed)",
+    }), {"status": "cancelled", "updated_at": now.isoformat()}, method="PATCH", prefer="return=representation")
+    jobs = request("scheduled_actions?" + urllib.parse.urlencode({
+        "select": "id", "chat_id": f"eq.{chat_id}", "dedupe_key": "like.trabawho-song-job:*",
+        "payload->>song_assignment_id": f"eq.{action_id}", "limit": 1,
+    })) or []
+    for job in jobs:
+        _update_assignment(int(job["id"]), {"song_cancelled_at": now.isoformat(),
+                           "song_cancelled_reason": "assignment_superseded"},
+                           "cancelled", "cancelled", "song_completed_at")
+    revision = now.isoformat() if stored is not current[0]["payload"] else current[0]["updated_at"]
+    completed = dict(stored, new_client_retirement_complete=True)
+    finalized = request("scheduled_actions?" + urllib.parse.urlencode({
+        **filters, "select": "id", "updated_at": f"eq.{revision}",
+    }), {"payload": completed, "updated_at": now.isoformat()}, method="PATCH", prefer="return=representation")
+    if finalized:
+        stored = completed
+    return {"id": action_id, "payload": stored}
+
+
+def restore_new_client_action(action_id: int, chat_id: int, now: dt.datetime) -> dict | None:
+    """Resume the latest offer if an earlier late reply incorrectly cancelled it."""
+    filters = {"id": f"eq.{action_id}", "chat_id": f"eq.{chat_id}", "dedupe_key": "like.new-client:*",
+               "status": "eq.cancelled", "payload->>new_client_acknowledged_at": "is.null",
+               "payload->>new_client_cancelled_reason": "eq.contact_already_acknowledged"}
+    rows = request("scheduled_actions?" + urllib.parse.urlencode({**filters, "select": "payload,updated_at", "limit": 1})) or []
+    if not rows:
+        return None
+    original = rows[0]["payload"]
+    from ready_availability import ACCEPTANCE_MINUTES
+    minutes = ACCEPTANCE_MINUTES if original.get("new_client_ready_protocol") else 20
+    handoff = "notify you that your turn ended, then invite " if original.get("new_client_ready_protocol") else "invite "
+    text = original["text"]
+    details = text.split("Please reply within ", 1)[0]
+    song_footer = "\n\nAfter WORKING," + text.split("\n\nAfter WORKING,", 1)[1] if "\n\nAfter WORKING," in text else ""
+    text = ("💛 Quick clarification: this latest assignment remains with you.\n\n" + details +
+            f"Please reply within {minutes} minutes of this updated assignment. If you can't take it, we'll {handoff}"
+            "available teammates for 10 minutes, then offer it to the next member. Thank you!" + song_footer)
+    revised = dict(original, text=text, new_client_reminder_text=text, new_client_phase="direct",
+                   new_client_response_minutes=minutes, new_client_volunteer_minutes=10,
+                   new_client_cancelled_reason=None, new_client_cancelled_at=None,
+                   new_client_offer_generation=int(original.get("new_client_offer_generation") or 0) + 1,
+                   _first_delivery_at=None, new_client_resumed_at=now.isoformat())
+    changed = request("scheduled_actions?" + urllib.parse.urlencode({
+        **filters, "select": "id", "updated_at": f"eq.{rows[0]['updated_at']}",
+    }), {"payload": revised, "status": "pending", "scheduled_for": now.isoformat(), "updated_at": now.isoformat(),
+         "sent_at": None, "attempts": 0, "repeat_interval_minutes": minutes}, method="PATCH", prefer="return=representation")
+    return {"id": action_id, "payload": revised} if changed else None
+
+
+def new_client_action_state(action_id: int) -> dict | None:
+    rows = request("scheduled_actions?" + urllib.parse.urlencode({
+        "select": "id,status,confirmed:payload->new_client_acknowledged_at", "id": f"eq.{action_id}", "limit": 1,
+    })) or []
+    if not rows:
+        return None
+    row = rows[0]
+    row["payload"] = {"new_client_acknowledged_at": row.pop("confirmed", None)}
+    return row

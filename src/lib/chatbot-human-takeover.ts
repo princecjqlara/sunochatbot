@@ -5,6 +5,7 @@ import { hasConversationPrice } from '@/lib/chatbot-conversation-pricing';
 import { filterChatbotConversationHistory, hasReachedChatbotDetailTarget, isChatbotContactAllowed } from '@/lib/chatbot-control';
 import { isPipelineClosedForAutomation } from '@/lib/contact-pipeline';
 import { getLiveChatbotLeadStage } from '@/lib/chatbot-lead-stage';
+import {getAutomationPageScope,scopeAutomationQuery} from '@/lib/page-automation-scope';
 import type { FacebookMessage } from '@/types';
 
 type SupabaseLike = { from: (table: string) => any; rpc?: (name: string, args: Record<string, unknown>) => any };
@@ -63,13 +64,14 @@ export async function processDueHumanTakeovers(input: { supabase: SupabaseLike; 
     // slow. Unclaimed rows remain due for the next run.
     const deadline = Date.now() + 60_000;
     const result = { checked: 0, released: 0, held: 0, scheduled: 0, failed: 0 };
-    const { error: leaseError } = await supabase.from('chatbot_contact_states')
+    const scope=await getAutomationPageScope(supabase);
+    const { error: leaseError } = await scopeAutomationQuery(supabase.from('chatbot_contact_states')
         .update({ human_pause_status: 'paused', updated_at: now.toISOString() })
-        .eq('human_pause_status', 'checking').lt('updated_at', new Date(now.getTime() - 10 * 60 * 1000).toISOString());
+        .eq('human_pause_status', 'checking').lt('updated_at', new Date(now.getTime() - 10 * 60 * 1000).toISOString()),scope);
     if (leaseError) throw leaseError;
-    const { data: due, error } = await supabase.from('chatbot_contact_states').select('*')
+    const { data: due, error } = await scopeAutomationQuery(supabase.from('chatbot_contact_states').select('*')
         .eq('human_pause_status', 'paused').lte('human_resume_at', now.toISOString())
-        .order('human_resume_at').limit(input.limit || 20);
+        .order('human_resume_at').limit(input.limit || 20),scope);
     if (error) throw error;
     for (const state of due || []) {
         if (Date.now() >= deadline) break;
@@ -90,7 +92,7 @@ export async function processDueHumanTakeovers(input: { supabase: SupabaseLike; 
         };
         try {
             const [contactResult, configResult, pageResult] = await Promise.all([
-                supabase.from('contacts').select('id,page_id,psid,name,last_inbound_at,pipeline_stage,best_contact_hour')
+                supabase.from('contacts').select('id,page_id,psid,name,last_inbound_at,pipeline_stage,best_contact_hour,chatbot_enabled')
                     .eq('id', state.contact_id).eq('page_id', state.page_id).maybeSingle(),
                 supabase.from('chatbot_configs').select('*').eq('page_id', state.page_id).maybeSingle(),
                 supabase.from('pages').select('fb_page_id,access_token').eq('id', state.page_id).maybeSingle()
@@ -98,7 +100,7 @@ export async function processDueHumanTakeovers(input: { supabase: SupabaseLike; 
             if ([contactResult, configResult, pageResult].some(r => r.error)) throw new Error('Could not verify human takeover eligibility');
             const contact = contactResult.data, config = configResult.data as ChatbotConfig, page = pageResult.data;
             let holdReason: string | null = null;
-            if (!contact || !page || !config?.enabled || !isChatbotContactAllowed(config, state.contact_id)) holdReason = 'Page or chatbot is unavailable for this contact';
+            if (!contact || contact.chatbot_enabled === false || !page || !config?.enabled || !isChatbotContactAllowed(config, state.contact_id)) holdReason = 'Page or chatbot is unavailable for this contact';
             else if (state.status === 'stopped' || isPipelineClosedForAutomation(contact.pipeline_stage) ||
                 hasReachedChatbotDetailTarget(config, state.collected_details)) holdReason = 'Order, completed requirements, opt-out or closed lead remains with the team';
             let history: FacebookMessage[] = [];
@@ -131,41 +133,21 @@ export async function processDueHumanTakeovers(input: { supabase: SupabaseLike; 
                 if (await finish('held', 'Lead Center changed during takeover review')) result.held += 1;
                 continue;
             }
-            const latest = await supabase.from('contacts').select('last_inbound_at,pipeline_stage')
+            const latest = await supabase.from('contacts').select('last_inbound_at,pipeline_stage,chatbot_enabled')
                 .eq('id', state.contact_id).eq('page_id', state.page_id).maybeSingle();
             if (latest.error) throw latest.error;
-            if (latest.data?.last_inbound_at !== contact.last_inbound_at ||
+            if (latest.data?.chatbot_enabled === false || latest.data?.last_inbound_at !== contact.last_inbound_at ||
                 isPipelineClosedForAutomation(latest.data?.pipeline_stage)) {
                 await finish('paused', 'Conversation changed during takeover review');
                 continue;
             }
-            if (!await finish('released', null)) continue;
-            result.released += 1;
-            // The original inbound timestamp remains the messaging-window anchor.
-            // Midnight never creates a new permission window.
-            const inboundTime = Date.parse(contact.last_inbound_at || '');
-            if (!config.follow_up_enabled || !Number.isFinite(inboundTime) ||
-                now.getTime() - inboundTime >= 24 * 60 * 60 * 1000 - 60000) continue;
-            const { scheduleChatbotFollowUps, normalizeQuickFollowUpDelays } = await import('@/lib/chatbot-follow-ups');
-            await scheduleChatbotFollowUps({ supabase, pageId: state.page_id, contact,
-                config, anchorInboundAt: contact.last_inbound_at, now });
-            const quickCount = normalizeQuickFollowUpDelays(config.follow_up_quick_delays_minutes).length;
-            if (!quickCount) continue;
-            const existing = await supabase.from('chatbot_follow_up_jobs').select('sequence_index,status')
-                .eq('page_id', state.page_id).eq('contact_id', state.contact_id)
-                .eq('anchor_inbound_at', contact.last_inbound_at).eq('schedule_type', 'response');
-            if (existing.error) throw existing.error;
-            const sequence = Array.from({ length: quickCount }, (_, i) => i)
-                .find(i => !(existing.data || []).some((j: any) => j.sequence_index === i && ['sent', 'processing'].includes(j.status)));
-            if (sequence === undefined) continue;
-            const scheduled = await supabase.from('chatbot_follow_up_jobs').upsert({
-                page_id: state.page_id, contact_id: state.contact_id,
-                anchor_inbound_at: contact.last_inbound_at, schedule_type: 'response', sequence_index: sequence,
-                due_at: now.toISOString(), status: 'pending', message_text: 'AI-generated after human takeover review',
-                attempt_count: 0, claimed_at: null, cancelled_at: null, error_message: null, updated_at: now.toISOString()
-            }, { onConflict: 'contact_id,anchor_inbound_at,schedule_type,sequence_index' });
-            if (scheduled.error) throw scheduled.error;
-            result.scheduled += 1;
+            if(!supabase.rpc)throw new Error('Atomic takeover recovery is unavailable');
+            const completed=await supabase.rpc('suno_finish_takeover_review',{p_page:state.page_id,p_contact:state.contact_id,
+                p_human_message:state.human_message_id,p_epoch:state.automation_epoch||0,p_policy:config.policy_revision||1,p_anchor:contact.last_inbound_at||null});
+            if(completed.error||typeof completed.data?.released!=='boolean'||typeof completed.data?.scheduled!=='boolean')throw new Error('Could not finish the reviewed human takeover');
+            if(!completed.data.released){await finish('paused','Conversation or permissions changed during takeover review');continue;}
+            result.released+=1;
+            if(completed.data.scheduled)result.scheduled+=1;
         } catch (error) {
             result.failed += 1;
             await finish('held', 'Human review required: ' + (error instanceof Error ? error.message : String(error))).catch(() => undefined);

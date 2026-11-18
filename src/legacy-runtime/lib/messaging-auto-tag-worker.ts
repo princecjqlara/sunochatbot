@@ -1,0 +1,325 @@
+import { getPageConversationsBatch } from '@/legacy-runtime/lib/facebook';
+import {
+    classifyMessengerSystemMessage,
+    findLatestMessengerAutomationStop,
+    findLatestMessengerLeadStageEvent,
+    type MessengerSystemSignal
+} from '@/legacy-runtime/lib/messaging-auto-tag';
+import {
+    filterChatbotConversationHistory,
+    getChatbotContactState,
+    saveChatbotContactState
+} from '@/legacy-runtime/lib/chatbot-control';
+import { getSupabaseAdmin } from '@/legacy-runtime/lib/supabase';
+import {
+    pipelineStageForMessengerSignal,
+    updateContactPipelineStage
+} from '@/legacy-runtime/lib/contact-pipeline';
+import { recordChatbotInterruptionIfNeeded } from '@/legacy-runtime/lib/outbound-message-events';
+
+type Page = {
+    id: string;
+    fb_page_id: string;
+    access_token: string;
+    messaging_auto_tag_checked_at: string;
+    messaging_auto_tag_cursor: string | null;
+};
+
+type Message = { id: string; message?: string; from?: { id?: string }; created_time: string };
+
+type ChatbotStopConfig = {
+    stop_on_qualified: boolean;
+    stop_on_not_qualified: boolean;
+    stop_on_converted: boolean;
+    stop_on_order_created: boolean;
+};
+
+type DefaultPageTag = {
+    id: string;
+    name: string;
+    created_at?: string | null;
+};
+
+type MessengerOutcomeTag = {
+    id: string;
+    system_key: MessengerSystemSignal;
+};
+
+export const MESSENGER_OUTCOME_TAGS: Record<MessengerSystemSignal, { name: string; color: string }> = {
+    qualified: { name: 'Qualified', color: '#2563eb' },
+    not_qualified: { name: 'Not Qualified', color: '#dc2626' },
+    converted: { name: 'Converted', color: '#7c3aed' },
+    order_created: { name: 'Order Created', color: '#f59e0b' }
+};
+
+export function buildMessengerOutcomeTagRows(pageId: string) {
+    return (Object.entries(MESSENGER_OUTCOME_TAGS) as Array<[
+        MessengerSystemSignal,
+        { name: string; color: string }
+    ]>).map(([systemKey, tag]) => ({
+        name: tag.name,
+        color: tag.color,
+        owner_type: 'page' as const,
+        owner_id: pageId,
+        page_id: pageId,
+        is_default: false,
+        system_key: systemKey
+    }));
+}
+
+async function ensureMessengerOutcomeTags(db: ReturnType<typeof getSupabaseAdmin>, pageId: string) {
+    const systemKeys = Object.keys(MESSENGER_OUTCOME_TAGS) as MessengerSystemSignal[];
+    const { data: existingRows, error: existingError } = await db.from('tags')
+        .select('id,system_key')
+        .eq('owner_type', 'page')
+        .eq('owner_id', pageId)
+        .in('system_key', systemKeys);
+    if (existingError) throw existingError;
+
+    const existingKeys = new Set(
+        ((existingRows || []) as MessengerOutcomeTag[]).map(row => row.system_key)
+    );
+    const missingRows = buildMessengerOutcomeTagRows(pageId)
+        .filter(row => !existingKeys.has(row.system_key));
+
+    if (missingRows.length > 0) {
+        const { error: insertError } = await db.from('tags').upsert(missingRows, {
+            onConflict: 'owner_id,system_key'
+        });
+        if (insertError) throw insertError;
+    }
+
+    const { data: outcomeTags, error: outcomeTagError } = await db.from('tags')
+        .select('id,system_key')
+        .eq('owner_type', 'page')
+        .eq('owner_id', pageId)
+        .in('system_key', systemKeys);
+    if (outcomeTagError) throw outcomeTagError;
+
+    return (outcomeTags || []) as MessengerOutcomeTag[];
+}
+
+function normalizeTagName(name: string) {
+    return name.toLowerCase().replace(/[^a-z]/g, '');
+}
+
+export function choosePositiveOutcomeTag(tags: DefaultPageTag[]) {
+    return tags.find(tag => {
+        const normalized = normalizeTagName(tag.name);
+        return normalized === 'paidavailedservice' || normalized === 'paidavailedservices';
+    }) || tags[0] || null;
+}
+
+function shouldStopForSignal(config: ChatbotStopConfig | null, signal: MessengerSystemSignal) {
+    // These are terminal Meta outcomes. They must always stop automation,
+    // including for legacy configs that had one of the old switches disabled.
+    void config;
+    void signal;
+    return true;
+}
+
+async function getMessagesSince(conversationId: string, token: string, since: string): Promise<Message[]> {
+    let next: string | null = `https://graph.facebook.com/v21.0/${encodeURIComponent(conversationId)}/messages?fields=id,message,from,created_time&limit=100`;
+    const messages: Message[] = [];
+    const seen = new Set<string>();
+
+    for (let page = 0; next && page < 10; page++) {
+        const url: URL = new URL(next);
+        if (url.hostname !== 'graph.facebook.com' || seen.has(next)) throw new Error('Unexpected Messenger pagination URL');
+        seen.add(next);
+        url.searchParams.delete('access_token');
+        const response: Response = await fetch(url, {
+            headers: { Authorization: `Bearer ${token}` },
+            signal: AbortSignal.timeout(15_000)
+        });
+        const body: { data?: Message[]; paging?: { next?: string }; error?: { message?: string } } = await response.json();
+        if (!response.ok || body.error) throw new Error(body.error?.message || `Messenger history HTTP ${response.status}`);
+        const rows = body.data || [];
+        messages.push(...rows.filter(message => new Date(message.created_time).getTime() >= new Date(since).getTime()));
+        if (rows.some(message => new Date(message.created_time).getTime() < new Date(since).getTime())) return messages;
+        next = body.paging?.next || null;
+    }
+    if (next) throw new Error('Messenger history exceeded the safe per-conversation limit');
+    return messages;
+}
+
+export async function processOneMessagingAutoTagPage() {
+    const db = getSupabaseAdmin();
+    const { data: page, error: pageError } = await db.from('pages')
+        .select('id,fb_page_id,access_token,messaging_auto_tag_checked_at,messaging_auto_tag_cursor')
+        .eq('messaging_auto_tag_enabled', true)
+        .order('messaging_auto_tag_attempted_at', { ascending: true })
+        .limit(1).maybeSingle();
+    if (pageError) throw pageError;
+    if (!page) return { pages: 0, conversations: 0, tagged: 0, pipelineMoved: 0 };
+    const current = page as Page;
+    const runStartedAt = new Date().toISOString();
+
+    try {
+        const { data: defaultTags, error: tagError } = await db.from('tags')
+            .select('id,name,created_at')
+            .eq('owner_type', 'page')
+            .eq('owner_id', current.id)
+            .eq('is_default', true)
+            .order('created_at', { ascending: true })
+            .order('id', { ascending: true })
+            .limit(25);
+        if (tagError) throw tagError;
+        const tag = choosePositiveOutcomeTag((defaultTags || []) as DefaultPageTag[]);
+        if (!tag) throw new Error('Combined page tag is missing');
+        if ((defaultTags || []).length > 1) {
+            console.warn('Multiple default Page tags found; using the Paid / Availed Service tag', {
+                pageId: current.id,
+                count: defaultTags?.length,
+                selectedTagId: tag.id
+            });
+        }
+
+        const rawOutcomeTags = await ensureMessengerOutcomeTags(db, current.id);
+        const outcomeTagIds = new Map(
+            rawOutcomeTags.map(outcomeTag => [
+                outcomeTag.system_key,
+                outcomeTag.id
+            ])
+        );
+
+        const { data: rawChatbotConfig, error: chatbotConfigError } = await db
+            .from('chatbot_configs')
+            .select('stop_on_qualified, stop_on_not_qualified, stop_on_converted, stop_on_order_created')
+            .eq('page_id', current.id)
+            .maybeSingle();
+        if (chatbotConfigError) throw chatbotConfigError;
+        const chatbotStopConfig = rawChatbotConfig as ChatbotStopConfig | null;
+
+        const batch = await getPageConversationsBatch(current.fb_page_id, current.access_token, {
+            limit: 10,
+            after: current.messaging_auto_tag_cursor,
+            sinceTimestamp: current.messaging_auto_tag_checked_at
+        });
+        let tagged = 0;
+        let chatbotStopped = 0;
+        let pipelineMoved = 0;
+        for (const conversation of batch.conversations) {
+            const participant = conversation.participants?.data?.find(p => p.id !== current.fb_page_id);
+            if (!participant) continue;
+            let messages = await getMessagesSince(conversation.id, current.access_token, current.messaging_auto_tag_checked_at);
+            let signals = [...new Set(messages
+                .filter(message => message.from?.id === current.fb_page_id)
+                .map(message => classifyMessengerSystemMessage(message.message || ''))
+                .filter((signal): signal is MessengerSystemSignal => signal !== null))];
+            if (signals.length === 0 && !findLatestMessengerAutomationStop(messages, current.fb_page_id)) continue;
+
+            let { data: contact, error: contactError } = await db.from('contacts').select('id')
+                .eq('page_id', current.id).eq('psid', participant.id).maybeSingle();
+            if (contactError) throw contactError;
+            if (!contact) {
+                const inserted = await db.from('contacts').insert({
+                    page_id: current.id,
+                    psid: participant.id,
+                    name: participant.name?.trim() || null
+                }).select('id').single();
+                if (inserted.error) {
+                    // Another worker may have created the contact first.
+                    const found = await db.from('contacts').select('id')
+                        .eq('page_id', current.id).eq('psid', participant.id).single();
+                    if (found.error) throw inserted.error;
+                    contact = found.data;
+                } else {
+                    contact = inserted.data;
+                }
+            }
+
+            const existingState = await getChatbotContactState(db, current.id, contact.id);
+            messages = filterChatbotConversationHistory(messages, existingState?.history_start_at);
+            signals = [...new Set(messages
+                .filter(message => message.from?.id === current.fb_page_id)
+                .map(message => classifyMessengerSystemMessage(message.message || ''))
+                .filter((signal): signal is MessengerSystemSignal => signal !== null))];
+            const automationStop = findLatestMessengerAutomationStop(messages, current.fb_page_id);
+            if (signals.length === 0 && !automationStop) continue;
+
+            const leadStageEvent = findLatestMessengerLeadStageEvent(messages, current.fb_page_id);
+            if (leadStageEvent) {
+                await recordChatbotInterruptionIfNeeded(db, {
+                    pageId: current.id,
+                    contactId: contact.id,
+                    messageId: leadStageEvent.messageId,
+                    source: 'business_suite',
+                    interruptionType: 'lead_stage_change',
+                    leadStage: pipelineStageForMessengerSignal(leadStageEvent.signal),
+                    interruptedAt: leadStageEvent.createdTime || undefined
+                });
+            }
+            if (signals.some(signal => signal !== 'not_qualified')) {
+                const { error: assignError } = await db.from('contact_tags').upsert({
+                    contact_id: contact.id,
+                    tag_id: tag.id
+                }, { onConflict: 'contact_id,tag_id', ignoreDuplicates: true });
+                if (assignError) throw assignError;
+                tagged++;
+            }
+            const outcomeAssignments = signals.flatMap(signal => {
+                const tagId = outcomeTagIds.get(signal);
+                return tagId ? [{ contact_id: contact.id, tag_id: tagId }] : [];
+            });
+            if (outcomeAssignments.length > 0) {
+                const { error: outcomeAssignError } = await db.from('contact_tags').upsert(
+                    outcomeAssignments,
+                    { onConflict: 'contact_id,tag_id', ignoreDuplicates: true }
+                );
+                if (outcomeAssignError) throw outcomeAssignError;
+                tagged += outcomeAssignments.length;
+            }
+
+            const pipelineSignal = automationStop && automationStop !== 'manual' ? automationStop : null;
+            if (pipelineSignal && await updateContactPipelineStage(db, {
+                pageId: current.id,
+                contactId: contact.id,
+                stage: pipelineStageForMessengerSignal(pipelineSignal),
+                source: 'messenger'
+            })) {
+                pipelineMoved++;
+            }
+
+            const stopSignal = automationStop === 'manual' ? 'manual' : automationStop &&
+                shouldStopForSignal(chatbotStopConfig, automationStop) ? automationStop : null;
+            if (stopSignal) {
+                if (existingState?.status !== 'stopped') {
+                    await saveChatbotContactState(db, {
+                        pageId: current.id,
+                        contactId: contact.id,
+                        existingState,
+                        stopReason: stopSignal,
+                        now: new Date()
+                    });
+                    chatbotStopped++;
+                }
+                const { cancelPendingChatbotFollowUps } = await import('@/legacy-runtime/lib/chatbot-follow-ups');
+                await cancelPendingChatbotFollowUps({ supabase: db, pageId: current.id,
+                    contactId: contact.id, reason: 'Lead Center is no longer in Intake' });
+            }
+        }
+
+        const { error: checkpointError } = await db.from('pages').update({
+            messaging_auto_tag_checked_at: batch.nextCursor ? current.messaging_auto_tag_checked_at : runStartedAt,
+            messaging_auto_tag_cursor: batch.nextCursor,
+            messaging_auto_tag_attempted_at: runStartedAt,
+            messaging_auto_tag_last_error: null
+        }).eq('id', current.id);
+        if (checkpointError) throw checkpointError;
+        return {
+            pages: 1,
+            conversations: batch.conversations.length,
+            tagged,
+            chatbotStopped,
+            pipelineMoved,
+            more: Boolean(batch.nextCursor)
+        };
+    } catch (error) {
+        await db.from('pages').update({
+            messaging_auto_tag_attempted_at: runStartedAt,
+            messaging_auto_tag_last_error: error instanceof Error ? error.message.slice(0, 500) : 'Unknown error'
+        }).eq('id', current.id);
+        throw error;
+    }
+}

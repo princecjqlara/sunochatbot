@@ -1,0 +1,108 @@
+// Admin previews only. No customer sends, settings writes, contact resets or reminders.
+import assert from 'node:assert/strict';
+import { createRequire } from 'node:module';
+import { writeFile } from 'node:fs/promises';
+import { createClient } from '@supabase/supabase-js';
+import { COMMERCIAL_VIDEO_FIELDS, COMMERCIAL_VIDEO_REQUIRED_DETAILS, containsCommercialVideoForm } from '../src/lib/chatbot-intake.ts';
+import { COMMERCIAL_FORM_PAYLOAD } from '../src/lib/chatbot-interactions.ts';
+import { buildChatbotTestMessages, getChatbotTestHistory } from '../src/lib/chatbot-test-preview.ts';
+const { encode } = createRequire(import.meta.url)('next-auth/jwt');
+const origin = 'https://suno-workspace.invalid';
+const db = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY);
+const checked = result => { if (result.error) throw new Error(result.error.message); return result.data; };
+const page = checked(await db.from('pages').select('id,name').eq('name', 'SAMA KANA MEDIA').single());
+const members = checked(await db.from('user_pages').select('user_id').eq('page_id', page.id).limit(1));
+assert.ok(members[0]?.user_id);
+const token = await encode({ secret: process.env.NEXTAUTH_SECRET, token: { id: members[0].user_id, name: 'Release verification' }, maxAge: 600 });
+const headers = { Cookie: '__Secure-next-auth.session-token=' + token, 'Content-Type': 'application/json' };
+const endpoint = origin + '/api/pages/' + page.id + '/chatbot';
+async function request(body) {
+    const response = await fetch(endpoint, { headers, ...(body ? { method: 'POST', body: JSON.stringify(body) } : {}), signal: AbortSignal.timeout(60000) });
+    const result = await response.json();
+    assert.equal(response.status, 200, result.message || result.error);
+    assert.ok(!result.generation_warning, result.generation_warning);
+    assert.ok(!result.retrieval_warning, result.retrieval_warning);
+    return result;
+}
+const { config } = await request();
+if (process.argv.includes('--expect-enabled')) assert.equal(config.enabled, true);
+const enabledBefore = checked(await db.from('chatbot_configs').select('page_id,enabled')).filter(row => row.enabled).map(row => row.page_id).sort();
+assert.deepEqual(config.details_to_collect, COMMERCIAL_VIDEO_REQUIRED_DETAILS);
+const dashboard = await fetch(origin + '/dashboard/chatbot', { headers, signal: AbortSignal.timeout(20000) });
+assert.equal(dashboard.status, 200);
+const html = await dashboard.text();
+const chunk = [...html.matchAll(/<script[^>]+src="([^"]+)"/g)].map(match => match[1]).find(src => src.includes('/app/dashboard/chatbot/page-'));
+assert.ok(chunk, 'Dashboard client bundle is present');
+const chunkUrl = new URL(chunk, origin);
+assert.equal(chunkUrl.origin, origin);
+const bundleResponse = await fetch(chunkUrl, { signal: AbortSignal.timeout(20000) });
+assert.equal(bundleResponse.status, 200);
+const bundle = await bundleResponse.text();
+for (const marker of ['Open full intake form', 'Test quick reply options', 'action_payload', 'VEO:FORM:2', 'Messenger sample card']) {
+    assert.ok(bundle.includes(marker), 'Deployed Test Chat includes ' + marker);
+}
+console.log(JSON.stringify({ dashboardBundleVerified: true }));
+function assertWholeForm(reply) {
+    const formBlocks = reply.messages.filter(containsCommercialVideoForm);
+    assert.equal(formBlocks.length, 1, 'One complete form must be visible in a single bubble');
+    for (const field of COMMERCIAL_VIDEO_FIELDS) assert.ok(formBlocks[0].includes(field.displayLabel));
+    assert.ok(reply.messages.indexOf(formBlocks[0]) < reply.messages.length - 1, 'The form needs a separate follow-up bubble');
+    assert.match(reply.messages.at(-1), /\?$/);
+    assert.equal(reply.has_clear_request, false, 'Opening the form is not purchase consent');
+    return formBlocks[0];
+}
+const directForm = await request({ action_payload: COMMERCIAL_FORM_PAYLOAD, history: [], collected_details: {}, contact_name: 'Miguel Reyes', draft_config: config });
+assertWholeForm(directForm);
+console.log(JSON.stringify({ directFormPassed: true, emptyComposer: true, fullForm: true }));
+const conversation = [], turns = [];
+let details = {};
+async function turn(message, action_payload) {
+    const reply = await request({ message, action_payload, history: getChatbotTestHistory(conversation), collected_details: details, contact_name: 'Miguel Reyes', draft_config: config });
+    const messages = buildChatbotTestMessages(reply, { idPrefix: 'turn-' + turns.length, commercialVideoIntake: true });
+    assert.match(messages.at(-1).content, /\?$/);
+    assert.doesNotMatch(reply.messages.join('\n'), /Reyes|\p{Extended_Pictographic}|\b(?:sir|maam|boss)\b/iu);
+    details = reply.collected_details;
+    conversation.push({ id: 'user-' + turns.length, role: 'user', content: message }, ...messages);
+    turns.push({ customer: message, action_payload, messages, hasClearRequest: reply.has_clear_request });
+    console.log(JSON.stringify({ turn: turns.length, passed: true, form: reply.messages.some(containsCommercialVideoForm), controls: reply.message_controls?.length || 0 }));
+    return { reply, messages };
+}
+await turn('Hi po');
+const sample = await turn('Bakery po ang business namin. Preview Bakery ang business name.');
+assert.ok(sample.reply.media_items.length > 0);
+const sampleIndex = sample.messages.findIndex(message => message.mediaItems?.length);
+assert.ok(sampleIndex > 0 && sampleIndex < sample.messages.length - 1);
+assert.deepEqual(sample.messages.at(-1).quickReplies.map(choice => choice.title), ['16s', '20s', '24s', '30s', '1 min']);
+const followUp = await request({ mode: 'follow_up', follow_up_type: 'quick', sequence_number: 1, history: getChatbotTestHistory(conversation), collected_details: details, contact_name: 'Miguel Reyes', draft_config: config });
+const followUpMessages = buildChatbotTestMessages(followUp, { idPrefix: 'follow-up', commercialVideoIntake: true });
+assert.match(followUpMessages.at(-1).content, /\?$/);
+assert.equal(followUpMessages.at(-1).quickReplies.length, 5);
+conversation.push(...followUpMessages);
+const pricing = await turn('30s', 'VEO:DURATION:30');
+assert.equal(details['Preferred Video Length'], '30 seconds');
+const productionProcess = pricing.reply.messages.find(message => message.includes('STEP-BY-STEP PROCESS PO:'));
+for (let step = 1; step <= 7; step++) assert.ok(productionProcess?.includes('\n' + step + '. '));
+assert.match(productionProcess, /PHP150[\s\S]*FREE poster ads[\s\S]*PHP100/);
+assert.equal(pricing.messages.at(-1).buttons[0].payload, COMMERCIAL_FORM_PAYLOAD);
+const form = await turn('Fill out form', COMMERCIAL_FORM_PAYLOAD);
+assert.ok(assertWholeForm(form.reply).includes('Preferred Video Length: 30 seconds'));
+const partial = await turn('Page / Social Media Link: https://example.com/preview-bakery\nLocation: Manila\nGoal ng Video: i-promote ang fresh bread\nPreferred Style: Cinematic\nContact Number: 09171234567');
+assert.equal(partial.reply.details_complete, false);
+assert.deepEqual(partial.reply.missing_details, ['Portrait or Landscape?']);
+assert.equal(partial.messages.at(-1).quickReplies.length, 2);
+const complete = await turn('Portrait', 'VEO:ORIENTATION:PORTRAIT');
+assert.equal(complete.reply.details_complete, true);
+assert.equal(complete.reply.has_clear_request, false, 'A completed form still needs explicit output consent');
+assert.equal(complete.reply.intake_action, 'clarify_next_step');
+const reopened = await request({ action_payload: COMMERCIAL_FORM_PAYLOAD, history: getChatbotTestHistory(conversation), collected_details: details, contact_name: 'Miguel Reyes', draft_config: config });
+const reopenedForm = assertWholeForm(reopened);
+for (const field of COMMERCIAL_VIDEO_FIELDS) assert.ok(reopenedForm.includes(details[field.label]), 'Reopened form retains ' + field.displayLabel);
+console.log(JSON.stringify({ completedFormReopenPassed: true, fullForm: true }));
+const handoff = await turn('Gusto ko ng commercial video, mag-proceed na tayo.');
+assert.equal(handoff.reply.intake_action, 'handoff');
+const enabled = checked(await db.from('chatbot_configs').select('page_id,enabled')).filter(row => row.enabled);
+assert.deepEqual(enabled.map(row => row.page_id).sort(), enabledBefore, 'Admin previews preserve Page switches');
+const otherBotsEnabled = enabled.filter(row => row.page_id !== page.id).length;
+const report = { at: new Date().toISOString(), origin, page: page.name, passed: true, turns, dashboardBundleVerified: true, directFormPassed: true, completedFormReopenPassed: true, followUpPassed: true, enabled: config.enabled, otherBotsEnabled, databaseWrites: 0, messengerMessagesSent: 0 };
+await writeFile(new URL('../../data/interactive-chatbot-production-check-2026-10-21.json', import.meta.url), JSON.stringify(report, null, 2));
+console.log(JSON.stringify({ passed: true, turns: turns.length, dashboardBundleVerified: true, directFormPassed: true, completedFormReopenPassed: true, followUpPassed: true, enabled: config.enabled, otherBotsEnabled, databaseWrites: 0, messengerMessagesSent: 0 }));

@@ -1,9 +1,10 @@
 import { FacebookPage, FacebookConversation } from '@/types';
-import { FACEBOOK_REAUTH_MESSAGE } from './facebook-permissions';
+import { assertVeoSendAllowed } from './veo-delivery';
+import { FACEBOOK_PAGE_WEBHOOK_FIELDS, FACEBOOK_REAUTH_MESSAGE } from './facebook-permissions';
 import { isFacebookReauthMessage } from './facebook-errors';
 import type { TemplateMediaType } from './facebook-templates';
 import { getUtilityTemplateParameterValidationError } from './send-errors';
-import { retryFacebookSend } from './facebook-send-retry';
+import { DatabaseReadTimeout, requestDeadline } from './request-deadline';
 
 // Re-export templates from dedicated file
 export { UTILITY_TEMPLATES } from './facebook-templates';
@@ -25,13 +26,13 @@ type FacebookGraphErrorBody = {
 };
 
 export class FacebookGraphApiError extends Error {
+    labelPagesRead?: number;
     status: number;
     code?: number;
     subcode?: number;
     type?: string;
     requiresReauth: boolean;
     raw: unknown;
-    labelPagesRead?: number;
 
     constructor(
         message: string,
@@ -140,39 +141,27 @@ export async function getFacebookPages(userAccessToken: string): Promise<Faceboo
         pagesUrl.searchParams.set('limit', '100');
         pagesUrl.searchParams.set('access_token', userAccessToken);
 
-        // Fetch all pages - this includes regular pages and business pages the user manages
-        const response = await fetch(pagesUrl);
-
-        if (!response.ok) {
-            throw await readFacebookError(response, '/me/accounts');
-        }
-
-        const data = await response.json();
-        const pages = data.data || [];
-
-        // Handle pagination if there are more than 100 pages
-        let nextUrl = data.paging?.next;
-        while (nextUrl) {
-            try {
-                const nextResponse = await fetch(nextUrl);
-                if (nextResponse.ok) {
-                    const nextData = await nextResponse.json();
-                    if (nextData.data) {
-                        pages.push(...nextData.data);
-                    }
-                    nextUrl = nextData.paging?.next;
-                } else {
-                    break;
+        return await requestDeadline(async signal => {
+            const pages = new Map<string, FacebookPage>(), seen = new Set<string>();
+            let nextUrl: URL | null = pagesUrl;
+            while (nextUrl) {
+                if (nextUrl.protocol !== 'https:' || nextUrl.hostname !== 'graph.facebook.com' || seen.has(nextUrl.toString()) || seen.size >= 100)
+                    throw new Error('Facebook Page pagination did not complete. Please retry.');
+                seen.add(nextUrl.toString());
+                const response: Response = await fetch(nextUrl, { signal, cache: 'no-store' });
+                if (!response.ok) throw await readFacebookError(response, '/me/accounts');
+                const data: { data?: FacebookPage[]; paging?: { next?: string } } = await response.json();
+                if (!Array.isArray(data.data)) throw new Error('Facebook returned an incomplete Page list. Please retry.');
+                for (const page of data.data) {
+                    if (typeof page.id !== 'string' || !page.id) throw new Error('Facebook returned an invalid Page. Please retry.');
+                    pages.set(page.id, page);
                 }
-            } catch (paginationError) {
-                console.warn('Error fetching paginated pages:', paginationError);
-                break;
+                nextUrl = data.paging?.next ? new URL(data.paging.next) : null;
             }
-        }
-
-        console.log(`Fetched ${pages.length} Facebook pages (including business pages if available)`);
-        return pages;
+            return [...pages.values()];
+        }, 40000);
     } catch (error) {
+        if (error instanceof DatabaseReadTimeout) throw new FacebookGraphApiError('Facebook Page listing timed out. Please retry.', { status: 503 });
         console.error('Error fetching Facebook pages:', error);
         throw error;
     }
@@ -187,6 +176,7 @@ export async function getPageConversations(
     fetchAll: boolean = true, // Set to true to fetch ALL conversations
     sinceTimestamp?: string // ISO timestamp - only fetch conversations updated after this
 ): Promise<FacebookConversation[]> {
+    if (process.env.VEO_WORKSPACE_ENABLED === 'true' && process.env.SUNO_HISTORY_SOURCE !== 'meta') throw new Error('Historical conversation imports are disabled; new events arrive through webhooks');
     const allConversations: FacebookConversation[] = [];
 
     // Build initial URL with optional since parameter
@@ -276,6 +266,7 @@ export async function getPageConversationsBatch(
         includeMessages?: boolean;
     } = {}
 ): Promise<PageConversationBatch> {
+    if (process.env.VEO_WORKSPACE_ENABLED === 'true' && process.env.SUNO_HISTORY_SOURCE !== 'meta') throw new Error('Historical conversation imports are disabled');
     const limit = options.limit || 100;
     const fields = options.includeMessages
         ? 'id,participants,updated_time,messages.limit(100){id,message,from,created_time}'
@@ -334,44 +325,6 @@ export async function getPageConversationsBatch(
     };
 }
 
-export type MessengerContactLabel = { id: string; page_label_name: string };
-
-/** Read current per-contact inbox labels. Stage changes are not reliably
- * included in conversation messages. A failed/partial read is never an empty
- * label list, and a Page's label catalogue is not a contact's assignments.
- */
-export async function getMessengerContactLabels(
-    psid: string,
-    pageAccessToken: string,
-    options: { timeoutMs?: number } = {}
-): Promise<MessengerContactLabel[]> {
-    const url = new URL(`${FACEBOOK_GRAPH_URL}/${psid}/custom_labels`);
-    url.searchParams.set('fields', 'id,page_label_name');
-    url.searchParams.set('access_token', pageAccessToken);
-    let next: string | null = url.toString();
-    const seen = new Set<string>();
-    const labels: MessengerContactLabel[] = [];
-    while (next) {
-        if (seen.has(next) || seen.size >= 50) throw new Error('Could not verify complete Facebook inbox labels');
-        seen.add(next);
-        const response = await fetchFacebookRead(next, options.timeoutMs);
-        if (!response.ok) {
-            const error = await readFacebookError(response, `/${psid}/custom_labels`);
-            error.labelPagesRead = seen.size - 1;
-            throw error;
-        }
-        const body = await response.json();
-        if (!Array.isArray(body.data) || body.data.some((label: MessengerContactLabel) =>
-            !label || typeof label.id !== 'string' || !label.id.trim() ||
-            typeof label.page_label_name !== 'string' || !label.page_label_name.trim())) {
-            throw new Error('Could not verify Facebook inbox labels: missing label names');
-        }
-        labels.push(...body.data);
-        next = body.paging?.next || null;
-    }
-    return labels;
-}
-
 // Get user profile from PSID
 export async function getUserProfile(
     psid: string,
@@ -395,14 +348,15 @@ export async function getUserProfile(
 export async function subscribePageToAppWebhook(
     pageId: string,
     pageAccessToken: string,
-    subscribedFields: string[] = ['messages', 'messaging_postbacks', 'message_echoes']
+    subscribedFields: readonly string[] = FACEBOOK_PAGE_WEBHOOK_FIELDS,
+    signal?: AbortSignal
 ): Promise<void> {
     const formData = new URLSearchParams();
     formData.set('access_token', pageAccessToken);
 
-    if (subscribedFields.length > 0) {
-        formData.set('subscribed_fields', subscribedFields.join(','));
-    }
+    // Every reconnect/sync must retain the echoes used to stop human handoffs,
+    // including callers that pass a legacy two-field list or an empty list.
+    formData.set('subscribed_fields', [...new Set([...subscribedFields, ...FACEBOOK_PAGE_WEBHOOK_FIELDS])].join(','));
 
     const response = await fetch(
         `${FACEBOOK_GRAPH_URL}/${pageId}/subscribed_apps`,
@@ -411,19 +365,21 @@ export async function subscribePageToAppWebhook(
             headers: {
                 'Content-Type': 'application/x-www-form-urlencoded'
             },
-            body: formData.toString()
+            body: formData.toString(),
+            ...(signal ? { signal } : {})
         }
     );
 
     const result = await response
         .json()
-        .catch(() => ({} as { error?: { message?: string }; success?: boolean }));
+        .catch(() => ({} as { error?: { message?: string; code?: number }; success?: boolean }));
 
     if (!response.ok) {
         const errorMessage =
             result.error?.message ||
             `HTTP ${response.status}: ${response.statusText}`;
-        throw new Error(errorMessage);
+        throw new FacebookGraphApiError(errorMessage, { status: response.status, code: result.error?.code,
+            requiresReauth: [10, 190, 200].includes(Number(result.error?.code)) || /pages_manage_metadata|pages_messaging/i.test(errorMessage) || isFacebookReauthMessage(errorMessage) });
     }
 
     if (!result.success) {
@@ -443,7 +399,7 @@ const FACEBOOK_SEND_TIMEOUT_MS = 20_000;
 export async function takeThreadControl(
     pageAccessToken: string,
     recipientPsid: string,
-    metadata: string = 'Sunobot campaign delivery'
+    metadata: string = 'VeoBot campaign delivery'
 ): Promise<void> {
     const endpoint = '/me/take_thread_control';
     const controller = new AbortController();
@@ -493,8 +449,9 @@ export async function sendMessage(
     templateBodyParameters?: string[],
     templateButtons?: Array<{ type: 'URL'; text: string; url: string } | { type: 'POSTBACK'; text: string; payload: string }>,
     templateMediaHeader?: { type: TemplateMediaType; url: string },
-    beforeRetry?: () => Promise<void>
+    quickReplies?: Array<{ title: string; payload: string }>
 ): Promise<{ message_id: string }> {
+    await assertVeoSendAllowed(pageId);
     // Build the request payload based on messaging type
     let bodyPayload: Record<string, unknown>;
 
@@ -617,61 +574,64 @@ export async function sendMessage(
             bodyPayload = {
                 recipient: { id: recipientPsid },
                 messaging_type: 'RESPONSE',
-                message: { text: messageText }
+                message: {
+                    text: messageText,
+                    ...(quickReplies?.length ? { quick_replies: quickReplies.slice(0, 13).map(choice => ({
+                        content_type: 'text', title: choice.title.slice(0, 20), payload: choice.payload
+                    })) } : {})
+                }
             };
         }
     }
 
-    return retryFacebookSend(async () => {
-        // Facebook Messenger API endpoint - use /me/messages with page access token.
-        // A stalled upstream request must not consume the entire campaign function
-        // lifetime and prevent its completed recipient statuses from being saved.
-        const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), FACEBOOK_SEND_TIMEOUT_MS);
-        let response: Response;
+    // Facebook Messenger API endpoint - use /me/messages with page access token.
+    // A stalled upstream request must not consume the entire campaign function
+    // lifetime and prevent its completed recipient statuses from being saved.
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), FACEBOOK_SEND_TIMEOUT_MS);
+    let response: Response;
 
-        try {
-            response = await fetch(
-                `${FACEBOOK_GRAPH_URL}/me/messages?access_token=${pageAccessToken}`,
-                {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json'
-                    },
-                    body: JSON.stringify(bodyPayload),
-                    signal: controller.signal
-                }
-            );
-        } catch (error) {
-            if (controller.signal.aborted) {
-                throw new Error(`Facebook send timed out after ${FACEBOOK_SEND_TIMEOUT_MS / 1000} seconds`);
+    try {
+        response = await fetch(
+            `${FACEBOOK_GRAPH_URL}/me/messages?access_token=${pageAccessToken}`,
+            {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(bodyPayload),
+                signal: controller.signal
             }
-            throw error;
-        } finally {
-            clearTimeout(timeoutId);
+        );
+    } catch (error) {
+        if (controller.signal.aborted) {
+            throw new Error(`Facebook send timed out after ${FACEBOOK_SEND_TIMEOUT_MS / 1000} seconds`);
         }
+        throw error;
+    } finally {
+        clearTimeout(timeoutId);
+    }
 
-        if (!response.ok) {
-            const facebookError = await readFacebookError(response, '/me/messages');
-            console.error('🔴 Facebook send message error:', {
-                pageId,
-                recipientPsid,
-                status: response.status,
-                error: facebookError.message,
-                code: facebookError.code,
-                subcode: facebookError.subcode
-            });
-            throw facebookError;
-        }
-
-        const result = await response.json();
-        console.log('✅ Message sent successfully:', {
+    if (!response.ok) {
+        const facebookError = await readFacebookError(response, '/me/messages');
+        console.error('🔴 Facebook send message error:', {
             pageId,
             recipientPsid,
-            messageId: result.message_id
+            status: response.status,
+            error: facebookError.message,
+            code: facebookError.code,
+            subcode: facebookError.subcode
         });
-        return result;
-    }, beforeRetry);
+        throw facebookError;
+    }
+
+    const result = await response.json();
+    console.log('✅ Message sent successfully:', {
+        pageId,
+        recipientPsid,
+        messageId: result.message_id
+    });
+    return result;
 }
 
 export async function sendMessengerMediaAttachment(
@@ -681,6 +641,7 @@ export async function sendMessengerMediaAttachment(
     media: { type: 'image' | 'video' | 'audio' | 'file'; url: string },
     messagingType: 'RESPONSE' | 'HUMAN_AGENT' = 'RESPONSE'
 ): Promise<{ message_id: string; attachment_id?: string }> {
+    await assertVeoSendAllowed(pageId);
     const bodyPayload: Record<string, unknown> = {
         recipient: { id: recipientPsid },
         message: {
@@ -756,6 +717,7 @@ export async function sendMessengerGenericCarousel(
     cards: MessengerCarouselCard[],
     messagingType: 'RESPONSE' | 'HUMAN_AGENT' = 'RESPONSE'
 ): Promise<{ message_id: string }> {
+    await assertVeoSendAllowed(pageId);
     const normalizedCards = cards
         .filter((card) => card.title.trim() && /^https:\/\//i.test(card.url.trim()))
         .slice(0, 10)
@@ -949,7 +911,7 @@ export async function getConversationForPsid(
     options: { throwOnError?: boolean; timeoutMs?: number } = {}
 ): Promise<FacebookConversation | null> {
     try {
-        const fields = 'id,participants,updated_time,messages.limit(100){id,message,from,created_time}';
+        const fields = 'id,participants,updated_time,messages.limit(100){id,message,from,created_time,tags}';
         const url = new URL(`${FACEBOOK_GRAPH_URL}/${pageId}/conversations`);
         url.searchParams.set('user_id', psid);
         url.searchParams.set('fields', fields);
@@ -1142,6 +1104,7 @@ export async function sendUtilityMessage(
     bodyTexts: string | string[],
     mediaHeader?: { type: TemplateMediaType; url: string }
 ): Promise<{ message_id: string; recipient_id: string }> {
+    await assertVeoSendAllowed(pageId);
     const textsArray = Array.isArray(bodyTexts) ? bodyTexts : [bodyTexts];
     const invalidParameter = textsArray
         .map(getUtilityTemplateParameterValidationError)
@@ -1220,3 +1183,39 @@ export async function sendUtilityMessage(
     });
     return result;
 }
+
+
+export async function getMessengerContactLabels(
+    psid: string,
+    pageAccessToken: string,
+    options: { timeoutMs?: number } = {}
+): Promise<MessengerContactLabel[]> {
+    const url = new URL(`${FACEBOOK_GRAPH_URL}/${psid}/custom_labels`);
+    url.searchParams.set('fields', 'id,page_label_name');
+    url.searchParams.set('access_token', pageAccessToken);
+    let next: string | null = url.toString();
+    const seen = new Set<string>();
+    const labels: MessengerContactLabel[] = [];
+    while (next) {
+        if (seen.has(next) || seen.size >= 50) throw new Error('Could not verify complete Facebook inbox labels');
+        seen.add(next);
+        const response = await fetchFacebookRead(next, options.timeoutMs);
+        if (!response.ok) {
+            const error = await readFacebookError(response, `/${psid}/custom_labels`);
+            error.labelPagesRead = seen.size - 1;
+            throw error;
+        }
+        const body = await response.json();
+        if (!Array.isArray(body.data) || body.data.some((label: MessengerContactLabel) =>
+            !label || typeof label.id !== 'string' || !label.id.trim() ||
+            typeof label.page_label_name !== 'string' || !label.page_label_name.trim())) {
+            throw new Error('Could not verify Facebook inbox labels: missing label names');
+        }
+        labels.push(...body.data);
+        next = body.paging?.next || null;
+    }
+    return labels;
+}
+
+
+export type MessengerContactLabel = { id: string; page_label_name: string };

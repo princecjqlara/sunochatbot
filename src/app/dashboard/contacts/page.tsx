@@ -1,6 +1,7 @@
 'use client';
 
 import { useSession } from 'next-auth/react';
+import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useEffect, useState, useCallback, useRef } from 'react';
 import {
@@ -21,6 +22,7 @@ import {
     Image as ImageIcon
 } from 'lucide-react';
 import Pagination from '@/components/Pagination';
+import LeadQualityBadge from '@/components/LeadQualityBadge';
 import Modal from '@/components/Modal';
 import { Contact, Tag as TagType, Page, PaginatedResponse } from '@/types';
 import {
@@ -30,6 +32,8 @@ import {
     summarizeSendErrors
 } from '@/lib/send-errors';
 import { createRequestGate } from '@/lib/request-gate';
+import { createSearchSchedule } from '@/lib/search-schedule';
+import { loadTagOptions } from '@/lib/load-tag-options';
 import { getSupabaseClient } from '@/lib/supabase';
 import { UTILITY_TEMPLATES, getBaseTemplateName, getMediaTemplateName } from '@/lib/facebook-templates';
 import type { TemplateMediaType } from '@/lib/facebook-templates';
@@ -304,7 +308,9 @@ export default function ContactsPage() {
     const [pages, setPages] = useState<Page[]>([]);
     const [selectedPageId, setSelectedPageId] = useState<string | null>(null);
     const [contacts, setContacts] = useState<Contact[]>([]);
+    const [showExtraColumns, setShowExtraColumns] = useState(false);
     const [tags, setTags] = useState<TagType[]>([]);
+    const [tagsError, setTagsError] = useState(''), [contactsError, setContactsError] = useState(''), [tagVersion, setTagVersion] = useState(0);
     const [loading, setLoading] = useState(true);
     const [syncing, setSyncing] = useState(false);
     const [exportingConversations, setExportingConversations] = useState(false);
@@ -325,6 +331,7 @@ export default function ContactsPage() {
     const [dateFrom, setDateFrom] = useState('');
     const [dateTo, setDateTo] = useState('');
     const [dateFilterMode, setDateFilterMode] = useState<DateFilterMode>('include');
+    const [botFilter, setBotFilter] = useState('all');
 
     // Selection
     const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
@@ -396,6 +403,9 @@ export default function ContactsPage() {
     const realtimeSubscribeTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
     const webhookRefreshAttemptedRef = useRef<Set<string>>(new Set());
     const contactsRequestGateRef = useRef(createRequestGate());
+    const contactsAbortRef = useRef<AbortController | null>(null);
+    const latestContactsFetch = useRef<() => Promise<void>>(async () => {});
+    const searchSchedule = useRef(createSearchSchedule(''));
     const syncingRef = useRef(false);
     const activeDatePreset =
         DATE_PRESETS.find((preset) => {
@@ -424,11 +434,11 @@ export default function ContactsPage() {
     }, []);
 
     useEffect(() => {
-        if (selectedPageId) {
-            fetchContacts();
-            fetchTags();
-        }
-    }, [selectedPageId, page, pageSize, search, selectedTagFilters, excludedTagFilters, dateFrom, dateTo, dateFilterMode]);
+        if (!selectedPageId) return;
+        const controller = new AbortController();setTags([]);setTagsError('');
+        void loadTagOptions(selectedPageId, controller.signal).then(tags => { if (!controller.signal.aborted) setTags(tags); }).catch(error => { if (!controller.signal.aborted) setTagsError(error.message); });
+        return () => controller.abort();
+    }, [selectedPageId, tagVersion]);
 
     useEffect(() => {
         if (!selectedPageId) return;
@@ -548,7 +558,8 @@ export default function ContactsPage() {
             const data = await res.json();
             setPages(data.pages || []);
             if (data.pages?.length > 0) {
-                setSelectedPageId(data.pages[0].id);
+                const requestedPage = new URLSearchParams(window.location.search).get('pageId');
+                setSelectedPageId(data.pages.some((item: Page) => item.id === requestedPage) ? requestedPage! : data.pages[0].id);
             }
         } catch (error) {
             console.error('Error fetching pages:', error);
@@ -558,17 +569,23 @@ export default function ContactsPage() {
     const fetchContacts = useCallback(async ({ silent = false }: { silent?: boolean } = {}) => {
         if (!selectedPageId) return;
         if (silent && syncingRef.current) return;
+        if (silent && (document.hidden || contactsAbortRef.current)) return;
+        contactsAbortRef.current?.abort();
+        const controller = new AbortController();contactsAbortRef.current = controller;
 
         const requestToken = contactsRequestGateRef.current.next();
 
         if (!silent) {
             setLoading(true);
         }
+        setContactsError('');
         try {
             const params = new URLSearchParams({
                 page: page.toString(),
                 pageSize: pageSize.toString(),
                 includeCount: silent ? 'false' : 'true',
+                includeControls: 'true',
+                bot: botFilter,
                 ...(search && { search }),
                 ...(selectedTagFilters.size > 0 && { tagIds: [...selectedTagFilters].join(',') }),
                 ...(excludedTagFilters.size > 0 && { excludeTagIds: [...excludedTagFilters].join(',') }),
@@ -577,14 +594,14 @@ export default function ContactsPage() {
                 ...((dateFrom || dateTo) && { dateFilterMode })
             });
 
-            const res = await fetch(`/api/pages/${selectedPageId}/contacts?${params}`);
+            const res = await fetch(`/api/pages/${selectedPageId}/contacts?${params}`, { signal: controller.signal, cache: 'no-store' });
             const data = await res.json() as Omit<PaginatedResponse<Contact>, 'total'> & { total?: number | null };
 
             if (!res.ok) {
                 throw new Error((data as { message?: string }).message || `Failed to fetch contacts (${res.status})`);
             }
 
-            if (!contactsRequestGateRef.current.isLatest(requestToken)) {
+            if (controller.signal.aborted || !contactsRequestGateRef.current.isLatest(requestToken)) {
                 return;
             }
 
@@ -593,16 +610,26 @@ export default function ContactsPage() {
                 setTotal(data.total);
             }
         } catch (error) {
-            if (!contactsRequestGateRef.current.isLatest(requestToken)) {
+            if (controller.signal.aborted || !contactsRequestGateRef.current.isLatest(requestToken)) {
                 return;
             }
             console.error('Error fetching contacts:', error);
+            setContactsError(error instanceof Error ? error.message : 'Contacts are unavailable. Refresh to retry.');
         } finally {
-            if (!silent) {
-                setLoading(false);
+            if (contactsAbortRef.current === controller) {
+                contactsAbortRef.current = null;
+                if (!silent && !controller.signal.aborted) setLoading(false);
             }
         }
-    }, [selectedPageId, page, pageSize, search, selectedTagFilters, excludedTagFilters, dateFrom, dateTo, dateFilterMode]);
+    }, [selectedPageId, page, pageSize, search, selectedTagFilters, excludedTagFilters, dateFrom, dateTo, dateFilterMode, botFilter]);
+    latestContactsFetch.current = () => fetchContacts({ silent: true });
+    useEffect(() => {
+        if (!selectedPageId) return;
+        contactsRequestGateRef.current.next();contactsAbortRef.current?.abort();contactsAbortRef.current = null;
+        setLoading(true);
+        const timer = setTimeout(() => void fetchContacts(), searchSchedule.current(search));
+        return () => { clearTimeout(timer);contactsRequestGateRef.current.next();contactsAbortRef.current?.abort();contactsAbortRef.current = null; };
+    }, [fetchContacts, search, selectedPageId]);
 
     useEffect(() => {
         if (!selectedPageId) return;
@@ -620,9 +647,9 @@ export default function ContactsPage() {
                 return;
             }
 
-            void fetchContacts({ silent: true });
+            void latestContactsFetch.current();
             realtimeFallbackIntervalRef.current = setInterval(() => {
-                void fetchContacts({ silent: true });
+                void latestContactsFetch.current();
             }, 30000);
         };
 
@@ -654,7 +681,7 @@ export default function ContactsPage() {
                     }
 
                     realtimeRefreshTimerRef.current = setTimeout(() => {
-                        void fetchContacts({ silent: true });
+                        void latestContactsFetch.current();
                         realtimeRefreshTimerRef.current = null;
                     }, 250);
                 }
@@ -679,7 +706,10 @@ export default function ContactsPage() {
                 }
             });
 
+        const onVisible = () => { if (!document.hidden) void latestContactsFetch.current(); };
+        document.addEventListener('visibilitychange', onVisible);
         return () => {
+            document.removeEventListener('visibilitychange', onVisible);
             if (realtimeRefreshTimerRef.current) {
                 clearTimeout(realtimeRefreshTimerRef.current);
                 realtimeRefreshTimerRef.current = null;
@@ -694,19 +724,7 @@ export default function ContactsPage() {
 
             void supabase.removeChannel(channel);
         };
-    }, [selectedPageId, fetchContacts]);
-
-    const fetchTags = async () => {
-        if (!selectedPageId) return;
-
-        try {
-            const res = await fetch(`/api/tags?scope=all&pageId=${selectedPageId}&pageSize=100`);
-            const data = await res.json();
-            setTags(data.items || []);
-        } catch (error) {
-            console.error('Error fetching tags:', error);
-        }
-    };
+    }, [selectedPageId]);
 
     const fetchAllContactIds = async (): Promise<string[]> => {
         if (!selectedPageId) return [];
@@ -724,6 +742,7 @@ export default function ContactsPage() {
                     page: currentPage.toString(),
                     pageSize: pageSize.toString(),
                     sendable: 'true', // Only fetch contacts with valid PSIDs for messaging
+                    bot: botFilter,
                     ...(search && { search }),
                     ...(selectedTagFilters.size > 0 && { tagIds: [...selectedTagFilters].join(',') }),
                     ...(excludedTagFilters.size > 0 && { excludeTagIds: [...excludedTagFilters].join(',') }),
@@ -1121,7 +1140,7 @@ export default function ContactsPage() {
 
             const normalizedManualBatchSize = Math.max(1, Math.floor(Number(manualBatchSize) || 5000));
             const normalizedManualBatchNumber = Math.max(1, Math.floor(Number(manualBatchNumber) || 1));
-            const selection = selectAllMode
+            const selection = selectAllMode && botFilter === 'all'
                 ? {
                     mode: 'all',
                     excludedContactIds: Array.from(excludedIds),
@@ -1144,7 +1163,7 @@ export default function ContactsPage() {
                 }
                 : {
                     mode: 'specific',
-                    contactIds: Array.from(selectedIds),
+                    contactIds: await getSelectedContactIds(),
                     ...(manualBatchEnabled
                         ? {
                             slice: {
@@ -1344,7 +1363,7 @@ export default function ContactsPage() {
         try {
             const contactIds = await getSelectedContactIds();
 
-            await fetch(`/api/pages/${selectedPageId}/contacts/bulk-add-tags`, {
+            const response = await fetch(`/api/pages/${selectedPageId}/contacts/bulk-add-tags`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
@@ -1352,6 +1371,8 @@ export default function ContactsPage() {
                     tagIds: Array.from(selectedTagIds)
                 })
             });
+            const result = await response.json();
+            if (!response.ok) throw new Error(result.message || result.error || 'Contact tag update failed');
 
             setShowAddTagsModal(false);
             setSelectedTagIds(new Set());
@@ -1359,6 +1380,7 @@ export default function ContactsPage() {
             await fetchContacts();
         } catch (error) {
             console.error('Error adding tags:', error);
+            alert((error as Error).message || 'Contact tag update failed');
         } finally {
             setActionLoading(false);
         }
@@ -1371,7 +1393,7 @@ export default function ContactsPage() {
         try {
             const contactIds = await getSelectedContactIds();
 
-            await fetch(`/api/pages/${selectedPageId}/contacts/bulk-remove-tags`, {
+            const response = await fetch(`/api/pages/${selectedPageId}/contacts/bulk-remove-tags`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
@@ -1379,6 +1401,8 @@ export default function ContactsPage() {
                     tagIds: Array.from(selectedTagIds)
                 })
             });
+            const result = await response.json();
+            if (!response.ok) throw new Error(result.message || result.error || 'Contact tag update failed');
 
             setShowRemoveTagsModal(false);
             setSelectedTagIds(new Set());
@@ -1386,6 +1410,7 @@ export default function ContactsPage() {
             await fetchContacts();
         } catch (error) {
             console.error('Error removing tags:', error);
+            alert((error as Error).message || 'Contact tag update failed');
         } finally {
             setActionLoading(false);
         }
@@ -2106,13 +2131,13 @@ export default function ContactsPage() {
     const failedErrorSummary = summarizeSendErrors(failedContactErrors);
 
     return (
-        <div className="p-6 md:p-8 max-w-[1400px] mx-auto fade-in">
+        <div className="dashboard-page fade-in">
             {/* Header */}
-            <div className="flex flex-col md:flex-row items-center justify-between mb-8 gap-4">
+            <div className="flex flex-col items-start justify-between gap-4 md:flex-row md:items-end">
                 <div>
-                    <h1 className="text-3xl font-black uppercase mb-2">Contacts</h1>
-                    <p className="font-mono text-sm text-gray-500 uppercase tracking-wide">
-                        Manage and organize your audience
+                    <h1 className="text-3xl font-bold tracking-tight mb-2">Contacts</h1>
+                    <p className="max-w-2xl text-sm leading-6 text-slate-500">
+                        Open a contact for their conversation, answers, payments and timeline
                     </p>
                 </div>
 
@@ -2160,6 +2185,8 @@ export default function ContactsPage() {
             </div>
 
             {/* Filters & Actions Bar */}
+            {contactsError && <p role="alert" className="mb-3 border border-red-200 bg-red-50 p-3 text-sm">{contactsError}</p>}
+            {tagsError && <p role="alert" className="mb-3 border border-amber-200 bg-amber-50 p-3 text-sm">{tagsError} <button type="button" className="underline" onClick={() => setTagVersion(v => v + 1)}>Refresh tags</button></p>}
             <div className="wireframe-card mb-6 p-4">
                 <div className="flex flex-wrap items-center gap-4">
                     {/* Search */}
@@ -2178,6 +2205,9 @@ export default function ContactsPage() {
                         />
                     </div>
 
+                    <details className="w-full rounded-lg border border-gray-200 bg-gray-50 p-3">
+                    <summary className="cursor-pointer text-sm font-semibold">More filters {(selectedTagFilters.size + excludedTagFilters.size > 0 || dateFrom || dateTo) && <span className="ml-2 rounded-full bg-black px-2 py-0.5 text-xs text-white">Active filters</span>}</summary>
+                    <div className="mt-4 flex flex-wrap items-center gap-4">
                     {/* Include Tags Filter */}
                     <div className="flex items-center gap-2 flex-wrap">
                         <Filter className="w-4 h-4 flex-shrink-0" />
@@ -2330,6 +2360,8 @@ export default function ContactsPage() {
                         )}
                     </div>
 
+                    </div>
+                    </details>
                     {/* Bulk Actions */}
                     {getSelectionCount() > 0 && (
                         <div className="flex items-center gap-2 pl-4 border-l-2 border-black ml-2">
@@ -2406,6 +2438,10 @@ export default function ContactsPage() {
                 </div>
             )}
 
+            <div className="border border-black p-3 mb-4 flex flex-wrap gap-3 items-center">
+                <label className="text-sm">Contact bot switch <select aria-label="Contact bot filter" value={botFilter} onChange={e => { setBotFilter(e.target.value); setPage(1); clearSelection(); }} className="border border-black p-2 ml-2"><option value="all">All contacts</option><option value="on">Bot permission ON</option><option value="off">Bot permission OFF</option></select></label>
+                <label className="ml-auto flex items-center gap-2 text-xs text-gray-600"><input type="checkbox" checked={showExtraColumns} onChange={event => setShowExtraColumns(event.target.checked)} />Show contact timing columns</label>
+            </div>
             {/* Table */}
             <div className="overflow-x-auto border border-black mb-4">
                 <table className="table-wireframe">
@@ -2421,21 +2457,22 @@ export default function ContactsPage() {
                             </th>
                             <th>Contact Name</th>
                             <th>Tags</th>
-                            <th>Best Time</th>
+                            {showExtraColumns && <th>Best Time</th>}
                             <th>Last Active</th>
-                            <th>First Message</th>
+                            {showExtraColumns && <th>First Message</th>}
+                            <th>Contact profile</th>
                         </tr>
                     </thead>
                     <tbody className="bg-white">
                         {loading ? (
                             <tr>
-                                <td colSpan={6} className="text-center py-12">
+                                <td colSpan={showExtraColumns ? 7 : 5} className="text-center py-12">
                                     <div className="animate-spin w-8 h-8 border-2 border-black border-t-transparent rounded-full mx-auto" />
                                 </td>
                             </tr>
                         ) : contacts.length === 0 ? (
                             <tr>
-                                <td colSpan={6} className="text-center py-20">
+                                <td colSpan={showExtraColumns ? 7 : 5} className="text-center py-20">
                                     <User className="w-12 h-12 text-gray-300 mx-auto mb-4" />
                                     <p className="text-lg font-bold uppercase">No contacts found</p>
                                     <p className="font-mono text-xs text-gray-500 mt-2">
@@ -2460,7 +2497,11 @@ export default function ContactsPage() {
                                                 <img
                                                     src={contact.profile_pic}
                                                     alt={contact.name || 'Contact'}
-                                                    className="w-10 h-10 border border-black grayscale"
+                                                    loading="lazy"
+                                                    decoding="async"
+                                                    width={40}
+                                                    height={40}
+                                                    className="h-10 w-10 rounded-full border border-slate-200 object-cover"
                                                 />
                                             ) : (
                                                 <div className="w-10 h-10 border border-black bg-gray-100 flex items-center justify-center">
@@ -2468,12 +2509,14 @@ export default function ContactsPage() {
                                                 </div>
                                             )}
                                             <div>
-                                                <p className="font-bold uppercase text-sm">
+                                                <Link href={`/dashboard/contacts/${contact.id}?pageId=${selectedPageId || contact.page_id}`} className="font-semibold text-sm text-blue-800 hover:underline">
                                                     {contact.name || 'Unnamed Contact'}
-                                                </p>
+                                                </Link>
                                                 <p className="font-mono text-xs text-gray-500">
                                                     ID: {contact.psid.slice(0, 8)}...
                                                 </p>
+                                                <div className="mt-2"><LeadQualityBadge stage={contact.pipeline_stage}/></div>
+                                                <p className="mt-1 text-xs text-gray-500">{contact.pipeline_stage?.replaceAll('_', ' ')}</p>
                                             </div>
                                         </div>
                                     </td>
@@ -2506,7 +2549,7 @@ export default function ContactsPage() {
                                             )}
                                         </div>
                                     </td>
-                                    <td>
+                                    {showExtraColumns && <td>
                                         {contact.best_contact_hour !== null && contact.best_contact_hour !== undefined ? (
                                             <div className="flex flex-col gap-1">
                                                 <div className="flex items-center gap-2 flex-wrap">
@@ -2556,13 +2599,13 @@ export default function ContactsPage() {
                                         ) : (
                                             <span className="font-mono text-xs text-gray-400">—</span>
                                         )}
-                                    </td>
+                                    </td>}
                                     <td className="font-mono text-xs text-gray-500">
                                         {contact.last_interaction_at
                                             ? new Date(contact.last_interaction_at).toLocaleDateString()
                                             : 'NEVER'}
                                     </td>
-                                    <td className="font-mono text-xs text-gray-500">
+                                    {showExtraColumns && <td className="font-mono text-xs text-gray-500">
                                         <div className="flex items-center gap-1">
                                             <Calendar className="w-3 h-3 text-gray-400" />
                                             {contact.first_interaction_at
@@ -2571,7 +2614,8 @@ export default function ContactsPage() {
                                                     ? new Date(contact.created_at).toLocaleDateString()
                                                     : '—'}
                                         </div>
-                                    </td>
+                                    </td>}
+                                    <td><Link href={`/dashboard/contacts/${contact.id}?pageId=${selectedPageId || contact.page_id}`} className="inline-block rounded-lg border border-gray-300 px-3 py-2 text-xs font-semibold hover:bg-gray-50">View profile</Link><p className="mt-2 text-[11px] text-gray-500">Bot permission {contact.chatbot_enabled === false ? 'off' : 'on'}</p></td>
                                 </tr>
                             ))
                         )}
@@ -2609,7 +2653,7 @@ export default function ContactsPage() {
                         Select tags to add to <span className="font-bold text-black">{getSelectionCount()}</span> contacts.
                     </p>
                     <div className="max-h-64 overflow-y-auto border border-black p-2 space-y-1">
-                        {tags.map((tag) => (
+                        {tags.filter(tag => !session?.user.role || !tag.is_default && !tag.system_key).map((tag) => (
                             <button
                                 key={tag.id}
                                 onClick={() => toggleTagSelection(tag.id)}
@@ -2663,7 +2707,7 @@ export default function ContactsPage() {
                         Select tags to remove from <span className="font-bold text-black">{getSelectionCount()}</span> contacts.
                     </p>
                     <div className="max-h-64 overflow-y-auto border border-black p-2 space-y-1">
-                        {tags.map((tag) => (
+                        {tags.filter(tag => !session?.user.role || !tag.is_default && !tag.system_key).map((tag) => (
                             <button
                                 key={tag.id}
                                 onClick={() => toggleTagSelection(tag.id)}

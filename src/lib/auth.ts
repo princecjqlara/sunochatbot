@@ -1,142 +1,100 @@
 import { NextAuthOptions } from 'next-auth';
-import FacebookProvider from 'next-auth/providers/facebook';
 import CredentialsProvider from 'next-auth/providers/credentials';
-import { getSupabaseAdmin } from './supabase';
+import FacebookProvider from 'next-auth/providers/facebook';
 import { FACEBOOK_PERMISSION_SCOPE } from './facebook-permissions';
-import { authorizePasswordSignIn } from './password-sign-in';
+import { getSupabaseAdmin } from './supabase';
+import { passwordMatches, workspaceEnabled, workspaceScope, type WorkspaceRole } from './veo-workspace';
+import { requestDeadline } from './request-deadline';
+import { isSupabaseUnavailable } from './supabase-errors';
+import { CJ_OWNER_USER_ID } from '@/config/veo-owner';
 
 export const authOptions: NextAuthOptions = {
     providers: [
-        CredentialsProvider({
-            name: 'Suno account',
-            credentials: { email: { label: 'Email', type: 'email' }, password: { label: 'Password', type: 'password' } },
-            authorize: authorizePasswordSignIn
-        }),
-        FacebookProvider({
-            clientId: process.env.FACEBOOK_CLIENT_ID!,
-            clientSecret: process.env.FACEBOOK_CLIENT_SECRET!,
-            authorization: {
-                params: {
-                    scope: FACEBOOK_PERMISSION_SCOPE
+        CredentialsProvider({ name: 'Suno account', credentials: { email: { type: 'email' }, password: { type: 'password' } },
+            async authorize(credentials) {
+                if (!credentials || !credentials.password || !credentials.email) return null;
+                try {
+                    return await requestDeadline(async signal => {
+                        const email = credentials.email.trim().toLowerCase();
+                        const alias = process.env.SUNO_OWNER_LOGIN_EMAIL?.trim().toLowerCase();
+                        const ownerAlias = process.env.SUNO_SYSTEM_ENABLED === 'true' && Boolean(alias) && email === alias;
+                        const accountEmail = process.env.SUNO_OWNER_ACCOUNT_EMAIL?.trim().toLowerCase();
+                        if (ownerAlias && (!accountEmail || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(accountEmail))) throw new Error('DatabaseUnavailable');
+                        const db = getSupabaseAdmin(signal);
+                        const row = await db.rpc('veo_login_context', { p_email: ownerAlias ? accountEmail : email });
+                        if (row.error) throw new Error(row.error.message === 'TooManyAttempts' ? 'TooManyAttempts' : 'DatabaseUnavailable');
+                        if (row.data?.limited === true) throw new Error('TooManyAttempts');
+                        if (ownerAlias && row.data?.id !== CJ_OWNER_USER_ID) return null;
+                        if (!row.data?.id || !await passwordMatches(credentials.password!, row.data.password_hash)) return null;
+                        if (row.data.suspension) throw new Error('AccountSuspended');
+                        return { id: row.data.id, name: row.data.name, email: ownerAlias ? alias : row.data.email, image: row.data.image };
+                    }, 12_000);
+                } catch (error) {
+                    if (isSupabaseUnavailable(error)) throw new Error('DatabaseUnavailable');
+                    throw error;
                 }
             }
-        })
+        }),
+        FacebookProvider({clientId:process.env.FACEBOOK_CLIENT_ID!,clientSecret:process.env.FACEBOOK_CLIENT_SECRET!,authorization:{params:{scope:FACEBOOK_PERMISSION_SCOPE}}})
     ],
     callbacks: {
+        async signIn({ account, user }) {
+            if (account?.provider === 'credentials') return true;
+            if (account?.provider !== 'facebook' || !account.providerAccountId || !user?.email) return false;
+            const db=getSupabaseAdmin();
+            let found=await db.from('users').select('id').eq('facebook_id',account.providerAccountId).maybeSingle();
+            if(found.error) throw new Error('DatabaseUnavailable');
+            if(!found.data) found=await db.from('users').select('id').eq('email',user.email.trim().toLowerCase()).maybeSingle();
+            if(found.error) throw new Error('DatabaseUnavailable');
+            if(!found.data?.id || !await workspaceScope(found.data.id)) return false;
+            user.id=found.data.id;
+            (user as typeof user & {sunoFacebookVerified?:boolean}).sunoFacebookVerified=true;
+            return true;
+        },
         async jwt({ token, account, user }) {
-            if (account?.provider === 'credentials' && user) {
-                token.id = user.id;
-                token.email = user.email;
-                token.name = user.name;
-                token.picture = user.image;
-                delete token.accessToken;
-                delete token.facebookId;
+            if(account?.provider==='facebook') {
+                if(!(user as typeof user & {sunoFacebookVerified?:boolean})?.sunoFacebookVerified) return {};
+                token.id=user.id;token.loginStartedAt=Date.now();token.name=user.name;token.email=user.email;token.picture=user.image;
+                delete token.facebookId;delete token.accessToken;delete token.accessTokenExpiresAt;
                 return token;
             }
             if (account && user) {
-                token.accessToken = account.access_token;
-                token.facebookId = account.providerAccountId;
-
-                // Sync user to Supabase to get UUID
-                try {
-                    const supabase = getSupabaseAdmin();
-
-                    // Upsert user based on email or facebook_id
-                    // Using email as primary key for matching for now, but falling back to insert
-                    const userEmail = user.email || `fb_${account.providerAccountId}@facebook.local`;
-
-                    const { data: dbUser, error } = await supabase
-                        .from('users')
-                        .select('id')
-                        .eq('email', userEmail)
-                        .single();
-
-                    if (dbUser) {
-                        token.id = dbUser.id;
-                    } else if (!error || error.code === 'PGRST116') {
-                        // PGRST116 = no rows found - safe to create
-                        const { data: newUser, error: createError } = await supabase
-                            .from('users')
-                            .upsert({
-                                email: userEmail,
-                                name: user.name,
-                                image: user.image,
-                                is_active: true
-                            }, { onConflict: 'email' })
-                            .select('id')
-                            .single();
-
-                        if (newUser) {
-                            token.id = newUser.id;
-                        } else if (createError) {
-                            console.error('Error creating user in Supabase:', createError);
-                        }
-                    } else {
-                        console.error('Error looking up user in Supabase:', error);
-                    }
-                } catch (err) {
-                    console.error('Error syncing user to Supabase:', err);
-                }
+                if (account.provider !== 'credentials') return {};
+                token.loginStartedAt = Date.now();
+                token.id = user.id;
+                delete token.facebookId;
+                delete token.accessToken;
+                delete token.accessTokenExpiresAt;
             }
+            if (token.facebookId || token.accessToken) return {};
             return token;
         },
         async session({ session, token }) {
-            return {
-                ...session,
-                accessToken: token.accessToken as string,
-                user: {
-                    ...session.user,
-                    id: token.id as string, // This will now be the UUID from DB
-                    facebookId: token.facebookId as string
-                }
-            };
+            let workspaceUnavailable = false;
+            let suspension: { id: string; reason: string; ends_at: string | null } | undefined;
+            const scope = workspaceEnabled() && token.id ? await workspaceScope(token.id).catch((error: any) => {
+                if (error.code === 'ACCOUNT_SUSPENDED') { suspension = error.suspension; return null; }
+                workspaceUnavailable = true; return null;
+            }) : null;
+            return { ...session,
+                user: { ...session.user, id: workspaceEnabled() && !scope && !workspaceUnavailable ? undefined : token.id, role: scope?.role,
+                    workspaceUnavailable, suspension,
+                    telegramUsername: scope?.telegram_username || null,
+                    telegramProfileCompleted: Boolean(scope?.telegram_profile_completed_at),
+                    telegramProfileConfirmed: Boolean(scope?.telegram_profile_completed_at && (!token.loginStartedAt || Date.parse(scope.telegram_profile_completed_at) >= token.loginStartedAt)) } };
         }
     },
-    pages: {
-        signIn: '/',
-        error: '/'
-    },
-    session: {
-        strategy: 'jwt',
-        maxAge: 30 * 24 * 60 * 60,
-        updateAge: 24 * 60 * 60,
-    },
-    debug: process.env.NODE_ENV !== 'production' || process.env.NEXTAUTH_DEBUG === 'true',
-    logger: {
-        error(code) {
-            console.error('NextAuth error:', code);
-        },
-        warn(code) {
-            if (process.env.NODE_ENV !== 'production') {
-                console.warn('NextAuth warning:', code);
-            }
-        },
-        debug(code) {
-            if (process.env.NODE_ENV !== 'production') {
-                console.log('NextAuth debug:', code);
-            }
-        }
-    }
+    pages: { signIn: '/', error: '/' },
+    session: { strategy: 'jwt', maxAge: 30 * 24 * 60 * 60 },
+    debug: false
 };
-
-// Extended session type
 declare module 'next-auth' {
     interface Session {
         accessToken?: string;
-        user: {
-            id?: string;
-            name?: string | null;
-            email?: string | null;
-            image?: string | null;
-            facebookId?: string;
-        };
+        accessTokenExpiresAt?: string;
+        user: { id?: string; role?: WorkspaceRole; name?: string | null; email?: string | null; image?: string | null; facebookId?: string; telegramUsername?: string | null; telegramProfileCompleted?: boolean; telegramProfileConfirmed?: boolean; workspaceUnavailable?: boolean; suspension?: { id: string; reason: string; ends_at: string | null } };
     }
 }
-
 declare module 'next-auth/jwt' {
-    interface JWT {
-        id?: string;
-        accessToken?: string;
-        facebookId?: string;
-    }
+    interface JWT { id?: string; accessToken?: string; accessTokenExpiresAt?: number; facebookId?: string; loginStartedAt?: number }
 }

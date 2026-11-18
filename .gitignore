@@ -2,6 +2,16 @@
 
 # dependencies
 /node_modules
+/verification/*
+!/verification/fixtures/
+!/verification/*.py
+!/verification/smoke_suno_app.mjs
+!/verification/implementation-summary.json
+!/verification/incremental-rehearsal.json
+!/verification/audit-production-dependencies.json
+!/verification/suno-incremental-review.sql
+!/verification/implementation-http-smoke.json
+!/verification/current-suno-schema-inventory.json
 /.pnp
 .pnp.js
 
@@ -17,6 +27,7 @@
 
 # misc
 .DS_Store
+*.log
 *.pem
 .worktrees/
 
@@ -35,13 +46,6 @@ yarn-error.log*
 # vercel
 .vercel
 
-# Checkout-local deployment and verification state
-/.private/
-/reports/*.log
-
-# Local production audit evidence and settings rollback snapshots
-/reports/*.json
-
 # Supabase CLI cache
 /supabase/.temp/
 
@@ -58,5 +62,11 @@ next-env.d.ts
 
 # OS
 Thumbs.db
+/.private/
+/node_modules.shared-veo/
+/*-tests.log
+/implementation-*.log
 
 .vercel
+
+/reports/*.log

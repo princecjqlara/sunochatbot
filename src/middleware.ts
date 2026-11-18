@@ -1,0 +1,99 @@
+import { NextRequest, NextResponse } from 'next/server';
+import { getToken } from 'next-auth/jwt';
+
+// Service-role-backed legacy endpoints pass this boundary as well as their own checks.
+export async function middleware(request: NextRequest) {
+    const path = request.nextUrl.pathname;
+    // Workers remain private during preparation and recovery as well as launch.
+    if (path.startsWith('/api/cron/') && (!process.env.CRON_SECRET || request.headers.get('authorization') !== `Bearer ${process.env.CRON_SECRET}`)) {
+        return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+    if (/^\/api\/(test-|check-oauth)/.test(path)) return NextResponse.json({ error: 'Unavailable' }, { status: 404 });
+    // Publishing the replacement is separate from activating its data and jobs.
+    // This guard runs before JWT checks, database reads and webhook ingestion.
+    if (process.env.SUNO_DEPLOYMENT_STAGE === 'setup') {
+        const publicAuth = ['/api/auth/providers', '/api/auth/session', '/api/auth/csrf', '/api/auth/signout'].includes(path);
+        if (!publicAuth) {
+            const headers = { 'Cache-Control': 'no-store', 'Retry-After': '60' };
+            if (path.startsWith('/api/cron/')) return NextResponse.json({ success: true, skipped: true, reason: 'suno_setup_pending' }, { headers });
+            if (path === '/api/auth/callback/credentials') return NextResponse.json({ url: new URL('/?error=SunoSetupPending', request.nextUrl.origin).toString() }, { status: 503, headers });
+            return NextResponse.json({ error: 'Suno workspace setup is not complete yet.', code: 'SUNO_SETUP_PENDING', retryable: true }, { status: 503, headers });
+        }
+        return NextResponse.next();
+    }
+    if (process.env.VEO_DATABASE_RECOVERY_MODE === 'true') {
+        const safeAuth = ['/api/auth/providers', '/api/auth/csrf', '/api/auth/signout'].includes(path);
+        // Verification is read-free; event ingestion writes to the same database
+        // that needs disk headroom to finish recovery. Return 503 before it runs.
+        const webhookVerification = path === '/api/facebook/webhook' && request.method === 'GET' && process.env.VEO_WORKSPACE_ENABLED === 'true';
+        if (!safeAuth && !webhookVerification) {
+            if (path.startsWith('/api/cron/')) {
+                if (!process.env.CRON_SECRET || request.headers.get('authorization') !== `Bearer ${process.env.CRON_SECRET}`) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+                return NextResponse.json({ success: true, skipped: true, reason: 'database_recovery' }, { headers: { 'Cache-Control': 'no-store' } });
+            }
+            const headers = { 'Cache-Control': 'no-store', 'Retry-After': '60' };
+            if (path === '/api/auth/callback/credentials') return NextResponse.json({ url: new URL('/?error=DatabaseRecovery', request.nextUrl.origin).toString() }, { status: 503, headers });
+            return NextResponse.json({ error: 'Database recovery is in progress. Please retry after maintenance.', code: 'DATABASE_RECOVERY', retryable: true }, { status: 503, headers });
+        }
+    }
+    if (process.env.VEO_WORKSPACE_ENABLED !== 'true') return NextResponse.next();
+    if (path === '/api/sales-form') return NextResponse.next(); // The route requires an expiring, contact-scoped capability.
+    if (/^\/api\/chatbot-media\/[a-f0-9-]{36}$/i.test(path) && request.nextUrl.searchParams.has('token')) return NextResponse.next(); // Route verifies a short-lived, asset-bound signature.
+    if (path.startsWith('/api/auth/') || ['/api/facebook/webhook', '/api/facebook/partner-webhook', '/api/telegram/webhook', '/api/workspace/handoff'].includes(path)) return NextResponse.next();
+    if (path.startsWith('/api/cron/')) {
+        if (!process.env.CRON_SECRET || request.headers.get('authorization') !== `Bearer ${process.env.CRON_SECRET}`) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+        return NextResponse.next();
+    }
+    if (/^\/api\/(test-|check-oauth)/.test(path)) return NextResponse.json({ error: 'Unavailable' }, { status: 404 });
+    const identitySync = path === '/api/workspace/contacts/sync';
+    const retainedContactSync = process.env.SUNO_RETAINED_RUNTIME_ENABLED === 'true' && /^\/api\/pages\/[a-f0-9-]{36}\/sync$/i.test(path);
+    if (!identitySync && !retainedContactSync && /\/sync$|\/refresh-evidence$|\/profile\/finance$/.test(path)) return NextResponse.json({ error: 'Historical imports are disabled. Record verified sales in the workspace.' }, { status: 410 });
+    const token = await getToken({ req: request });
+    if (!token?.id) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    if (token.facebookId || token.accessToken) return NextResponse.json({ error: 'Facebook sign-in has been removed. Sign in with email and password.' }, { status: 401 });
+    // Workspace routes verify this signed identity and current database scope
+    // themselves. Do not repeat the same expensive scope RPC in the middleware.
+    if (path.startsWith('/api/workspace') || ['/api/facebook/connect', '/api/facebook/pages', '/api/facebook/authorize'].includes(path)) return NextResponse.next();
+    try {
+        const url = process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.SUPABASE_URL, key = process.env.SUPABASE_SERVICE_ROLE_KEY;
+        const headers = { apikey: key!, Authorization: `Bearer ${key}`, 'Content-Type': 'application/json' };
+        const read = async (fn: string, args: any) => {
+            const r = await fetch(`${url}/rest/v1/rpc/${fn}`, { method: 'POST', headers, body: JSON.stringify(args), cache: 'no-store' });
+            if (!r.ok) throw new Error('Authorization unavailable');
+            return r.json();
+        };
+        const scope = await read('veo_access_context', { p_actor: token.id });
+        if (scope?.suspension) return NextResponse.json({ error: 'Your account is suspended. Contact your Manager or Team Leader.', code: 'ACCOUNT_SUSPENDED' }, { status: 403, headers: { 'Cache-Control': 'no-store' } });
+        if (!scope?.launch_at) return NextResponse.json({ error: 'Workspace access is inactive' }, { status: 403 });
+        const forbidden = () => NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+        if (scope.role === 'team_leader' && request.method === 'GET' && (path === '/api/ad-calendar' || /^\/api\/ad-quality(?:\/(?:connection|performance|contacts))?$/.test(path))) {
+            const page = request.nextUrl.searchParams.get('pageId');
+            if (page && !scope.page_ids.includes(page)) return forbidden();
+            return NextResponse.next();
+        }
+        if (scope.role !== 'owner' && !(/^\/api\/(pages(?:\/[^/]+(?:\/(?:contacts|team|pipeline|history|exports|human-agent-send|human-agent-media)(?:\/.*)?)?)?|campaigns(?:\/.*)?|exports(?:\/.*)?|tags(?:\/.*)?|facebook\/messages\/send|facebook\/templates(?:\/.*)?|media\/photo-header|chatbot-media\/[^/]+)$/.test(path))) return forbidden();
+        if (scope.role !== 'owner' && path === '/api/pages' && request.method !== 'GET') return forbidden();
+        if (scope.role !== 'owner' && /\/team$/.test(path) && request.method !== 'GET') return forbidden();
+        if (request.method !== 'GET' && request.method !== 'HEAD' && request.headers.get('origin') !== request.nextUrl.origin) return forbidden();
+        let body: any = {};
+        if (request.headers.get('content-type')?.includes('application/json')) {
+            try { body = await request.clone().json(); } catch { return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 }); }
+        }
+        const refs: Array<{ kind: string; id: string }> = [];
+        const add = (kind: string, v: any) => { for (const id of Array.isArray(v) ? v : typeof v === 'string' ? v.split(',') : [v]) if (typeof id === 'string' && id) refs.push({ kind, id }); };
+        const segments = path.split('/').filter(Boolean);
+        const kinds: Record<string, string> = { pages: 'page', contacts: 'contact', campaigns: 'campaign', exports: 'export', 'chatbot-media': 'asset', automations: 'automation' };
+        for (let i = 1; i < segments.length - 1; i++) if (kinds[segments[i]] && /^[a-f0-9-]{36}$/i.test(segments[i + 1])) add(kinds[segments[i]], segments[i + 1]);
+        const walk = (value: any) => {
+            if (!value || typeof value !== 'object') return;
+            for (const [k, v] of Object.entries(value)) {
+                const kind = /^(page_?ids?|pageIds?)$/i.test(k) ? 'page' : /^(contact_?ids?|contactIds?)$/i.test(k) ? 'contact' : /^(tag_?ids?|tagIds?|include_tag_ids|exclude_tag_ids|audience_include_tag_ids|audience_exclude_tag_ids)$/i.test(k) ? 'tag' : /^(campaign_?id|campaignId)$/i.test(k) ? 'campaign' : /^(export_?id|exportId)$/i.test(k) ? 'export' : null;
+                if (kind) add(kind, v); else if (typeof v === 'object') walk(v);
+            }
+        };
+        walk(body); walk(Object.fromEntries(request.nextUrl.searchParams));
+        if (refs.length && !await read('veo_authorize_resources', { p_actor: token.id, p_refs: refs })) return forbidden();
+        return NextResponse.next();
+    } catch { return NextResponse.json({ error: 'Workspace authorization is unavailable' }, { status: 503 }); }
+}
+export const config = { matcher: ['/api/:path*'] };

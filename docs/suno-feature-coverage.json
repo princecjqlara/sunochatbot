@@ -1,0 +1,3326 @@
+{
+  "generated_at": "2026-11-17T09:33:31.588917+00:00",
+  "scope": "Source coverage and planning only; no functional parity claim",
+  "features": {
+    "F01": "Sign-in, personal profile and access boundary",
+    "F02": "Tenant isolation, accounts, teams, supervisors and offboarding",
+    "F03": "Facebook Pages, OAuth and connection ownership",
+    "F04": "Dashboard and workspace context",
+    "F05": "Contacts, search, filters and bulk contact operations",
+    "F06": "Contact profile identity and editable details",
+    "F07": "Contact conversation history, summaries and evidence",
+    "F08": "Contact orders, verified payments and financial metrics",
+    "F09": "Contact/ad attribution and Facebook source verification",
+    "F10": "Contact demographics, intelligence and projections",
+    "F11": "Marketing calendar and inquiry cohorts",
+    "F12": "Work calendar and earnings calendar",
+    "F13": "Ad accounts, spend, performance and synchronization",
+    "F14": "Page budgets and Page-level planning",
+    "F15": "Creative inventory and creative performance",
+    "F16": "Suno song brief and saved form answers",
+    "F17": "Chatbot settings, generation, trials and analytics",
+    "F18": "Knowledge, media, Drive and sample delivery",
+    "F19": "Packages, pricing, free offers and customer-specific staff quotes",
+    "F20": "Human handoff, bot permissions and guarded sending",
+    "F21": "Follow-ups, best contact time and workflow automation",
+    "F22": "Pipeline, contact tags and outcome synchronization",
+    "F23": "Ready/Busy, assignments, offers and handovers",
+    "F24": "Song production, work deadlines and completion",
+    "F25": "Receipt evidence, review, order milestones and corrections",
+    "F26": "Earnings, statements, referral/recruiter tracking and incentives",
+    "F27": "Attendance, availability, Page access surveys, capacity and quotas",
+    "F28": "Staff profiles, performance, rankings, concerns and alerts",
+    "F29": "Jaucian, Telegram identities, groups and topics",
+    "F30": "Campaigns, loops and tracked bulk messaging",
+    "F31": "Templates and welcome messages",
+    "F32": "Exports, history and archived access",
+    "F33": "Event ingestion, identity collection and sync",
+    "F34": "Shared navigation, accessibility and loading behavior",
+    "F35": "Operations, worker health and diagnostics",
+    "F36": "Schema, retention, storage lifecycle and recovery"
+  },
+  "api_routes": [
+    {
+      "route": "/api/ad-calendar/confirmation",
+      "feature": "F11",
+      "source": "src/app/api/ad-calendar/confirmation/route.ts",
+      "methods": [
+        "GET"
+      ],
+      "declared_schedule_utc": null,
+      "direct_rpc_names": [],
+      "direct_table_names": [
+        "contact_conversion_cache",
+        "pages"
+      ],
+      "source_sha256": "b59e88b27717ede9db03b69b68441e0b6e5dda2b89d21f2ca3b71da8a050631d",
+      "implementation_status": "planning_only",
+      "compatibility_verified": false
+    },
+    {
+      "route": "/api/ad-calendar",
+      "feature": "F11",
+      "source": "src/app/api/ad-calendar/route.ts",
+      "methods": [
+        "GET"
+      ],
+      "declared_schedule_utc": null,
+      "direct_rpc_names": [
+        "get_ad_calendar_contacts"
+      ],
+      "direct_table_names": [
+        "ad_daily_spend",
+        "ad_source_catalog",
+        "pages"
+      ],
+      "source_sha256": "ae6a22482192a3fc5a9034ec2c5232735175b77a748fa263b97781abc49591e2",
+      "implementation_status": "planning_only",
+      "compatibility_verified": false
+    },
+    {
+      "route": "/api/ad-calendar/sync",
+      "feature": "F11",
+      "source": "src/app/api/ad-calendar/sync/route.ts",
+      "methods": [
+        "POST"
+      ],
+      "declared_schedule_utc": null,
+      "direct_rpc_names": [
+        "get_visible_ad_catalog"
+      ],
+      "direct_table_names": [
+        "ad_daily_spend"
+      ],
+      "source_sha256": "1d43484dd60733a32335ef787c79943f54cd9e61a6fa0e32d67fc6978d96e95b",
+      "implementation_status": "planning_only",
+      "compatibility_verified": false
+    },
+    {
+      "route": "/api/ad-quality/connection",
+      "feature": "F13",
+      "source": "src/app/api/ad-quality/connection/route.ts",
+      "methods": [
+        "GET"
+      ],
+      "declared_schedule_utc": null,
+      "direct_rpc_names": [],
+      "direct_table_names": [
+        "meta_ads_credentials"
+      ],
+      "source_sha256": "2301e561c2b4b0a761b1d116fcc62439502fe6d7bc081d0b4dd0c3c504141cd1",
+      "implementation_status": "planning_only",
+      "compatibility_verified": false
+    },
+    {
+      "route": "/api/ad-quality/contacts",
+      "feature": "F13",
+      "source": "src/app/api/ad-quality/contacts/route.ts",
+      "methods": [
+        "GET"
+      ],
+      "declared_schedule_utc": null,
+      "direct_rpc_names": [
+        "get_ad_lead_contacts_v2"
+      ],
+      "direct_table_names": [],
+      "source_sha256": "889499f035825eb738a4b63c0ae1c4e7cc322fde89d5ae7a677239cd4b9148ba",
+      "implementation_status": "planning_only",
+      "compatibility_verified": false
+    },
+    {
+      "route": "/api/ad-quality/performance",
+      "feature": "F13",
+      "source": "src/app/api/ad-quality/performance/route.ts",
+      "methods": [
+        "GET"
+      ],
+      "declared_schedule_utc": null,
+      "direct_rpc_names": [
+        "get_conversion_period_payments",
+        "get_conversion_refresh_candidates",
+        "get_conversion_report_inputs",
+        "get_visible_ad_catalog"
+      ],
+      "direct_table_names": [
+        "ad_daily_spend",
+        "pages"
+      ],
+      "source_sha256": "eac44dbfe1f3701e0873abe89d6df9037c7555169545b60498c84e98c7e3fa47",
+      "implementation_status": "planning_only",
+      "compatibility_verified": false
+    },
+    {
+      "route": "/api/ad-quality/refresh-evidence",
+      "feature": "F13",
+      "source": "src/app/api/ad-quality/refresh-evidence/route.ts",
+      "methods": [
+        "POST"
+      ],
+      "declared_schedule_utc": null,
+      "direct_rpc_names": [
+        "get_conversion_refresh_candidates"
+      ],
+      "direct_table_names": [
+        "pages"
+      ],
+      "source_sha256": "d2b88eca7decf8ac072636afec03850acf6312b4a41ae734d19f06cd7264a7fc",
+      "implementation_status": "planning_only",
+      "compatibility_verified": false
+    },
+    {
+      "route": "/api/ad-quality/resolve",
+      "feature": "F13",
+      "source": "src/app/api/ad-quality/resolve/route.ts",
+      "methods": [
+        "POST"
+      ],
+      "declared_schedule_utc": null,
+      "direct_rpc_names": [
+        "save_ad_catalog_metadata"
+      ],
+      "direct_table_names": [
+        "ad_source_catalog",
+        "pages"
+      ],
+      "source_sha256": "b11e98f38b36ccdf28bfd807a662ec3e4aa2bb72c815b4142efcf5c2527f2e70",
+      "implementation_status": "planning_only",
+      "compatibility_verified": false
+    },
+    {
+      "route": "/api/ad-quality",
+      "feature": "F13",
+      "source": "src/app/api/ad-quality/route.ts",
+      "methods": [
+        "GET"
+      ],
+      "declared_schedule_utc": null,
+      "direct_rpc_names": [
+        "get_ad_lead_quality",
+        "get_visible_ad_catalog"
+      ],
+      "direct_table_names": [
+        "pages"
+      ],
+      "source_sha256": "d9728ccedeefd36d271a64717f27a6aba5a020ab0849af0e54333b75c4775b28",
+      "implementation_status": "planning_only",
+      "compatibility_verified": false
+    },
+    {
+      "route": "/api/ad-quality/spend",
+      "feature": "F13",
+      "source": "src/app/api/ad-quality/spend/route.ts",
+      "methods": [
+        "POST"
+      ],
+      "declared_schedule_utc": null,
+      "direct_rpc_names": [
+        "get_visible_ad_catalog"
+      ],
+      "direct_table_names": [
+        "ad_daily_spend"
+      ],
+      "source_sha256": "53223e6df9ba604c4e28dcdd5bc76e77793fcebd8c08754718b0c4071d0d849c",
+      "implementation_status": "planning_only",
+      "compatibility_verified": false
+    },
+    {
+      "route": "/api/ad-quality/sync",
+      "feature": "F13",
+      "source": "src/app/api/ad-quality/sync/route.ts",
+      "methods": [
+        "POST"
+      ],
+      "declared_schedule_utc": null,
+      "direct_rpc_names": [
+        "save_ad_catalog_metadata"
+      ],
+      "direct_table_names": [
+        "pages"
+      ],
+      "source_sha256": "a66024168c0604c42ee68f2ee890524c7b34fa70c7042303b2a86bcec8263bf6",
+      "implementation_status": "planning_only",
+      "compatibility_verified": false
+    },
+    {
+      "route": "/api/auth/[...nextauth]",
+      "feature": "F01",
+      "source": "src/app/api/auth/[...nextauth]/route.ts",
+      "methods": [
+        "GET"
+      ],
+      "declared_schedule_utc": null,
+      "direct_rpc_names": [],
+      "direct_table_names": [],
+      "source_sha256": "e160a28ba3db9f1ac5c3d09bb3ed2a9790dee67907106ac5fd088f34b2fcb052",
+      "implementation_status": "planning_only",
+      "compatibility_verified": false
+    },
+    {
+      "route": "/api/campaigns/[campaignId]/cancel",
+      "feature": "F30",
+      "source": "src/app/api/campaigns/[campaignId]/cancel/route.ts",
+      "methods": [
+        "POST"
+      ],
+      "declared_schedule_utc": null,
+      "direct_rpc_names": [],
+      "direct_table_names": [
+        "campaign_recipients",
+        "campaigns",
+        "user_pages"
+      ],
+      "source_sha256": "49b5107f725dedf013d9f15bbd281da9d039daba8c038754177447d13a9830a7",
+      "implementation_status": "planning_only",
+      "compatibility_verified": false
+    },
+    {
+      "route": "/api/campaigns/[campaignId]/recipients",
+      "feature": "F30",
+      "source": "src/app/api/campaigns/[campaignId]/recipients/route.ts",
+      "methods": [
+        "GET"
+      ],
+      "declared_schedule_utc": null,
+      "direct_rpc_names": [],
+      "direct_table_names": [
+        "campaigns",
+        "user_pages"
+      ],
+      "source_sha256": "dcf9ed673e76d76eb0fcd062e0d847991ec5bb44f21d275f776c6a3efe8ad382",
+      "implementation_status": "planning_only",
+      "compatibility_verified": false
+    },
+    {
+      "route": "/api/campaigns/[campaignId]/send",
+      "feature": "F30",
+      "source": "src/app/api/campaigns/[campaignId]/send/route.ts",
+      "methods": [
+        "POST"
+      ],
+      "declared_schedule_utc": null,
+      "direct_rpc_names": [],
+      "direct_table_names": [],
+      "source_sha256": "c7a8cdcbcd78b275da5139d78fbf080403237ae2772a5c9937c161959eb28d04",
+      "implementation_status": "planning_only",
+      "compatibility_verified": false
+    },
+    {
+      "route": "/api/campaigns",
+      "feature": "F30",
+      "source": "src/app/api/campaigns/route.ts",
+      "methods": [
+        "DELETE",
+        "GET",
+        "POST",
+        "PUT"
+      ],
+      "declared_schedule_utc": null,
+      "direct_rpc_names": [
+        "create_filtered_tracked_bulk_campaign"
+      ],
+      "direct_table_names": [
+        "campaign_recipients",
+        "campaigns",
+        "contacts",
+        "user_pages"
+      ],
+      "source_sha256": "0daf5058e98757def46a41af904cda9058ba05dc2c2179b234e394b9c051e902",
+      "implementation_status": "planning_only",
+      "compatibility_verified": false
+    },
+    {
+      "route": "/api/chatbot-media/[assetId]",
+      "feature": "F18",
+      "source": "src/app/api/chatbot-media/[assetId]/route.ts",
+      "methods": [
+        "GET"
+      ],
+      "declared_schedule_utc": null,
+      "direct_rpc_names": [
+        "veo_active_pages"
+      ],
+      "direct_table_names": [
+        "chatbot_media_assets"
+      ],
+      "source_sha256": "83a890c903ea2458be9e0229c995d62ae498c141baee712ecc65f2d86dfa2417",
+      "implementation_status": "planning_only",
+      "compatibility_verified": false
+    },
+    {
+      "route": "/api/check-oauth-config",
+      "feature": "F35",
+      "source": "src/app/api/check-oauth-config/route.ts",
+      "methods": [
+        "GET"
+      ],
+      "declared_schedule_utc": null,
+      "direct_rpc_names": [],
+      "direct_table_names": [],
+      "source_sha256": "4c46b72e8424f6742552d9d533df7dfa74b023c159f27edeac48c25afbf8e1a4",
+      "implementation_status": "planning_only",
+      "compatibility_verified": false
+    },
+    {
+      "route": "/api/cron/campaign-loop",
+      "feature": "F30",
+      "source": "src/app/api/cron/campaign-loop/route.ts",
+      "methods": [
+        "GET"
+      ],
+      "declared_schedule_utc": "* * * * *",
+      "direct_rpc_names": [],
+      "direct_table_names": [
+        "campaigns"
+      ],
+      "source_sha256": "1cf9d982ffdc1b3e95de81af9661e6619778c1c8eb836685b7e1b83381d7ac51",
+      "implementation_status": "planning_only",
+      "compatibility_verified": false
+    },
+    {
+      "route": "/api/cron/campaign-scheduled",
+      "feature": "F30",
+      "source": "src/app/api/cron/campaign-scheduled/route.ts",
+      "methods": [
+        "GET"
+      ],
+      "declared_schedule_utc": "* * * * *",
+      "direct_rpc_names": [
+        "materialize_dynamic_campaign_audience"
+      ],
+      "direct_table_names": [
+        "campaign_recipients",
+        "campaigns"
+      ],
+      "source_sha256": "95c508e2a537a6593e665e82270db6cfb591c18eb284c437b72b2a2c7f17d141",
+      "implementation_status": "planning_only",
+      "compatibility_verified": false
+    },
+    {
+      "route": "/api/cron/chatbot",
+      "feature": "F21",
+      "source": "src/app/api/cron/chatbot/route.ts",
+      "methods": [
+        "GET"
+      ],
+      "declared_schedule_utc": "* * * * *",
+      "direct_rpc_names": [],
+      "direct_table_names": [],
+      "source_sha256": "09a562f1610dab17e2562d7d8b03013b1d973bf18975cb1086335fa688d8a28b",
+      "implementation_status": "planning_only",
+      "compatibility_verified": false
+    },
+    {
+      "route": "/api/cron/contact-identities",
+      "feature": "F33",
+      "source": "src/app/api/cron/contact-identities/route.ts",
+      "methods": [
+        "GET"
+      ],
+      "declared_schedule_utc": "* * * * *",
+      "direct_rpc_names": [],
+      "direct_table_names": [],
+      "source_sha256": "5c01522895145b28c56084a7b73fff4ebd6d76da36435ce6a5a98e29c29e21f1",
+      "implementation_status": "planning_only",
+      "compatibility_verified": false
+    },
+    {
+      "route": "/api/cron/contact-profiles",
+      "feature": "F07",
+      "source": "src/app/api/cron/contact-profiles/route.ts",
+      "methods": [
+        "GET"
+      ],
+      "declared_schedule_utc": "0-58/2 * * * *",
+      "direct_rpc_names": [],
+      "direct_table_names": [],
+      "source_sha256": "31fa442601cb0d1b29dbad852e5835444c1f70b746daa493e4c03bd01f90d4d2",
+      "implementation_status": "planning_only",
+      "compatibility_verified": false
+    },
+    {
+      "route": "/api/cron/database-health",
+      "feature": "F35",
+      "source": "src/app/api/cron/database-health/route.ts",
+      "methods": [
+        "GET"
+      ],
+      "declared_schedule_utc": "* * * * *",
+      "direct_rpc_names": [
+        "veo_record_storage_metrics"
+      ],
+      "direct_table_names": [],
+      "source_sha256": "de7ca393bfd17335ce933a04aee1f68ba3e9ae76bb7736d0a14ea929e9184a9a",
+      "implementation_status": "planning_only",
+      "compatibility_verified": false
+    },
+    {
+      "route": "/api/cron/editor-dispatch",
+      "feature": "F23",
+      "source": "src/app/api/cron/editor-dispatch/route.ts",
+      "methods": [
+        "GET"
+      ],
+      "declared_schedule_utc": "* * * * *",
+      "direct_rpc_names": [
+        "veo_automatic_intake_tick"
+      ],
+      "direct_table_names": [
+        "veo_intake_auto_policy"
+      ],
+      "source_sha256": "6c79a86eb0b84ee704cf740162683c620ddfe4521c906d07d17f5661a2a55ed5",
+      "implementation_status": "planning_only",
+      "compatibility_verified": false
+    },
+    {
+      "route": "/api/cron/exports",
+      "feature": "F32",
+      "source": "src/app/api/cron/exports/route.ts",
+      "methods": [
+        "GET"
+      ],
+      "declared_schedule_utc": "0-59/2 * * * *",
+      "direct_rpc_names": [],
+      "direct_table_names": [
+        "conversation_export_jobs"
+      ],
+      "source_sha256": "7944bd4f07e50409fd3c1b3f3eaab0142232816e5161b6d5ed1102ec4d7d4e6d",
+      "implementation_status": "planning_only",
+      "compatibility_verified": false
+    },
+    {
+      "route": "/api/cron/follow-up-automations",
+      "feature": "F21",
+      "source": "src/app/api/cron/follow-up-automations/route.ts",
+      "methods": [
+        "GET"
+      ],
+      "declared_schedule_utc": "* * * * *",
+      "direct_rpc_names": [],
+      "direct_table_names": [],
+      "source_sha256": "2be24af7048c662dd85f8da4f8cb8ac574172b40dbe004bc4cf7d6dc1d197d53",
+      "implementation_status": "planning_only",
+      "compatibility_verified": false
+    },
+    {
+      "route": "/api/cron/incentives",
+      "feature": "F26",
+      "source": "src/app/api/cron/incentives/route.ts",
+      "methods": [
+        "GET"
+      ],
+      "declared_schedule_utc": "* * * * *",
+      "direct_rpc_names": [],
+      "direct_table_names": [],
+      "source_sha256": "03e11c6a0ec8ba424149d3032b1a78914c5e590ceda2678cf18d537a20f92f56",
+      "implementation_status": "planning_only",
+      "compatibility_verified": false
+    },
+    {
+      "route": "/api/cron/inquiry-history",
+      "feature": "F33",
+      "source": "src/app/api/cron/inquiry-history/route.ts",
+      "methods": [
+        "GET"
+      ],
+      "declared_schedule_utc": "1-59/2 * * * *",
+      "direct_rpc_names": [],
+      "direct_table_names": [],
+      "source_sha256": "42424f2bd712bc99326b5a2462ff0d399ced087f80d37f16a4fc51e62b215e88",
+      "implementation_status": "planning_only",
+      "compatibility_verified": false
+    },
+    {
+      "route": "/api/cron/messaging-auto-tag",
+      "feature": "F22",
+      "source": "src/app/api/cron/messaging-auto-tag/route.ts",
+      "methods": [
+        "GET"
+      ],
+      "declared_schedule_utc": "* * * * *",
+      "direct_rpc_names": [],
+      "direct_table_names": [],
+      "source_sha256": "2103985b181f2944ecf6b705aa8548c54e5858153e2351b727a9064a3c989ccf",
+      "implementation_status": "planning_only",
+      "compatibility_verified": false
+    },
+    {
+      "route": "/api/cron/meta-ads-sync",
+      "feature": "F13",
+      "source": "src/app/api/cron/meta-ads-sync/route.ts",
+      "methods": [
+        "GET"
+      ],
+      "declared_schedule_utc": "2-59/5 * * * *",
+      "direct_rpc_names": [],
+      "direct_table_names": [],
+      "source_sha256": "cec43983d3d8863469801b6c6e77df4b7b73011a1e1366bf6a23e91fd8f4480e",
+      "implementation_status": "planning_only",
+      "compatibility_verified": false
+    },
+    {
+      "route": "/api/cron/quotas",
+      "feature": "F27",
+      "source": "src/app/api/cron/quotas/route.ts",
+      "methods": [
+        "GET"
+      ],
+      "declared_schedule_utc": "1-59/5 * * * *",
+      "direct_rpc_names": [],
+      "direct_table_names": [],
+      "source_sha256": "ad1e901fab32922415af249fc52192416e9082aa038167fb212725a991f411a5",
+      "implementation_status": "planning_only",
+      "compatibility_verified": false
+    },
+    {
+      "route": "/api/cron/sync",
+      "feature": "F33",
+      "source": "src/app/api/cron/sync/route.ts",
+      "methods": [
+        "GET"
+      ],
+      "declared_schedule_utc": null,
+      "direct_rpc_names": [],
+      "direct_table_names": [
+        "contacts",
+        "pages"
+      ],
+      "source_sha256": "e6a28ffac9dc1a1a91d4d810479f092ee765403d93159a466fa125947779536e",
+      "implementation_status": "planning_only",
+      "compatibility_verified": false
+    },
+    {
+      "route": "/api/cron/workspace",
+      "feature": "F35",
+      "source": "src/app/api/cron/workspace/route.ts",
+      "methods": [
+        "GET"
+      ],
+      "declared_schedule_utc": "* * * * *",
+      "direct_rpc_names": [
+        "veo_auto_approve_pending_team_reviews",
+        "veo_claim_submissions",
+        "veo_enqueue_approved_deal_reviews",
+        "veo_finish_submission",
+        "veo_handoff",
+        "veo_maintenance",
+        "veo_operations_maintenance",
+        "veo_request_source_refresh",
+        "veo_submission_requirements",
+        "veo_telegram_intake_maintenance"
+      ],
+      "direct_table_names": [],
+      "source_sha256": "824786888b63c303935aeedefd685678eee9d4b49f1dc9d26ccb4357977411e4",
+      "implementation_status": "planning_only",
+      "compatibility_verified": false
+    },
+    {
+      "route": "/api/cron/workspace-events",
+      "feature": "F33",
+      "source": "src/app/api/cron/workspace-events/route.ts",
+      "methods": [
+        "GET"
+      ],
+      "declared_schedule_utc": "* * * * *",
+      "direct_rpc_names": [
+        "veo_recover_queued_contact_identities"
+      ],
+      "direct_table_names": [],
+      "source_sha256": "a32d73db4903baba4fc173a14b258c34cb85ae98e8f65ce39b7dda6cf34b5c76",
+      "implementation_status": "planning_only",
+      "compatibility_verified": false
+    },
+    {
+      "route": "/api/exports/[exportId]/download",
+      "feature": "F32",
+      "source": "src/app/api/exports/[exportId]/download/route.ts",
+      "methods": [
+        "GET"
+      ],
+      "declared_schedule_utc": null,
+      "direct_rpc_names": [],
+      "direct_table_names": [
+        "conversation_export_jobs"
+      ],
+      "source_sha256": "6e10b1023e12aa704f4649c3a05ba5455ba352a1e1db1f9b9abdc72f7f1c9321",
+      "implementation_status": "planning_only",
+      "compatibility_verified": false
+    },
+    {
+      "route": "/api/exports/[exportId]/process",
+      "feature": "F32",
+      "source": "src/app/api/exports/[exportId]/process/route.ts",
+      "methods": [
+        "POST"
+      ],
+      "declared_schedule_utc": null,
+      "direct_rpc_names": [],
+      "direct_table_names": [
+        "conversation_export_jobs"
+      ],
+      "source_sha256": "25e5e4e3cefa2233cc21fa2132ef9f5879822428f558125c383df439475bd284",
+      "implementation_status": "planning_only",
+      "compatibility_verified": false
+    },
+    {
+      "route": "/api/exports/[exportId]/retry",
+      "feature": "F32",
+      "source": "src/app/api/exports/[exportId]/retry/route.ts",
+      "methods": [
+        "POST"
+      ],
+      "declared_schedule_utc": null,
+      "direct_rpc_names": [],
+      "direct_table_names": [
+        "conversation_export_jobs"
+      ],
+      "source_sha256": "1ebfc028a7d01ead4ccf2ca450d5f5d6ca244cb186224f1465c70cbc0ce7eb7f",
+      "implementation_status": "planning_only",
+      "compatibility_verified": false
+    },
+    {
+      "route": "/api/exports",
+      "feature": "F32",
+      "source": "src/app/api/exports/route.ts",
+      "methods": [
+        "GET"
+      ],
+      "declared_schedule_utc": null,
+      "direct_rpc_names": [],
+      "direct_table_names": [
+        "conversation_export_jobs"
+      ],
+      "source_sha256": "97163d7a7b1896e6ca6921647081fa731e25b4a62307d69047c2396ac34d609b",
+      "implementation_status": "planning_only",
+      "compatibility_verified": false
+    },
+    {
+      "route": "/api/facebook/authorize",
+      "feature": "F03",
+      "source": "src/app/api/facebook/authorize/route.ts",
+      "methods": [
+        "POST"
+      ],
+      "declared_schedule_utc": null,
+      "direct_rpc_names": [],
+      "direct_table_names": [],
+      "source_sha256": "4fdb36541fc344a34339c697d658f825fc82fd84970555b3df749a11ae391ecf",
+      "implementation_status": "planning_only",
+      "compatibility_verified": false
+    },
+    {
+      "route": "/api/facebook/connect",
+      "feature": "F03",
+      "source": "src/app/api/facebook/connect/route.ts",
+      "methods": [
+        "POST"
+      ],
+      "declared_schedule_utc": null,
+      "direct_rpc_names": [],
+      "direct_table_names": [],
+      "source_sha256": "75a358f9fec6576c1305ed903f7f3c5ec8f8af9d91ea72f83f4bae29aa697caa",
+      "implementation_status": "planning_only",
+      "compatibility_verified": false
+    },
+    {
+      "route": "/api/facebook/messages/send",
+      "feature": "F20",
+      "source": "src/app/api/facebook/messages/send/route.ts",
+      "methods": [
+        "POST"
+      ],
+      "declared_schedule_utc": null,
+      "direct_rpc_names": [],
+      "direct_table_names": [
+        "contacts",
+        "pages",
+        "user_pages"
+      ],
+      "source_sha256": "adf7c5eaba53e16df6038bcf864d380a868314f430eff5c5fc0cf40dca31b6af",
+      "implementation_status": "planning_only",
+      "compatibility_verified": false
+    },
+    {
+      "route": "/api/facebook/pages",
+      "feature": "F03",
+      "source": "src/app/api/facebook/pages/route.ts",
+      "methods": [
+        "GET"
+      ],
+      "declared_schedule_utc": null,
+      "direct_rpc_names": [],
+      "direct_table_names": [],
+      "source_sha256": "030bc9849c5e21b8882e6e43e6fa35e0b01dd6c5d327382d89cc3ab58b02f9ce",
+      "implementation_status": "planning_only",
+      "compatibility_verified": false
+    },
+    {
+      "route": "/api/facebook/partner-webhook",
+      "feature": "F33",
+      "source": "src/app/api/facebook/partner-webhook/route.ts",
+      "methods": [
+        "GET",
+        "POST"
+      ],
+      "declared_schedule_utc": null,
+      "direct_rpc_names": [],
+      "direct_table_names": [],
+      "source_sha256": "89fb4d8acca41daffa997cf0571f506038b5f9065f2071848c86046874cc3c33",
+      "implementation_status": "planning_only",
+      "compatibility_verified": false
+    },
+    {
+      "route": "/api/facebook/templates",
+      "feature": "F31",
+      "source": "src/app/api/facebook/templates/route.ts",
+      "methods": [
+        "GET",
+        "POST"
+      ],
+      "declared_schedule_utc": null,
+      "direct_rpc_names": [],
+      "direct_table_names": [
+        "pages",
+        "user_pages"
+      ],
+      "source_sha256": "3b39d29b2d10a925972880c54735c9b217b984109b6c5a0d0870597c3191b810",
+      "implementation_status": "planning_only",
+      "compatibility_verified": false
+    },
+    {
+      "route": "/api/facebook/templates/send",
+      "feature": "F31",
+      "source": "src/app/api/facebook/templates/send/route.ts",
+      "methods": [
+        "POST"
+      ],
+      "declared_schedule_utc": null,
+      "direct_rpc_names": [],
+      "direct_table_names": [
+        "contacts",
+        "pages",
+        "user_pages"
+      ],
+      "source_sha256": "c787d7784311f341af9b4af05446e6e70068704d2372808ac50411ed4c419317",
+      "implementation_status": "planning_only",
+      "compatibility_verified": false
+    },
+    {
+      "route": "/api/facebook/templates/status",
+      "feature": "F31",
+      "source": "src/app/api/facebook/templates/status/route.ts",
+      "methods": [
+        "GET"
+      ],
+      "declared_schedule_utc": null,
+      "direct_rpc_names": [],
+      "direct_table_names": [
+        "pages",
+        "user_pages"
+      ],
+      "source_sha256": "2dd5879da5fc1362bc6cae48c3dd36bc3a5cfb5628fd2a9a8b2a2c3d978fddda",
+      "implementation_status": "planning_only",
+      "compatibility_verified": false
+    },
+    {
+      "route": "/api/facebook/templates/submit-all",
+      "feature": "F31",
+      "source": "src/app/api/facebook/templates/submit-all/route.ts",
+      "methods": [
+        "POST"
+      ],
+      "declared_schedule_utc": null,
+      "direct_rpc_names": [],
+      "direct_table_names": [
+        "pages",
+        "user_pages"
+      ],
+      "source_sha256": "02a1ee0f79d6cf595d7e37b55a49d03d073dee70d8efba922358bdbd73699d52",
+      "implementation_status": "planning_only",
+      "compatibility_verified": false
+    },
+    {
+      "route": "/api/facebook/webhook",
+      "feature": "F33",
+      "source": "src/app/api/facebook/webhook/route.ts",
+      "methods": [
+        "GET",
+        "POST"
+      ],
+      "declared_schedule_utc": null,
+      "direct_rpc_names": [
+        "mark_conversion_source_dirty",
+        "record_chatbot_form_sent"
+      ],
+      "direct_table_names": [
+        "chatbot_configs",
+        "contact_interactions",
+        "contacts",
+        "outbound_message_events",
+        "pages",
+        "welcome_messages"
+      ],
+      "source_sha256": "5ec2478e1211bf2ea73a212edf127bdc6c2249e9df23d9933d74eb2ea3d2417f",
+      "implementation_status": "planning_only",
+      "compatibility_verified": false
+    },
+    {
+      "route": "/api/media/photo-header",
+      "feature": "F18",
+      "source": "src/app/api/media/photo-header/route.ts",
+      "methods": [
+        "POST"
+      ],
+      "declared_schedule_utc": null,
+      "direct_rpc_names": [],
+      "direct_table_names": [
+        "user_pages"
+      ],
+      "source_sha256": "a8a756aaa27a2f420744a8cba8ae54e10ddd2338919b555f84a15230b0d0cf70",
+      "implementation_status": "planning_only",
+      "compatibility_verified": false
+    },
+    {
+      "route": "/api/pages/[pageId]/automations/[automationId]/reset",
+      "feature": "F21",
+      "source": "src/app/api/pages/[pageId]/automations/[automationId]/reset/route.ts",
+      "methods": [
+        "POST"
+      ],
+      "declared_schedule_utc": null,
+      "direct_rpc_names": [],
+      "direct_table_names": [
+        "user_pages",
+        "workflow_automation_states",
+        "workflow_automations"
+      ],
+      "source_sha256": "7cd0f679a87993d483ac8ba74e0a7c46bc5df47ceb9577bb2874ed59463293a7",
+      "implementation_status": "planning_only",
+      "compatibility_verified": false
+    },
+    {
+      "route": "/api/pages/[pageId]/automations/[automationId]",
+      "feature": "F21",
+      "source": "src/app/api/pages/[pageId]/automations/[automationId]/route.ts",
+      "methods": [
+        "DELETE",
+        "PATCH"
+      ],
+      "declared_schedule_utc": null,
+      "direct_rpc_names": [],
+      "direct_table_names": [
+        "user_pages",
+        "workflow_automations"
+      ],
+      "source_sha256": "7e0f15e1169cbe31ea0f9e024044f9ddb6d2f62c702b68d336ee9043678a0df7",
+      "implementation_status": "planning_only",
+      "compatibility_verified": false
+    },
+    {
+      "route": "/api/pages/[pageId]/automations",
+      "feature": "F21",
+      "source": "src/app/api/pages/[pageId]/automations/route.ts",
+      "methods": [
+        "GET",
+        "POST"
+      ],
+      "declared_schedule_utc": null,
+      "direct_rpc_names": [],
+      "direct_table_names": [
+        "user_pages",
+        "workflow_automations"
+      ],
+      "source_sha256": "abbccffefc7ea753bc92ca7ba19129c5216f5d8f1c8f1c09473d9eeb4c118dd6",
+      "implementation_status": "planning_only",
+      "compatibility_verified": false
+    },
+    {
+      "route": "/api/pages/[pageId]/chatbot/analytics",
+      "feature": "F17",
+      "source": "src/app/api/pages/[pageId]/chatbot/analytics/route.ts",
+      "methods": [
+        "GET"
+      ],
+      "declared_schedule_utc": null,
+      "direct_rpc_names": [
+        "get_chatbot_activity_analytics",
+        "get_chatbot_contact_metrics",
+        "get_contact_pipeline_counts"
+      ],
+      "direct_table_names": [],
+      "source_sha256": "9faad46bbd9310e59c134048930c7795468c454fa9bbfddb07d05b885a61a010",
+      "implementation_status": "planning_only",
+      "compatibility_verified": false
+    },
+    {
+      "route": "/api/pages/[pageId]/chatbot/folders",
+      "feature": "F18",
+      "source": "src/app/api/pages/[pageId]/chatbot/folders/route.ts",
+      "methods": [
+        "DELETE",
+        "GET",
+        "POST"
+      ],
+      "declared_schedule_utc": null,
+      "direct_rpc_names": [],
+      "direct_table_names": [
+        "chatbot_drive_files",
+        "chatbot_drive_folders",
+        "chatbot_knowledge_documents"
+      ],
+      "source_sha256": "69e85c2bc57837d4ee85b1bb507dc5a14f4dd8a5e892fdda9df57cc2b9f83292",
+      "implementation_status": "planning_only",
+      "compatibility_verified": false
+    },
+    {
+      "route": "/api/pages/[pageId]/chatbot/follow-ups",
+      "feature": "F21",
+      "source": "src/app/api/pages/[pageId]/chatbot/follow-ups/route.ts",
+      "methods": [
+        "GET"
+      ],
+      "declared_schedule_utc": null,
+      "direct_rpc_names": [],
+      "direct_table_names": [
+        "chatbot_follow_up_jobs"
+      ],
+      "source_sha256": "1eb368ed1200a1b352e114a9e3e5353cf27648e040d9cec6759d7c8decbe1bbe",
+      "implementation_status": "planning_only",
+      "compatibility_verified": false
+    },
+    {
+      "route": "/api/pages/[pageId]/chatbot/interruptions",
+      "feature": "F20",
+      "source": "src/app/api/pages/[pageId]/chatbot/interruptions/route.ts",
+      "methods": [
+        "GET"
+      ],
+      "declared_schedule_utc": null,
+      "direct_rpc_names": [],
+      "direct_table_names": [
+        "chatbot_interruption_events",
+        "contacts"
+      ],
+      "source_sha256": "900400fda6773493540b575e73b0eba2016f3590a8ae5c95baa122e713cef5ad",
+      "implementation_status": "planning_only",
+      "compatibility_verified": false
+    },
+    {
+      "route": "/api/pages/[pageId]/chatbot/knowledge",
+      "feature": "F18",
+      "source": "src/app/api/pages/[pageId]/chatbot/knowledge/route.ts",
+      "methods": [
+        "DELETE",
+        "GET",
+        "POST"
+      ],
+      "declared_schedule_utc": null,
+      "direct_rpc_names": [],
+      "direct_table_names": [
+        "chatbot_knowledge_documents",
+        "chatbot_media_assets"
+      ],
+      "source_sha256": "82338f22ccb5db93d097ad71ab106b450591cf556c9cff25054aaf245e4f9676",
+      "implementation_status": "planning_only",
+      "compatibility_verified": false
+    },
+    {
+      "route": "/api/pages/[pageId]/chatbot/media",
+      "feature": "F18",
+      "source": "src/app/api/pages/[pageId]/chatbot/media/route.ts",
+      "methods": [
+        "DELETE",
+        "GET",
+        "PATCH",
+        "POST"
+      ],
+      "declared_schedule_utc": null,
+      "direct_rpc_names": [],
+      "direct_table_names": [
+        "chatbot_knowledge_documents",
+        "chatbot_media_assets"
+      ],
+      "source_sha256": "4ad07c2d4ee1223a4abbba35f2dc79fa4c65ff55c4c822d0b9771f24f9e102d4",
+      "implementation_status": "planning_only",
+      "compatibility_verified": false
+    },
+    {
+      "route": "/api/pages/[pageId]/chatbot/pricing",
+      "feature": "F19",
+      "source": "src/app/api/pages/[pageId]/chatbot/pricing/route.ts",
+      "methods": [
+        "GET",
+        "PATCH",
+        "POST"
+      ],
+      "declared_schedule_utc": null,
+      "direct_rpc_names": [
+        "create_chatbot_pricing_experiment",
+        "get_chatbot_pricing_analytics"
+      ],
+      "direct_table_names": [
+        "chatbot_configs",
+        "chatbot_follow_up_jobs",
+        "chatbot_knowledge_documents",
+        "chatbot_pricing_deliveries",
+        "chatbot_pricing_experiments",
+        "chatbot_pricing_packages"
+      ],
+      "source_sha256": "dfe8c083d4538c0509a486210da2ae1ec4a97448e174bf5c23edc24561734fdb",
+      "implementation_status": "planning_only",
+      "compatibility_verified": false
+    },
+    {
+      "route": "/api/pages/[pageId]/chatbot",
+      "feature": "F17",
+      "source": "src/app/api/pages/[pageId]/chatbot/route.ts",
+      "methods": [
+        "GET",
+        "POST",
+        "PUT"
+      ],
+      "declared_schedule_utc": null,
+      "direct_rpc_names": [],
+      "direct_table_names": [
+        "chatbot_configs",
+        "contacts",
+        "pages"
+      ],
+      "source_sha256": "b27eed8837ba9561f4b77686c039d56f6427cecaa51d94dcb27b298d6a1b2311",
+      "implementation_status": "planning_only",
+      "compatibility_verified": false
+    },
+    {
+      "route": "/api/pages/[pageId]/chatbot/trial",
+      "feature": "F17",
+      "source": "src/app/api/pages/[pageId]/chatbot/trial/route.ts",
+      "methods": [
+        "GET",
+        "POST"
+      ],
+      "declared_schedule_utc": null,
+      "direct_rpc_names": [
+        "reset_chatbot_contact"
+      ],
+      "direct_table_names": [
+        "chatbot_configs",
+        "chatbot_contact_states",
+        "chatbot_follow_up_jobs",
+        "contacts"
+      ],
+      "source_sha256": "880b4669926cd7aa5472ff63c276aef19905325c796660ac681d773698b8e68e",
+      "implementation_status": "planning_only",
+      "compatibility_verified": false
+    },
+    {
+      "route": "/api/pages/[pageId]/contacts/[contactId]/bot",
+      "feature": "F20",
+      "source": "src/app/api/pages/[pageId]/contacts/[contactId]/bot/route.ts",
+      "methods": [
+        "PATCH"
+      ],
+      "declared_schedule_utc": null,
+      "direct_rpc_names": [
+        "set_contact_bot_permission"
+      ],
+      "direct_table_names": [
+        "contacts"
+      ],
+      "source_sha256": "a037acb55188c432c45a8cbcc5a508c8349066d1717d2991225d2c08e315dd26",
+      "implementation_status": "planning_only",
+      "compatibility_verified": false
+    },
+    {
+      "route": "/api/pages/[pageId]/contacts/[contactId]/profile/finance",
+      "feature": "F08",
+      "source": "src/app/api/pages/[pageId]/contacts/[contactId]/profile/finance/route.ts",
+      "methods": [
+        "POST"
+      ],
+      "declared_schedule_utc": null,
+      "direct_rpc_names": [
+        "record_contact_purchase",
+        "record_contact_verified_payment",
+        "void_contact_verified_payment"
+      ],
+      "direct_table_names": [],
+      "source_sha256": "5df8b168cd7d7b82f40a4f76fee1b14522a06b171ce8e5b80b462f976f87bb89",
+      "implementation_status": "planning_only",
+      "compatibility_verified": false
+    },
+    {
+      "route": "/api/pages/[pageId]/contacts/[contactId]/profile/messages",
+      "feature": "F07",
+      "source": "src/app/api/pages/[pageId]/contacts/[contactId]/profile/messages/route.ts",
+      "methods": [
+        "GET"
+      ],
+      "declared_schedule_utc": null,
+      "direct_rpc_names": [],
+      "direct_table_names": [
+        "contact_profile_messages",
+        "contact_profile_snapshots"
+      ],
+      "source_sha256": "e6610eb3a6d573e96cc32fe62f636b47d18d327da1195b3b32dde664fd356601",
+      "implementation_status": "planning_only",
+      "compatibility_verified": false
+    },
+    {
+      "route": "/api/pages/[pageId]/contacts/[contactId]/profile",
+      "feature": "F06",
+      "source": "src/app/api/pages/[pageId]/contacts/[contactId]/profile/route.ts",
+      "methods": [
+        "GET",
+        "POST"
+      ],
+      "declared_schedule_utc": null,
+      "direct_rpc_names": [
+        "enqueue_contact_profile"
+      ],
+      "direct_table_names": [],
+      "source_sha256": "7ce2b2d2b91371fbd2bd04eb8dbb9f97baf3000ff10441a187493497015ebeed",
+      "implementation_status": "planning_only",
+      "compatibility_verified": false
+    },
+    {
+      "route": "/api/pages/[pageId]/contacts/[contactId]/profile/sources",
+      "feature": "F09",
+      "source": "src/app/api/pages/[pageId]/contacts/[contactId]/profile/sources/route.ts",
+      "methods": [
+        "GET"
+      ],
+      "declared_schedule_utc": null,
+      "direct_rpc_names": [],
+      "direct_table_names": [],
+      "source_sha256": "96e71eaead41dff1b51ddac490e30ae842554a5d88ec4d2890ad46e50570cc9b",
+      "implementation_status": "planning_only",
+      "compatibility_verified": false
+    },
+    {
+      "route": "/api/pages/[pageId]/contacts/[contactId]/projection",
+      "feature": "F10",
+      "source": "src/app/api/pages/[pageId]/contacts/[contactId]/projection/route.ts",
+      "methods": [
+        "GET",
+        "POST"
+      ],
+      "declared_schedule_utc": null,
+      "direct_rpc_names": [],
+      "direct_table_names": [],
+      "source_sha256": "e79b612f86868c1c4cf0b19473fe9894da5a6a139fb48ffd54e2d5409e87aa86",
+      "implementation_status": "planning_only",
+      "compatibility_verified": false
+    },
+    {
+      "route": "/api/pages/[pageId]/contacts/best-time",
+      "feature": "F21",
+      "source": "src/app/api/pages/[pageId]/contacts/best-time/route.ts",
+      "methods": [
+        "GET",
+        "POST"
+      ],
+      "declared_schedule_utc": null,
+      "direct_rpc_names": [],
+      "direct_table_names": [
+        "contact_interactions",
+        "contacts",
+        "user_pages"
+      ],
+      "source_sha256": "61f5d3ea9092a15498b63782e20ce1c8e0778109c18b27dd9ecb27a0e0844104",
+      "implementation_status": "planning_only",
+      "compatibility_verified": false
+    },
+    {
+      "route": "/api/pages/[pageId]/contacts/bulk",
+      "feature": "F05",
+      "source": "src/app/api/pages/[pageId]/contacts/bulk/route.ts",
+      "methods": [
+        "DELETE"
+      ],
+      "declared_schedule_utc": null,
+      "direct_rpc_names": [],
+      "direct_table_names": [
+        "campaign_recipients",
+        "contact_tags",
+        "contacts",
+        "user_pages"
+      ],
+      "source_sha256": "8cde92f466a8fb50453b135605d63d238a0878c0c4f687e17f96a977d3ce0aea",
+      "implementation_status": "planning_only",
+      "compatibility_verified": false
+    },
+    {
+      "route": "/api/pages/[pageId]/contacts/bulk-add-tags",
+      "feature": "F22",
+      "source": "src/app/api/pages/[pageId]/contacts/bulk-add-tags/route.ts",
+      "methods": [
+        "POST"
+      ],
+      "declared_schedule_utc": null,
+      "direct_rpc_names": [],
+      "direct_table_names": [
+        "business_users",
+        "contact_tags",
+        "contacts",
+        "tag_shares",
+        "tags",
+        "user_pages"
+      ],
+      "source_sha256": "6c95b7e6778fbafbca3b6b3cc9143f44071635a29f4f2cb1f1885492f6fc5c6f",
+      "implementation_status": "planning_only",
+      "compatibility_verified": false
+    },
+    {
+      "route": "/api/pages/[pageId]/contacts/bulk-remove-tags",
+      "feature": "F22",
+      "source": "src/app/api/pages/[pageId]/contacts/bulk-remove-tags/route.ts",
+      "methods": [
+        "POST"
+      ],
+      "declared_schedule_utc": null,
+      "direct_rpc_names": [],
+      "direct_table_names": [
+        "contact_tags",
+        "contacts",
+        "user_pages"
+      ],
+      "source_sha256": "e67f6279f4633cbee316ee68edb22b174c30de52f63e89c8f7ec8d5e075296e1",
+      "implementation_status": "planning_only",
+      "compatibility_verified": false
+    },
+    {
+      "route": "/api/pages/[pageId]/contacts",
+      "feature": "F05",
+      "source": "src/app/api/pages/[pageId]/contacts/route.ts",
+      "methods": [
+        "GET"
+      ],
+      "declared_schedule_utc": null,
+      "direct_rpc_names": [],
+      "direct_table_names": [
+        "contact_tags",
+        "contacts",
+        "user_pages",
+        "users"
+      ],
+      "source_sha256": "4b872b48a6792925a98af9ff9bb7b2bf409c53249902575e2174e6c4f9bd7242",
+      "implementation_status": "planning_only",
+      "compatibility_verified": false
+    },
+    {
+      "route": "/api/pages/[pageId]/contacts/tracked-bulk-message",
+      "feature": "F30",
+      "source": "src/app/api/pages/[pageId]/contacts/tracked-bulk-message/route.ts",
+      "methods": [
+        "GET",
+        "POST"
+      ],
+      "declared_schedule_utc": null,
+      "direct_rpc_names": [
+        "create_filtered_tracked_bulk_campaign"
+      ],
+      "direct_table_names": [
+        "campaign_recipients",
+        "campaigns",
+        "contact_tags",
+        "contacts",
+        "pages",
+        "user_pages"
+      ],
+      "source_sha256": "5667fa343d150d245860082e908133a1218e6736941705d5d93cbd58aec41b64",
+      "implementation_status": "planning_only",
+      "compatibility_verified": false
+    },
+    {
+      "route": "/api/pages/[pageId]/conversations/export",
+      "feature": "F32",
+      "source": "src/app/api/pages/[pageId]/conversations/export/route.ts",
+      "methods": [
+        "GET",
+        "POST"
+      ],
+      "declared_schedule_utc": null,
+      "direct_rpc_names": [],
+      "direct_table_names": [
+        "contacts",
+        "outbound_message_events",
+        "pages",
+        "user_pages"
+      ],
+      "source_sha256": "4bac3388fe60ed36997f9b3a075d66af9fa7bea2f00c3f012f9a4c274b6d96e1",
+      "implementation_status": "planning_only",
+      "compatibility_verified": false
+    },
+    {
+      "route": "/api/pages/[pageId]/exports",
+      "feature": "F32",
+      "source": "src/app/api/pages/[pageId]/exports/route.ts",
+      "methods": [
+        "POST"
+      ],
+      "declared_schedule_utc": null,
+      "direct_rpc_names": [],
+      "direct_table_names": [
+        "contacts",
+        "conversation_export_jobs",
+        "user_pages"
+      ],
+      "source_sha256": "a2bf7f441969e431621518ca0e2a878e52d8c2c3f753086106ef20c169f637ec",
+      "implementation_status": "planning_only",
+      "compatibility_verified": false
+    },
+    {
+      "route": "/api/pages/[pageId]/history",
+      "feature": "F32",
+      "source": "src/app/api/pages/[pageId]/history/route.ts",
+      "methods": [
+        "GET"
+      ],
+      "declared_schedule_utc": null,
+      "direct_rpc_names": [],
+      "direct_table_names": [
+        "campaigns",
+        "page_activity_history",
+        "user_pages",
+        "users"
+      ],
+      "source_sha256": "d8a1f322fa2ee1f51b4ef0e431324b656a11625c9e2d29033f76c0ee31e4838b",
+      "implementation_status": "planning_only",
+      "compatibility_verified": false
+    },
+    {
+      "route": "/api/pages/[pageId]/human-agent-media",
+      "feature": "F20",
+      "source": "src/app/api/pages/[pageId]/human-agent-media/route.ts",
+      "methods": [
+        "POST"
+      ],
+      "declared_schedule_utc": null,
+      "direct_rpc_names": [],
+      "direct_table_names": [
+        "user_pages"
+      ],
+      "source_sha256": "f02b9aee71f9b7f7c373d66a404570adb8e10ac445f1f820545cd7716456a0bc",
+      "implementation_status": "planning_only",
+      "compatibility_verified": false
+    },
+    {
+      "route": "/api/pages/[pageId]/human-agent-send",
+      "feature": "F20",
+      "source": "src/app/api/pages/[pageId]/human-agent-send/route.ts",
+      "methods": [
+        "POST"
+      ],
+      "declared_schedule_utc": null,
+      "direct_rpc_names": [],
+      "direct_table_names": [
+        "chatbot_contact_states",
+        "chatbot_follow_up_jobs",
+        "chatbot_media_assets",
+        "contacts",
+        "pages",
+        "user_pages"
+      ],
+      "source_sha256": "071b431c676b5df024a89206f1c8bcc155b7acc8ed7da979980e27c19aa87e5e",
+      "implementation_status": "planning_only",
+      "compatibility_verified": false
+    },
+    {
+      "route": "/api/pages/[pageId]/pipeline",
+      "feature": "F22",
+      "source": "src/app/api/pages/[pageId]/pipeline/route.ts",
+      "methods": [
+        "GET",
+        "PATCH"
+      ],
+      "declared_schedule_utc": null,
+      "direct_rpc_names": [
+        "get_contact_pipeline_counts"
+      ],
+      "direct_table_names": [
+        "chatbot_configs",
+        "chatbot_contact_states",
+        "contacts",
+        "pages"
+      ],
+      "source_sha256": "614b0e106920856eca4e385b39ab4f755569364ffab414be99f3ae9579a733d0",
+      "implementation_status": "planning_only",
+      "compatibility_verified": false
+    },
+    {
+      "route": "/api/pages/[pageId]/sync",
+      "feature": "F33",
+      "source": "src/app/api/pages/[pageId]/sync/route.ts",
+      "methods": [
+        "POST"
+      ],
+      "declared_schedule_utc": null,
+      "direct_rpc_names": [
+        "acquire_page_sync_lease",
+        "release_page_sync_lease"
+      ],
+      "direct_table_names": [
+        "contacts",
+        "pages",
+        "user_pages"
+      ],
+      "source_sha256": "9bb47cd2a17ade020c5fec577679dd7d454c7bd2fd058e639da7ab482702f651",
+      "implementation_status": "planning_only",
+      "compatibility_verified": false
+    },
+    {
+      "route": "/api/pages/[pageId]/team",
+      "feature": "F02",
+      "source": "src/app/api/pages/[pageId]/team/route.ts",
+      "methods": [
+        "GET"
+      ],
+      "declared_schedule_utc": null,
+      "direct_rpc_names": [],
+      "direct_table_names": [
+        "user_pages"
+      ],
+      "source_sha256": "49e1adbdca36a247911227c93a98d5ffa8dc23ff726f3ffea16c771f8a92bea0",
+      "implementation_status": "planning_only",
+      "compatibility_verified": false
+    },
+    {
+      "route": "/api/pages/[pageId]/webhook",
+      "feature": "F03",
+      "source": "src/app/api/pages/[pageId]/webhook/route.ts",
+      "methods": [
+        "POST"
+      ],
+      "declared_schedule_utc": null,
+      "direct_rpc_names": [],
+      "direct_table_names": [
+        "pages",
+        "user_pages"
+      ],
+      "source_sha256": "b88a944ec20dc3a8cfa46e7caff55b2e6efc9e759181e9384b1c75dd9f8f25cc",
+      "implementation_status": "planning_only",
+      "compatibility_verified": false
+    },
+    {
+      "route": "/api/pages/[pageId]/welcome",
+      "feature": "F31",
+      "source": "src/app/api/pages/[pageId]/welcome/route.ts",
+      "methods": [
+        "GET",
+        "PUT"
+      ],
+      "declared_schedule_utc": null,
+      "direct_rpc_names": [],
+      "direct_table_names": [
+        "user_pages",
+        "welcome_messages"
+      ],
+      "source_sha256": "335036ef664a5470c862865f4c55d1ba7965b18e5fd59f46aa8213c74c65fb55",
+      "implementation_status": "planning_only",
+      "compatibility_verified": false
+    },
+    {
+      "route": "/api/pages",
+      "feature": "F03",
+      "source": "src/app/api/pages/route.ts",
+      "methods": [
+        "GET"
+      ],
+      "declared_schedule_utc": null,
+      "direct_rpc_names": [],
+      "direct_table_names": [
+        "user_pages"
+      ],
+      "source_sha256": "f669b14954f2688899ba54e0813f58a8eeaa785ad7de19041466be2da0addef9",
+      "implementation_status": "planning_only",
+      "compatibility_verified": false
+    },
+    {
+      "route": "/api/sales-form",
+      "feature": "F16",
+      "source": "src/app/api/sales-form/route.ts",
+      "methods": [
+        "GET",
+        "POST"
+      ],
+      "declared_schedule_utc": null,
+      "direct_rpc_names": [
+        "veo_active_pages"
+      ],
+      "direct_table_names": [
+        "chatbot_configs",
+        "chatbot_contact_states",
+        "contacts"
+      ],
+      "source_sha256": "150e3bbeb37e08893d6cfdf5a39ed6e4a2496f52ca5de89805238d9a33e1edca",
+      "implementation_status": "planning_only",
+      "compatibility_verified": false
+    },
+    {
+      "route": "/api/settings/messaging-auto-tag",
+      "feature": "F22",
+      "source": "src/app/api/settings/messaging-auto-tag/route.ts",
+      "methods": [
+        "GET",
+        "PUT"
+      ],
+      "declared_schedule_utc": null,
+      "direct_rpc_names": [],
+      "direct_table_names": [
+        "pages",
+        "user_pages"
+      ],
+      "source_sha256": "9accdac0658539fb1b897a0d07e0fbd540f6476939efae957194c1476a4ce0f6",
+      "implementation_status": "planning_only",
+      "compatibility_verified": false
+    },
+    {
+      "route": "/api/tags/bulk",
+      "feature": "F22",
+      "source": "src/app/api/tags/bulk/route.ts",
+      "methods": [
+        "DELETE"
+      ],
+      "declared_schedule_utc": null,
+      "direct_rpc_names": [],
+      "direct_table_names": [
+        "business_users",
+        "contact_tags",
+        "tags",
+        "user_pages"
+      ],
+      "source_sha256": "bee6a2a9ca0be72971850f7491c1030abb187e14b84bb2ee37ac4cc529c8e117",
+      "implementation_status": "planning_only",
+      "compatibility_verified": false
+    },
+    {
+      "route": "/api/tags",
+      "feature": "F22",
+      "source": "src/app/api/tags/route.ts",
+      "methods": [
+        "DELETE",
+        "GET",
+        "POST",
+        "PUT"
+      ],
+      "declared_schedule_utc": null,
+      "direct_rpc_names": [],
+      "direct_table_names": [
+        "business_users",
+        "contact_tags",
+        "tag_shares",
+        "tags",
+        "user_pages"
+      ],
+      "source_sha256": "e5302c8aaec68d21b8f4cdb9f01090412229f06d8fd98ecfe9438de9b0e88b9e",
+      "implementation_status": "planning_only",
+      "compatibility_verified": false
+    },
+    {
+      "route": "/api/telegram/webhook",
+      "feature": "F29",
+      "source": "src/app/api/telegram/webhook/route.ts",
+      "methods": [
+        "POST"
+      ],
+      "declared_schedule_utc": null,
+      "direct_rpc_names": [
+        "veo_active_pages"
+      ],
+      "direct_table_names": [],
+      "source_sha256": "645c0e9b7b12cea99222723a29ec093d4f77b710ee12190d77b3af686aca07ee",
+      "implementation_status": "planning_only",
+      "compatibility_verified": false
+    },
+    {
+      "route": "/api/test-db",
+      "feature": "F35",
+      "source": "src/app/api/test-db/route.ts",
+      "methods": [
+        "GET"
+      ],
+      "declared_schedule_utc": null,
+      "direct_rpc_names": [],
+      "direct_table_names": [
+        "users"
+      ],
+      "source_sha256": "4c8fd8cd8996c851ccc1c97cb5653f435b3e37055fe45a142ce2987a5f9d406e",
+      "implementation_status": "planning_only",
+      "compatibility_verified": false
+    },
+    {
+      "route": "/api/test-facebook-oauth",
+      "feature": "F35",
+      "source": "src/app/api/test-facebook-oauth/route.ts",
+      "methods": [
+        "GET"
+      ],
+      "declared_schedule_utc": null,
+      "direct_rpc_names": [],
+      "direct_table_names": [],
+      "source_sha256": "91bb693de02e88c19984af51d4dd5c494fc25ebc824b6b334fb539d9be698fda",
+      "implementation_status": "planning_only",
+      "compatibility_verified": false
+    },
+    {
+      "route": "/api/test-logging",
+      "feature": "F35",
+      "source": "src/app/api/test-logging/route.ts",
+      "methods": [
+        "GET"
+      ],
+      "declared_schedule_utc": null,
+      "direct_rpc_names": [],
+      "direct_table_names": [],
+      "source_sha256": "9ad006955e70b1557a2e872f4714cf3d3bd4e4f5bde1db66ac8433d0749c8bfb",
+      "implementation_status": "planning_only",
+      "compatibility_verified": false
+    },
+    {
+      "route": "/api/test-sync",
+      "feature": "F35",
+      "source": "src/app/api/test-sync/route.ts",
+      "methods": [
+        "GET"
+      ],
+      "declared_schedule_utc": null,
+      "direct_rpc_names": [],
+      "direct_table_names": [],
+      "source_sha256": "624263a280fabffbe089e18444f0c0740cf0a284352ff2f54b486f252acf60db",
+      "implementation_status": "planning_only",
+      "compatibility_verified": false
+    },
+    {
+      "route": "/api/workspace/account-access",
+      "feature": "F02",
+      "source": "src/app/api/workspace/account-access/route.ts",
+      "methods": [
+        "GET"
+      ],
+      "declared_schedule_utc": null,
+      "direct_rpc_names": [],
+      "direct_table_names": [],
+      "source_sha256": "ce09e4ed547d6e2c3fd1f52eead871d63ac7e5f02b8a1fe1c758ce80faa8ea39",
+      "implementation_status": "planning_only",
+      "compatibility_verified": false
+    },
+    {
+      "route": "/api/workspace/ads",
+      "feature": "F13",
+      "source": "src/app/api/workspace/ads/route.ts",
+      "methods": [
+        "GET",
+        "POST"
+      ],
+      "declared_schedule_utc": null,
+      "direct_rpc_names": [
+        "get_visible_ad_catalog"
+      ],
+      "direct_table_names": [
+        "ad_source_catalog",
+        "meta_ads_credentials",
+        "veo_tenants"
+      ],
+      "source_sha256": "3ed0e9a28ed891c06f74043ce50fc7344e37f547ac34867c5e01799aecb270f3",
+      "implementation_status": "planning_only",
+      "compatibility_verified": false
+    },
+    {
+      "route": "/api/workspace/archive",
+      "feature": "F32",
+      "source": "src/app/api/workspace/archive/route.ts",
+      "methods": [
+        "GET"
+      ],
+      "declared_schedule_utc": null,
+      "direct_rpc_names": [],
+      "direct_table_names": [
+        "veo_archive_records"
+      ],
+      "source_sha256": "256405469c593db728762efcb90618afc701aa96449a1131d29daf58c0f87cc4",
+      "implementation_status": "planning_only",
+      "compatibility_verified": false
+    },
+    {
+      "route": "/api/workspace/autotag",
+      "feature": "F22",
+      "source": "src/app/api/workspace/autotag/route.ts",
+      "methods": [
+        "GET"
+      ],
+      "declared_schedule_utc": null,
+      "direct_rpc_names": [],
+      "direct_table_names": [],
+      "source_sha256": "67d18313e97d1b1b9988cb855e8dc3edc53c1d3ed4434ab715f7de92db77f410",
+      "implementation_status": "planning_only",
+      "compatibility_verified": false
+    },
+    {
+      "route": "/api/workspace/budget",
+      "feature": "F14",
+      "source": "src/app/api/workspace/budget/route.ts",
+      "methods": [
+        "GET",
+        "POST"
+      ],
+      "declared_schedule_utc": null,
+      "direct_rpc_names": [],
+      "direct_table_names": [],
+      "source_sha256": "ba239a28f7b0f4d4555f85a504f310d7a49d6e37919190a55196f8aa90ee78fc",
+      "implementation_status": "planning_only",
+      "compatibility_verified": false
+    },
+    {
+      "route": "/api/workspace/business-orders",
+      "feature": "F25",
+      "source": "src/app/api/workspace/business-orders/route.ts",
+      "methods": [],
+      "declared_schedule_utc": null,
+      "direct_rpc_names": [
+        "veo_business_orders_page",
+        "veo_request_source_refresh",
+        "veo_source_page"
+      ],
+      "direct_table_names": [
+        "contacts"
+      ],
+      "source_sha256": "a78ef28ac321124aea5240d9651a8eb9c2f830d67ef6d4e910f59ef615184b64",
+      "implementation_status": "planning_only",
+      "compatibility_verified": false
+    },
+    {
+      "route": "/api/workspace/calendar",
+      "feature": "F12",
+      "source": "src/app/api/workspace/calendar/route.ts",
+      "methods": [
+        "GET"
+      ],
+      "declared_schedule_utc": null,
+      "direct_rpc_names": [
+        "veo_salary_report"
+      ],
+      "direct_table_names": [],
+      "source_sha256": "ea84ababd730cd9af1167dc82c03e93b72734308a70129f4412436cc62684967",
+      "implementation_status": "planning_only",
+      "compatibility_verified": false
+    },
+    {
+      "route": "/api/workspace/contacts",
+      "feature": "F05",
+      "source": "src/app/api/workspace/contacts/route.ts",
+      "methods": [
+        "GET"
+      ],
+      "declared_schedule_utc": null,
+      "direct_rpc_names": [
+        "veo_contacts_page"
+      ],
+      "direct_table_names": [
+        "pages"
+      ],
+      "source_sha256": "37a379f02b5abe771638a4ec4ee4ea46215a186192dab1f9716ad8db73183c88",
+      "implementation_status": "planning_only",
+      "compatibility_verified": false
+    },
+    {
+      "route": "/api/workspace/contacts/sync",
+      "feature": "F33",
+      "source": "src/app/api/workspace/contacts/sync/route.ts",
+      "methods": [
+        "POST"
+      ],
+      "declared_schedule_utc": null,
+      "direct_rpc_names": [
+        "acquire_page_sync_lease",
+        "release_page_sync_lease",
+        "veo_seed_contact_identities"
+      ],
+      "direct_table_names": [
+        "pages"
+      ],
+      "source_sha256": "70fab48a667558364b5f4b9ad1e22cb9e8ce4c6399e28c0c562a7578f329759b",
+      "implementation_status": "planning_only",
+      "compatibility_verified": false
+    },
+    {
+      "route": "/api/workspace/context",
+      "feature": "F04",
+      "source": "src/app/api/workspace/context/route.ts",
+      "methods": [
+        "GET"
+      ],
+      "declared_schedule_utc": null,
+      "direct_rpc_names": [],
+      "direct_table_names": [],
+      "source_sha256": "3a449e9ea77244173865057eb35ae8b25690b2cc15d4bc8082ae8280814f8616",
+      "implementation_status": "planning_only",
+      "compatibility_verified": false
+    },
+    {
+      "route": "/api/workspace/creatives",
+      "feature": "F15",
+      "source": "src/app/api/workspace/creatives/route.ts",
+      "methods": [
+        "GET"
+      ],
+      "declared_schedule_utc": null,
+      "direct_rpc_names": [],
+      "direct_table_names": [
+        "meta_ads_credentials",
+        "veo_tenants"
+      ],
+      "source_sha256": "d02318258d7b7176e53832a79e5930a3d6115c17862afdd56838a3e898af18e8",
+      "implementation_status": "planning_only",
+      "compatibility_verified": false
+    },
+    {
+      "route": "/api/workspace/deal-reviews",
+      "feature": "F25",
+      "source": "src/app/api/workspace/deal-reviews/route.ts",
+      "methods": [
+        "GET",
+        "POST"
+      ],
+      "declared_schedule_utc": null,
+      "direct_rpc_names": [
+        "veo_auto_approve_pending_team_reviews",
+        "veo_close_deal_price",
+        "veo_deal_review_delete",
+        "veo_review_deal",
+        "veo_submit_deal_review",
+        "veo_team_auto_approval_setting"
+      ],
+      "direct_table_names": [
+        "veo_deal_review_photos"
+      ],
+      "source_sha256": "837c0cb2c9cb921cf8e20c2d132f06c861900ec6aae00223740496631a68c0e2",
+      "implementation_status": "planning_only",
+      "compatibility_verified": false
+    },
+    {
+      "route": "/api/workspace/deal-reviews/upload",
+      "feature": "F25",
+      "source": "src/app/api/workspace/deal-reviews/upload/route.ts",
+      "methods": [
+        "POST"
+      ],
+      "declared_schedule_utc": null,
+      "direct_rpc_names": [
+        "veo_deal_review_context"
+      ],
+      "direct_table_names": [
+        "veo_deal_review_photos",
+        "veo_photo_objects"
+      ],
+      "source_sha256": "86c81bc0dadf5f88619164d1cc0d32c2c1fe6d7f4f5a8f1c8dde7e8f2c93aa53",
+      "implementation_status": "planning_only",
+      "compatibility_verified": false
+    },
+    {
+      "route": "/api/workspace/demographics",
+      "feature": "F10",
+      "source": "src/app/api/workspace/demographics/route.ts",
+      "methods": [],
+      "declared_schedule_utc": null,
+      "direct_rpc_names": [],
+      "direct_table_names": [],
+      "source_sha256": "78917db090178018b55019343e092731e92165ea950bf2687ac2048ae6fb97fd",
+      "implementation_status": "planning_only",
+      "compatibility_verified": false
+    },
+    {
+      "route": "/api/workspace/employee-profile",
+      "feature": "F28",
+      "source": "src/app/api/workspace/employee-profile/route.ts",
+      "methods": [
+        "GET"
+      ],
+      "declared_schedule_utc": null,
+      "direct_rpc_names": [
+        "veo_employee_profile"
+      ],
+      "direct_table_names": [],
+      "source_sha256": "fea326b2489f9dd7d9ad781e0548ab3303abfa93b6c14b9a1385b617a153bf1c",
+      "implementation_status": "planning_only",
+      "compatibility_verified": false
+    },
+    {
+      "route": "/api/workspace/handoff",
+      "feature": "F29",
+      "source": "src/app/api/workspace/handoff/route.ts",
+      "methods": [
+        "GET",
+        "POST"
+      ],
+      "declared_schedule_utc": null,
+      "direct_rpc_names": [
+        "suno_telegram_song_work",
+        "veo_apply_telegram_observations",
+        "veo_confirm_telegram_link",
+        "veo_handoff",
+        "veo_incentive_notice",
+        "veo_intake_notice_pending",
+        "veo_issue_telegram_pairing",
+        "veo_submission_receipt_deleted",
+        "veo_telegram_intake",
+        "veo_telegram_intake_pending"
+      ],
+      "direct_table_names": [
+        "veo-conversation-submissions",
+        "veo_submissions"
+      ],
+      "source_sha256": "2a8d27331655893525ef7decf76521c3491fa05310b17ca6376ed205789ac21e",
+      "implementation_status": "planning_only",
+      "compatibility_verified": false
+    },
+    {
+      "route": "/api/workspace/incentives",
+      "feature": "F26",
+      "source": "src/app/api/workspace/incentives/route.ts",
+      "methods": [
+        "GET",
+        "POST"
+      ],
+      "declared_schedule_utc": null,
+      "direct_rpc_names": [
+        "veo_incentive_context",
+        "veo_incentive_save"
+      ],
+      "direct_table_names": [],
+      "source_sha256": "a618e20fccb14074d7fec798985b1c0c949d950f9ac46764891e47f0eabb4ca1",
+      "implementation_status": "planning_only",
+      "compatibility_verified": false
+    },
+    {
+      "route": "/api/workspace/jaucian",
+      "feature": "F29",
+      "source": "src/app/api/workspace/jaucian/route.ts",
+      "methods": [
+        "GET"
+      ],
+      "declared_schedule_utc": null,
+      "direct_rpc_names": [],
+      "direct_table_names": [],
+      "source_sha256": "9daf92a166a0865de77292fecaef970e15a57c79fa8dd1fe97a7b4db51c955e0",
+      "implementation_status": "planning_only",
+      "compatibility_verified": false
+    },
+    {
+      "route": "/api/workspace/new-clients",
+      "feature": "F23",
+      "source": "src/app/api/workspace/new-clients/route.ts",
+      "methods": [
+        "GET",
+        "POST"
+      ],
+      "declared_schedule_utc": null,
+      "direct_rpc_names": [
+        "veo_intake_action"
+      ],
+      "direct_table_names": [],
+      "source_sha256": "a0578690693606eac3ae451d3ad7caf44eccbc3d3f9998b0094856d7bc232226",
+      "implementation_status": "planning_only",
+      "compatibility_verified": false
+    },
+    {
+      "route": "/api/workspace/operations",
+      "feature": "F24",
+      "source": "src/app/api/workspace/operations/route.ts",
+      "methods": [
+        "GET"
+      ],
+      "declared_schedule_utc": null,
+      "direct_rpc_names": [],
+      "direct_table_names": [],
+      "source_sha256": "e2d95fa4b2f033aa569b374fc0ee5ef2c759476260695977b7b5853b8bc957b2",
+      "implementation_status": "planning_only",
+      "compatibility_verified": false
+    },
+    {
+      "route": "/api/workspace/pages",
+      "feature": "F03",
+      "source": "src/app/api/workspace/pages/route.ts",
+      "methods": [
+        "GET"
+      ],
+      "declared_schedule_utc": null,
+      "direct_rpc_names": [],
+      "direct_table_names": [
+        "pages"
+      ],
+      "source_sha256": "019ffa2bf4ebd7d42b13da08dee39faf7d3b2c4c5ffa39f302f1daccec5e9079",
+      "implementation_status": "planning_only",
+      "compatibility_verified": false
+    },
+    {
+      "route": "/api/workspace/profile",
+      "feature": "F01",
+      "source": "src/app/api/workspace/profile/route.ts",
+      "methods": [
+        "POST"
+      ],
+      "declared_schedule_utc": null,
+      "direct_rpc_names": [
+        "veo_save_telegram_profile"
+      ],
+      "direct_table_names": [],
+      "source_sha256": "4359f1a9237afcef3fa37e90a7887c182390a7db4dcb2a47794e5f558c15628d",
+      "implementation_status": "planning_only",
+      "compatibility_verified": false
+    },
+    {
+      "route": "/api/workspace/profile/telegram-link",
+      "feature": "F29",
+      "source": "src/app/api/workspace/profile/telegram-link/route.ts",
+      "methods": [
+        "GET",
+        "POST"
+      ],
+      "declared_schedule_utc": null,
+      "direct_rpc_names": [
+        "veo_confirm_telegram_pairing",
+        "veo_create_telegram_link",
+        "veo_relink_telegram_pairing"
+      ],
+      "direct_table_names": [
+        "veo_accounts",
+        "veo_telegram_pairing_codes",
+        "veo_worker_mappings"
+      ],
+      "source_sha256": "68facf3894867e7d7babc3b49bba3fee8acc7ab1c2b368e4d14e59b412133e3d",
+      "implementation_status": "planning_only",
+      "compatibility_verified": false
+    },
+    {
+      "route": "/api/workspace/profile-details",
+      "feature": "F06",
+      "source": "src/app/api/workspace/profile-details/route.ts",
+      "methods": [],
+      "declared_schedule_utc": null,
+      "direct_rpc_names": [
+        "veo_demographic_action",
+        "veo_profile_detail_access",
+        "veo_profile_detail_request"
+      ],
+      "direct_table_names": [],
+      "source_sha256": "7c47180b160ca8299d969ff51555466369f20c935adba7c29efd1f4fb268f67a",
+      "implementation_status": "planning_only",
+      "compatibility_verified": false
+    },
+    {
+      "route": "/api/workspace/quota-policy",
+      "feature": "F27",
+      "source": "src/app/api/workspace/quota-policy/route.ts",
+      "methods": [
+        "GET",
+        "POST"
+      ],
+      "declared_schedule_utc": null,
+      "direct_rpc_names": [
+        "veo_quota_policy"
+      ],
+      "direct_table_names": [],
+      "source_sha256": "4aeac2abeca7520ff53f744de488c7811172a7b829f886791d47f88ebd9957ac",
+      "implementation_status": "planning_only",
+      "compatibility_verified": false
+    },
+    {
+      "route": "/api/workspace/receipts",
+      "feature": "F25",
+      "source": "src/app/api/workspace/receipts/route.ts",
+      "methods": [
+        "GET",
+        "POST"
+      ],
+      "declared_schedule_utc": null,
+      "direct_rpc_names": [
+        "veo_profile_detail_access",
+        "veo_receipt_access",
+        "veo_receipt_delete",
+        "veo_receipt_note",
+        "veo_receipt_recheck",
+        "veo_receipt_requirements",
+        "veo_receipt_save",
+        "veo_request_source_refresh"
+      ],
+      "direct_table_names": [
+        "veo_photo_objects",
+        "veo_receipts"
+      ],
+      "source_sha256": "d7fa82ffc238a7efd186259b02c30f6a453564843840f539826723dc92340bfb",
+      "implementation_status": "planning_only",
+      "compatibility_verified": false
+    },
+    {
+      "route": "/api/workspace",
+      "feature": "F04",
+      "source": "src/app/api/workspace/route.ts",
+      "methods": [
+        "GET",
+        "POST"
+      ],
+      "declared_schedule_utc": null,
+      "direct_rpc_names": [
+        "get_contact_finance_records",
+        "veo_change_member_supervisor",
+        "veo_map_staff_telegram",
+        "veo_profile_detail_access",
+        "veo_recover_account_login",
+        "veo_set_account_password"
+      ],
+      "direct_table_names": [
+        "contacts",
+        "users",
+        "veo_closed_deals",
+        "veo_contact_details",
+        "veo_order_facts",
+        "veo_payments"
+      ],
+      "source_sha256": "3c21c03ab883332da3e5b587027e24de489bc17547b2ead2c63bba95437aa771",
+      "implementation_status": "planning_only",
+      "compatibility_verified": false
+    },
+    {
+      "route": "/api/workspace/source",
+      "feature": "F09",
+      "source": "src/app/api/workspace/source/route.ts",
+      "methods": [
+        "GET",
+        "POST"
+      ],
+      "declared_schedule_utc": null,
+      "direct_rpc_names": [
+        "veo_request_source_refresh",
+        "veo_review_source_evidence",
+        "veo_source_page"
+      ],
+      "direct_table_names": [],
+      "source_sha256": "4639cc43568f9f0ec2c9c20d738321bea4ade45ebbc97936579d18f62584ac06",
+      "implementation_status": "planning_only",
+      "compatibility_verified": false
+    },
+    {
+      "route": "/api/workspace/storage-health",
+      "feature": "F35",
+      "source": "src/app/api/workspace/storage-health/route.ts",
+      "methods": [
+        "GET"
+      ],
+      "declared_schedule_utc": null,
+      "direct_rpc_names": [
+        "veo_owner_storage_health"
+      ],
+      "direct_table_names": [],
+      "source_sha256": "5fe8d19e909aa52329b50e35c4855193f0a9be05b0e6efbb5265c9c635698844",
+      "implementation_status": "planning_only",
+      "compatibility_verified": false
+    },
+    {
+      "route": "/api/workspace/telegram-groups",
+      "feature": "F29",
+      "source": "src/app/api/workspace/telegram-groups/route.ts",
+      "methods": [
+        "GET",
+        "POST"
+      ],
+      "declared_schedule_utc": null,
+      "direct_rpc_names": [
+        "veo_staff_can_telegram_group",
+        "veo_sync_telegram_groups",
+        "veo_telegram_group_action"
+      ],
+      "direct_table_names": [
+        "pages"
+      ],
+      "source_sha256": "fb2f089fe22d503dba99f9a07d2f228dc503e2f3640f8b0368f17ed072c291e9",
+      "implementation_status": "planning_only",
+      "compatibility_verified": false
+    },
+    {
+      "route": "/api/workspace/warnings",
+      "feature": "F28",
+      "source": "src/app/api/workspace/warnings/route.ts",
+      "methods": [
+        "GET"
+      ],
+      "declared_schedule_utc": null,
+      "direct_rpc_names": [],
+      "direct_table_names": [],
+      "source_sha256": "02b02737dd9a76b7e74d11db46947aee522d0bb84a54402918f72856036920be",
+      "implementation_status": "planning_only",
+      "compatibility_verified": false
+    }
+  ],
+  "pages": [
+    {
+      "route": "/dashboard/7-day-contacts",
+      "feature": "F05",
+      "source": "src/app/dashboard/7-day-contacts/page.tsx",
+      "source_sha256": "c4332b780360ebd17be2f80cb1c5a088cebe35a372e18f697782ceee3f3c26a6",
+      "compatibility_verified": false
+    },
+    {
+      "route": "/dashboard/ad-calendar",
+      "feature": "F11",
+      "source": "src/app/dashboard/ad-calendar/page.tsx",
+      "source_sha256": "98aa9eef84544ac87eef2ac5472c9c91d14dde94d300d2cf70348a3c41582ca9",
+      "compatibility_verified": false
+    },
+    {
+      "route": "/dashboard/ad-quality",
+      "feature": "F13",
+      "source": "src/app/dashboard/ad-quality/page.tsx",
+      "source_sha256": "f373b9de3f8ccaf21953b421b082e5e3823721c02f656d991a9ba2fc07607960",
+      "compatibility_verified": false
+    },
+    {
+      "route": "/dashboard/automations",
+      "feature": "F21",
+      "source": "src/app/dashboard/automations/page.tsx",
+      "source_sha256": "71a8c312b913dd12096fc2d1f8b2c87c27d57b30dadedb9ff2a161047a3a8811",
+      "compatibility_verified": false
+    },
+    {
+      "route": "/dashboard/campaigns",
+      "feature": "F30",
+      "source": "src/app/dashboard/campaigns/page.tsx",
+      "source_sha256": "160799623ac8b402a2f0c65550729398fa929920bd2b20dea59f0b4aedc956f8",
+      "compatibility_verified": false
+    },
+    {
+      "route": "/dashboard/chatbot",
+      "feature": "F17",
+      "source": "src/app/dashboard/chatbot/page.tsx",
+      "source_sha256": "c9008e5f407376e516fca60537280dc892d3a1b82b863f8d4c2a586d33196d8d",
+      "compatibility_verified": false
+    },
+    {
+      "route": "/dashboard/connect",
+      "feature": "F03",
+      "source": "src/app/dashboard/connect/page.tsx",
+      "source_sha256": "e9e92061f5ed61a9c93c9ed0f217b2d0221c4f25ed02b804ec9da2fb207d34a3",
+      "compatibility_verified": false
+    },
+    {
+      "route": "/dashboard/contacts/[contactId]",
+      "feature": "F06",
+      "source": "src/app/dashboard/contacts/[contactId]/page.tsx",
+      "source_sha256": "69cf207d3d1a9a36340a7b4ded5ab1ef71a329bfcac4e01c8473e823a3f66eba",
+      "compatibility_verified": false
+    },
+    {
+      "route": "/dashboard/contacts",
+      "feature": "F05",
+      "source": "src/app/dashboard/contacts/page.tsx",
+      "source_sha256": "b5e0f7de7b1063bb05401132bf2593a23104193953f8f44308d2468d41da831b",
+      "compatibility_verified": false
+    },
+    {
+      "route": "/dashboard/exports",
+      "feature": "F32",
+      "source": "src/app/dashboard/exports/page.tsx",
+      "source_sha256": "87294d8993dd8ebf7f42ed23326973f47c86c337e9e8daeef11792c8a4696789",
+      "compatibility_verified": false
+    },
+    {
+      "route": "/dashboard/history",
+      "feature": "F32",
+      "source": "src/app/dashboard/history/page.tsx",
+      "source_sha256": "88a14d598771474842ffeea56a04084dad9c8906a20f64e232e3a110572ecadd",
+      "compatibility_verified": false
+    },
+    {
+      "route": "/dashboard",
+      "feature": "F04",
+      "source": "src/app/dashboard/page.tsx",
+      "source_sha256": "9e86333010b6736a99d4e2977f904d680b6baf7bfc2f73acf08b7444f749f7cc",
+      "compatibility_verified": false
+    },
+    {
+      "route": "/dashboard/pipeline",
+      "feature": "F22",
+      "source": "src/app/dashboard/pipeline/page.tsx",
+      "source_sha256": "0e13464de90f944a878532f4b628c04b8b2b2d56a5ae519f4078092fca8a568f",
+      "compatibility_verified": false
+    },
+    {
+      "route": "/dashboard/pricing",
+      "feature": "F19",
+      "source": "src/app/dashboard/pricing/page.tsx",
+      "source_sha256": "976ee96cb0d21a6cce01b0b50a6f35b3e7852696ba269afc161299623c7c52b6",
+      "compatibility_verified": false
+    },
+    {
+      "route": "/dashboard/settings",
+      "feature": "F35",
+      "source": "src/app/dashboard/settings/page.tsx",
+      "source_sha256": "aaace416af3f61315c69a98361fd04f16b0cedaf707357e935109da49d57741f",
+      "compatibility_verified": false
+    },
+    {
+      "route": "/dashboard/tags",
+      "feature": "F22",
+      "source": "src/app/dashboard/tags/page.tsx",
+      "source_sha256": "57df2f1a4a088efeb2c2e2d9cde7c0d5f688edecafaa1e0d778d62c3cb39ab94",
+      "compatibility_verified": false
+    },
+    {
+      "route": "/dashboard/templates",
+      "feature": "F31",
+      "source": "src/app/dashboard/templates/page.tsx",
+      "source_sha256": "6e3fb73fd3ba0a172d47b2e4f54d1d4667e80858b23e98b6bb26868dcd6c430c",
+      "compatibility_verified": false
+    },
+    {
+      "route": "/dashboard/welcome",
+      "feature": "F31",
+      "source": "src/app/dashboard/welcome/page.tsx",
+      "source_sha256": "2ad7074e1699b6d8cb809be2abd7691600eb5cefd945d36de16776950fa84231",
+      "compatibility_verified": false
+    },
+    {
+      "route": "/dashboard/workspace",
+      "feature": "F04",
+      "source": "src/app/dashboard/workspace/page.tsx",
+      "source_sha256": "a51a983d934087434abfedcba491ba53cae86d7af63ac1c498783b6939f8f3cf",
+      "compatibility_verified": false
+    },
+    {
+      "route": "/",
+      "feature": "F01",
+      "source": "src/app/page.tsx",
+      "source_sha256": "8ed2813bf98626e60151b34d1dae5fb800134eccdc3077c9fec47d690828907c",
+      "compatibility_verified": false
+    },
+    {
+      "route": "/sales-form",
+      "feature": "F16",
+      "source": "src/app/sales-form/page.tsx",
+      "source_sha256": "11bfc2b82c18585d2b670773a862d380bb816d9b34273ec855a2ab4089bfd4b3",
+      "compatibility_verified": false
+    },
+    {
+      "route": "/ui-preview",
+      "feature": "F34",
+      "source": "src/app/ui-preview/page.tsx",
+      "source_sha256": "6f97d493c91c483e75c9d974bba3118dd7552caab8d06ecdadd6e1f5bb32eacb",
+      "compatibility_verified": false
+    },
+    {
+      "route": "/vintage",
+      "feature": "F01",
+      "source": "src/app/vintage/page.tsx",
+      "source_sha256": "cef121f44cba67eb754ce0004e28657b6afcf309448583e2cf4f3835f93737bb",
+      "compatibility_verified": false
+    }
+  ],
+  "components": [
+    {
+      "component": "AdCreativePreview.tsx",
+      "feature": "F15",
+      "source": "src/components/AdCreativePreview.tsx",
+      "source_sha256": "2a3d5c512cb8be77e6ecc1c4aecca89816c2c56c74726e1df70e0baa9d2051bf",
+      "compatibility_verified": false
+    },
+    {
+      "component": "ChatbotSalesSettings.tsx",
+      "feature": "F16",
+      "source": "src/components/ChatbotSalesSettings.tsx",
+      "source_sha256": "c5c6db96a46f1ef939be266ca9a1231c7a9c73a9d024c1d3eb9a872ccbf9d735",
+      "compatibility_verified": false
+    },
+    {
+      "component": "ContactBotProjection.tsx",
+      "feature": "F10",
+      "source": "src/components/ContactBotProjection.tsx",
+      "source_sha256": "5ec2ca87fbb124b988c17352852163e10f17732d94e3223090b6e1328a913f00",
+      "compatibility_verified": false
+    },
+    {
+      "component": "ContactSources.tsx",
+      "feature": "F09",
+      "source": "src/components/ContactSources.tsx",
+      "source_sha256": "3327a6df54a5a87a76ffd8adfa4dd8576cf34c04e0d6b8c7f747515b20540745",
+      "compatibility_verified": false
+    },
+    {
+      "component": "ConversionPerformance.tsx",
+      "feature": "F13",
+      "source": "src/components/ConversionPerformance.tsx",
+      "source_sha256": "89f9d02d671d47fc81b66164f079ad85961e5c179d08f8e1f8a946c335cf5512",
+      "compatibility_verified": false
+    },
+    {
+      "component": "FacebookConnectButton.tsx",
+      "feature": "F03",
+      "source": "src/components/FacebookConnectButton.tsx",
+      "source_sha256": "372d78cc238fbf46acc3f5dc2d7b64419410d0f3a662580eaa7af7413c6b3dd4",
+      "compatibility_verified": false
+    },
+    {
+      "component": "LeadQualityBadge.tsx",
+      "feature": "F10",
+      "source": "src/components/LeadQualityBadge.tsx",
+      "source_sha256": "49aa8c6d0d8ecc6247449e422b2dd911ab2661ce8dd7391407f05a8629c2c7d5",
+      "compatibility_verified": false
+    },
+    {
+      "component": "Modal.tsx",
+      "feature": "F34",
+      "source": "src/components/Modal.tsx",
+      "source_sha256": "592f08c8fe828ab1a8f81ec7d6d9d8bf8cac08f01839f61d17c123907f11541b",
+      "compatibility_verified": false
+    },
+    {
+      "component": "Pagination.tsx",
+      "feature": "F34",
+      "source": "src/components/Pagination.tsx",
+      "source_sha256": "c42c6d672ce9f37672b073b4448901277dca038e7af1eef3828c9c642dd3a03a",
+      "compatibility_verified": false
+    },
+    {
+      "component": "Providers.tsx",
+      "feature": "F34",
+      "source": "src/components/Providers.tsx",
+      "source_sha256": "473ebd46c49fd6bc0cab3bcd7f38c2a7e98b237811628ccd2cac72e5c2cf938d",
+      "compatibility_verified": false
+    },
+    {
+      "component": "Toast.tsx",
+      "feature": "F34",
+      "source": "src/components/Toast.tsx",
+      "source_sha256": "3bac8f7266994d0c9791b8c00e6c8e2d3c26de0ee3d5be14d864f8172cfab170",
+      "compatibility_verified": false
+    },
+    {
+      "component": "VeoAccountAccess.tsx",
+      "feature": "F02",
+      "source": "src/components/VeoAccountAccess.tsx",
+      "source_sha256": "f01adafd8d10d9988cd9f93218059ab767cc416a53f2a0b91492c516dde40e29",
+      "compatibility_verified": false
+    },
+    {
+      "component": "VeoAccountLoginSetup.tsx",
+      "feature": "F01",
+      "source": "src/components/VeoAccountLoginSetup.tsx",
+      "source_sha256": "ecf91c792c225be6723d24d3f4a11a4885333e158a8e895f10368121131d1a40",
+      "compatibility_verified": false
+    },
+    {
+      "component": "VeoAdPerformanceChart.tsx",
+      "feature": "F13",
+      "source": "src/components/VeoAdPerformanceChart.tsx",
+      "source_sha256": "8b9473fcd9b7cc61950d4f90a77443fcff277bf1a04063bac78dc9995a6a700d",
+      "compatibility_verified": false
+    },
+    {
+      "component": "VeoAdsConnection.tsx",
+      "feature": "F13",
+      "source": "src/components/VeoAdsConnection.tsx",
+      "source_sha256": "d3a6b3eea6ee220598d4d1812780605460f99f41b68a0dc3b85f1700305e398f",
+      "compatibility_verified": false
+    },
+    {
+      "component": "VeoAutoTagStatus.tsx",
+      "feature": "F22",
+      "source": "src/components/VeoAutoTagStatus.tsx",
+      "source_sha256": "37528c31de5dc1ba9c9e34a73c70f03830e3b6499be17ab3ed49d0b81d50edc2",
+      "compatibility_verified": false
+    },
+    {
+      "component": "VeoBusinessOrderPicker.tsx",
+      "feature": "F25",
+      "source": "src/components/VeoBusinessOrderPicker.tsx",
+      "source_sha256": "fb20ad47d1873847f20a0e01bbdf7137da5cbaa4f91943cf186723a8ab963dd7",
+      "compatibility_verified": false
+    },
+    {
+      "component": "VeoCapacitySummary.tsx",
+      "feature": "F27",
+      "source": "src/components/VeoCapacitySummary.tsx",
+      "source_sha256": "bae1b00943c696e483a293ed86742df54c92260084d7919fd0dbd365fd733837",
+      "compatibility_verified": false
+    },
+    {
+      "component": "VeoClientDrawer.tsx",
+      "feature": "F06",
+      "source": "src/components/VeoClientDrawer.tsx",
+      "source_sha256": "01da43e97895c39876549ae7464307b1d78adfb6ff439da7bf0d3c3f21532b22",
+      "compatibility_verified": false
+    },
+    {
+      "component": "VeoContactAutoFill.tsx",
+      "feature": "F06",
+      "source": "src/components/VeoContactAutoFill.tsx",
+      "source_sha256": "21d1b4e809f768f77d374ee3158b21f2b4ada58949d694449ecb5891d15760a9",
+      "compatibility_verified": false
+    },
+    {
+      "component": "VeoContactDemographics.tsx",
+      "feature": "F10",
+      "source": "src/components/VeoContactDemographics.tsx",
+      "source_sha256": "93dc7f64bc1f2ddab879a501727d9a01604eac7b2662111a603bc7ec2a0b0a27",
+      "compatibility_verified": false
+    },
+    {
+      "component": "VeoContactDetails.tsx",
+      "feature": "F08",
+      "source": "src/components/VeoContactDetails.tsx",
+      "source_sha256": "8b5d2704bb4c2baccf4046949dc7f0a41d1bd548a71fd9acf7d63ea6ac223a1a",
+      "compatibility_verified": false
+    },
+    {
+      "component": "VeoContactIdentitySync.tsx",
+      "feature": "F33",
+      "source": "src/components/VeoContactIdentitySync.tsx",
+      "source_sha256": "17ab0e62970e8656bbe19299c9f1c25d3565aaff5a2e28c81dc2503a770722f5",
+      "compatibility_verified": false
+    },
+    {
+      "component": "VeoContactTags.tsx",
+      "feature": "F22",
+      "source": "src/components/VeoContactTags.tsx",
+      "source_sha256": "22a39ec98c5df33e21b1a17e939350117e9c55a0841ef0a174b9eccbe4a544ff",
+      "compatibility_verified": false
+    },
+    {
+      "component": "VeoCreativePerformance.tsx",
+      "feature": "F15",
+      "source": "src/components/VeoCreativePerformance.tsx",
+      "source_sha256": "33ca310f738ed35c62320d17f9d1c6d2348acadf6a0977bf90caed74df1a3e4f",
+      "compatibility_verified": false
+    },
+    {
+      "component": "VeoDashboardBreadcrumb.tsx",
+      "feature": "F34",
+      "source": "src/components/VeoDashboardBreadcrumb.tsx",
+      "source_sha256": "6571cbe1c92a6f3b21b2c3742d896b433ee40afdbc4ddaef1a7218ab870868c8",
+      "compatibility_verified": false
+    },
+    {
+      "component": "VeoDashboardNavigation.tsx",
+      "feature": "F34",
+      "source": "src/components/VeoDashboardNavigation.tsx",
+      "source_sha256": "bdfc2712ab85f75f2a6d380863b40b442e689cf6cfc62b80ab1aaa75a6ac4fc9",
+      "compatibility_verified": false
+    },
+    {
+      "component": "VeoDealEvidenceInbox.tsx",
+      "feature": "F25",
+      "source": "src/components/VeoDealEvidenceInbox.tsx",
+      "source_sha256": "7324bfc7ff9600f7fbb42372a52e60745f2512f8e6736188602e090067e50c1e",
+      "compatibility_verified": false
+    },
+    {
+      "component": "VeoDealIncentive.tsx",
+      "feature": "F26",
+      "source": "src/components/VeoDealIncentive.tsx",
+      "source_sha256": "9e9d3a4adbaf1fa8092252a25a24e280816c82532be61a87ceb85b162f96aef6",
+      "compatibility_verified": false
+    },
+    {
+      "component": "VeoDeferredSection.tsx",
+      "feature": "F34",
+      "source": "src/components/VeoDeferredSection.tsx",
+      "source_sha256": "a92e3022956bf19e4d98b107c21b7b788c625ab9c14d21f2058ddaaa758a0fa3",
+      "compatibility_verified": false
+    },
+    {
+      "component": "VeoEmployeeProfile.tsx",
+      "feature": "F28",
+      "source": "src/components/VeoEmployeeProfile.tsx",
+      "source_sha256": "a6c027dafbbc4c1e0bc1a69df9d87b341e8da3c66aab499d70199795ea960f38",
+      "compatibility_verified": false
+    },
+    {
+      "component": "VeoJaucianIntegration.tsx",
+      "feature": "F29",
+      "source": "src/components/VeoJaucianIntegration.tsx",
+      "source_sha256": "711c4fcb3c114730d245a0d51943d08ce1eb7d3e94d2a600a7f6e12a8cb35729",
+      "compatibility_verified": false
+    },
+    {
+      "component": "VeoMemberSupervisors.tsx",
+      "feature": "F02",
+      "source": "src/components/VeoMemberSupervisors.tsx",
+      "source_sha256": "5e097f616724debce3275121405f60aa5f8c2d6d2d2bb8770d173bbc5beaa043",
+      "compatibility_verified": false
+    },
+    {
+      "component": "VeoNewClients.tsx",
+      "feature": "F23",
+      "source": "src/components/VeoNewClients.tsx",
+      "source_sha256": "64a3b5d9169f857a7f26f5e6825ea7bf855e9d765a7eba4c8278b0ce0e76ddfb",
+      "compatibility_verified": false
+    },
+    {
+      "component": "VeoOperationsPanel.tsx",
+      "feature": "F24",
+      "source": "src/components/VeoOperationsPanel.tsx",
+      "source_sha256": "f4493fa938d264453213ed5bfedb13f94b9fd109500f468ccd4f20c8f2f0e4bf",
+      "compatibility_verified": false
+    },
+    {
+      "component": "VeoPageBudget.tsx",
+      "feature": "F14",
+      "source": "src/components/VeoPageBudget.tsx",
+      "source_sha256": "f54f3924eec5ef1a577f84d94bd6c1270d6a911045c1f59f6ffe76c6089c4e05",
+      "compatibility_verified": false
+    },
+    {
+      "component": "VeoPageConnections.tsx",
+      "feature": "F03",
+      "source": "src/components/VeoPageConnections.tsx",
+      "source_sha256": "193571932eda52f0c7e0b12268e24bf5fb578601779e3ec5f743dd29dbbd0bf3",
+      "compatibility_verified": false
+    },
+    {
+      "component": "VeoPageState.tsx",
+      "feature": "F34",
+      "source": "src/components/VeoPageState.tsx",
+      "source_sha256": "18caef21aff307efa8231912c0ed5fdcf093dc38cbd8910eac3303af3c88cbbf",
+      "compatibility_verified": false
+    },
+    {
+      "component": "VeoQuotaPolicy.tsx",
+      "feature": "F27",
+      "source": "src/components/VeoQuotaPolicy.tsx",
+      "source_sha256": "b64fcb5ba15c02c44974fe94caf8a5659db1bb5f1855e6cfb4169d3ced23119d",
+      "compatibility_verified": false
+    },
+    {
+      "component": "VeoReceiptInbox.tsx",
+      "feature": "F25",
+      "source": "src/components/VeoReceiptInbox.tsx",
+      "source_sha256": "3901c8e95b6a9525c14748eb31b6093a56963f4a6a10dfaeb44e623f546da347",
+      "compatibility_verified": false
+    },
+    {
+      "component": "VeoReceiptSaleDetails.tsx",
+      "feature": "F25",
+      "source": "src/components/VeoReceiptSaleDetails.tsx",
+      "source_sha256": "08e04d8a6a6d5cae172918406f655c60e3f70e576c8474ddc2af4876439d3b9f",
+      "compatibility_verified": false
+    },
+    {
+      "component": "VeoSalaryStatement.tsx",
+      "feature": "F26",
+      "source": "src/components/VeoSalaryStatement.tsx",
+      "source_sha256": "2312be4a5f79ff086f3075bbb02e62eaad35d55e650a0482d0d6d26ab67afaf4",
+      "compatibility_verified": false
+    },
+    {
+      "component": "VeoSignIn.tsx",
+      "feature": "F01",
+      "source": "src/components/VeoSignIn.tsx",
+      "source_sha256": "135431cc2abdfe6ef6741a07e3aad2aa185006dd0a1c41c8285e1d1d12e49334",
+      "compatibility_verified": false
+    },
+    {
+      "component": "VeoStaffOffboarding.tsx",
+      "feature": "F02",
+      "source": "src/components/VeoStaffOffboarding.tsx",
+      "source_sha256": "3c3fe8168bc4731032071700c4e6fd339d2cbf7438141212f19d4647af1deebf",
+      "compatibility_verified": false
+    },
+    {
+      "component": "VeoStaffPerformance.tsx",
+      "feature": "F28",
+      "source": "src/components/VeoStaffPerformance.tsx",
+      "source_sha256": "c622bec411bab09a96855fb548930d0838e59c8729223f216ec1daa7e0c0b1ae",
+      "compatibility_verified": false
+    },
+    {
+      "component": "VeoStaffWarnings.tsx",
+      "feature": "F28",
+      "source": "src/components/VeoStaffWarnings.tsx",
+      "source_sha256": "0278256ffee23c4fd373a481db2cb43e5d702e36fed7017d64875ae303ae2081",
+      "compatibility_verified": false
+    },
+    {
+      "component": "VeoStorageHealth.tsx",
+      "feature": "F35",
+      "source": "src/components/VeoStorageHealth.tsx",
+      "source_sha256": "5ca2208e302f9b66dafd1316173935624d100256bc698616903de3e06dc5058a",
+      "compatibility_verified": false
+    },
+    {
+      "component": "VeoSupervisorGroups.tsx",
+      "feature": "F02",
+      "source": "src/components/VeoSupervisorGroups.tsx",
+      "source_sha256": "4da845ae701efbf1c185ec78bfa8285a460800504b50dcfd4f346600108023fa",
+      "compatibility_verified": false
+    },
+    {
+      "component": "VeoTeamsDashboard.tsx",
+      "feature": "F04",
+      "source": "src/components/VeoTeamsDashboard.tsx",
+      "source_sha256": "4d578f06fdc8318a24232436b6677729fee0e2a243ca99a3f973c10ebfc8c799",
+      "compatibility_verified": false
+    },
+    {
+      "component": "VeoTelegramGroups.tsx",
+      "feature": "F29",
+      "source": "src/components/VeoTelegramGroups.tsx",
+      "source_sha256": "1396f6ac83430ce11d8cc9d0ee96b9ec5ec9164bbafc2d4031d6ee2606090769",
+      "compatibility_verified": false
+    },
+    {
+      "component": "VeoTelegramLink.tsx",
+      "feature": "F29",
+      "source": "src/components/VeoTelegramLink.tsx",
+      "source_sha256": "96b0d350caadd3060fe3331179aaabff5157bee43eaa0be518cf58da22081d5b",
+      "compatibility_verified": false
+    },
+    {
+      "component": "VeoTelegramProfile.tsx",
+      "feature": "F01",
+      "source": "src/components/VeoTelegramProfile.tsx",
+      "source_sha256": "a059fd0c9522fe2ffe33eaa3c997075d35ae68182e3a50e3696cf004d823f6f3",
+      "compatibility_verified": false
+    },
+    {
+      "component": "VeoTelegramReminder.tsx",
+      "feature": "F29",
+      "source": "src/components/VeoTelegramReminder.tsx",
+      "source_sha256": "3465173debac90da5f24f025033b6e3434e740cea472e07beeef695eb66c7fb5",
+      "compatibility_verified": false
+    },
+    {
+      "component": "VeoWorkCalendar.tsx",
+      "feature": "F12",
+      "source": "src/components/VeoWorkCalendar.tsx",
+      "source_sha256": "d904e759d31506a39df30a00165545162c78452c5006b2d4e9067c3328b58c19",
+      "compatibility_verified": false
+    },
+    {
+      "component": "VeoWorkforceReadiness.tsx",
+      "feature": "F27",
+      "source": "src/components/VeoWorkforceReadiness.tsx",
+      "source_sha256": "fdd87ad5ce94e3f3c467c9090b207f2e50730fb6d11f58be2e003e5365d9de65",
+      "compatibility_verified": false
+    },
+    {
+      "component": "VeoWorkspaceContacts.tsx",
+      "feature": "F05",
+      "source": "src/components/VeoWorkspaceContacts.tsx",
+      "source_sha256": "60b7c1a9e0a3a30b73bbea67d3e18b199493d1df90199b6f4cb5078093288d80",
+      "compatibility_verified": false
+    },
+    {
+      "component": "WorkspacePreview.tsx",
+      "feature": "F34",
+      "source": "src/components/WorkspacePreview.tsx",
+      "source_sha256": "275f58f9d97a455d897955583684b6f25d0cfba8703280ce1be6249b3dca885c",
+      "compatibility_verified": false
+    },
+    {
+      "component": "WorkspaceShell.tsx",
+      "feature": "F34",
+      "source": "src/components/WorkspaceShell.tsx",
+      "source_sha256": "1a28e9655e45016b2e5a2fe3a8f37ba7fd845e0be936a02e63a7da7fe2f30415",
+      "compatibility_verified": false
+    }
+  ],
+  "cron_routes": [
+    {
+      "route": "/api/cron/campaign-loop",
+      "feature": "F30",
+      "source": "src/app/api/cron/campaign-loop/route.ts",
+      "methods": [
+        "GET"
+      ],
+      "declared_schedule_utc": "* * * * *",
+      "direct_rpc_names": [],
+      "direct_table_names": [
+        "campaigns"
+      ],
+      "source_sha256": "1cf9d982ffdc1b3e95de81af9661e6619778c1c8eb836685b7e1b83381d7ac51",
+      "implementation_status": "planning_only",
+      "compatibility_verified": false
+    },
+    {
+      "route": "/api/cron/campaign-scheduled",
+      "feature": "F30",
+      "source": "src/app/api/cron/campaign-scheduled/route.ts",
+      "methods": [
+        "GET"
+      ],
+      "declared_schedule_utc": "* * * * *",
+      "direct_rpc_names": [
+        "materialize_dynamic_campaign_audience"
+      ],
+      "direct_table_names": [
+        "campaign_recipients",
+        "campaigns"
+      ],
+      "source_sha256": "95c508e2a537a6593e665e82270db6cfb591c18eb284c437b72b2a2c7f17d141",
+      "implementation_status": "planning_only",
+      "compatibility_verified": false
+    },
+    {
+      "route": "/api/cron/chatbot",
+      "feature": "F21",
+      "source": "src/app/api/cron/chatbot/route.ts",
+      "methods": [
+        "GET"
+      ],
+      "declared_schedule_utc": "* * * * *",
+      "direct_rpc_names": [],
+      "direct_table_names": [],
+      "source_sha256": "09a562f1610dab17e2562d7d8b03013b1d973bf18975cb1086335fa688d8a28b",
+      "implementation_status": "planning_only",
+      "compatibility_verified": false
+    },
+    {
+      "route": "/api/cron/contact-identities",
+      "feature": "F33",
+      "source": "src/app/api/cron/contact-identities/route.ts",
+      "methods": [
+        "GET"
+      ],
+      "declared_schedule_utc": "* * * * *",
+      "direct_rpc_names": [],
+      "direct_table_names": [],
+      "source_sha256": "5c01522895145b28c56084a7b73fff4ebd6d76da36435ce6a5a98e29c29e21f1",
+      "implementation_status": "planning_only",
+      "compatibility_verified": false
+    },
+    {
+      "route": "/api/cron/contact-profiles",
+      "feature": "F07",
+      "source": "src/app/api/cron/contact-profiles/route.ts",
+      "methods": [
+        "GET"
+      ],
+      "declared_schedule_utc": "0-58/2 * * * *",
+      "direct_rpc_names": [],
+      "direct_table_names": [],
+      "source_sha256": "31fa442601cb0d1b29dbad852e5835444c1f70b746daa493e4c03bd01f90d4d2",
+      "implementation_status": "planning_only",
+      "compatibility_verified": false
+    },
+    {
+      "route": "/api/cron/database-health",
+      "feature": "F35",
+      "source": "src/app/api/cron/database-health/route.ts",
+      "methods": [
+        "GET"
+      ],
+      "declared_schedule_utc": "* * * * *",
+      "direct_rpc_names": [
+        "veo_record_storage_metrics"
+      ],
+      "direct_table_names": [],
+      "source_sha256": "de7ca393bfd17335ce933a04aee1f68ba3e9ae76bb7736d0a14ea929e9184a9a",
+      "implementation_status": "planning_only",
+      "compatibility_verified": false
+    },
+    {
+      "route": "/api/cron/editor-dispatch",
+      "feature": "F23",
+      "source": "src/app/api/cron/editor-dispatch/route.ts",
+      "methods": [
+        "GET"
+      ],
+      "declared_schedule_utc": "* * * * *",
+      "direct_rpc_names": [
+        "veo_automatic_intake_tick"
+      ],
+      "direct_table_names": [
+        "veo_intake_auto_policy"
+      ],
+      "source_sha256": "6c79a86eb0b84ee704cf740162683c620ddfe4521c906d07d17f5661a2a55ed5",
+      "implementation_status": "planning_only",
+      "compatibility_verified": false
+    },
+    {
+      "route": "/api/cron/exports",
+      "feature": "F32",
+      "source": "src/app/api/cron/exports/route.ts",
+      "methods": [
+        "GET"
+      ],
+      "declared_schedule_utc": "0-59/2 * * * *",
+      "direct_rpc_names": [],
+      "direct_table_names": [
+        "conversation_export_jobs"
+      ],
+      "source_sha256": "7944bd4f07e50409fd3c1b3f3eaab0142232816e5161b6d5ed1102ec4d7d4e6d",
+      "implementation_status": "planning_only",
+      "compatibility_verified": false
+    },
+    {
+      "route": "/api/cron/follow-up-automations",
+      "feature": "F21",
+      "source": "src/app/api/cron/follow-up-automations/route.ts",
+      "methods": [
+        "GET"
+      ],
+      "declared_schedule_utc": "* * * * *",
+      "direct_rpc_names": [],
+      "direct_table_names": [],
+      "source_sha256": "2be24af7048c662dd85f8da4f8cb8ac574172b40dbe004bc4cf7d6dc1d197d53",
+      "implementation_status": "planning_only",
+      "compatibility_verified": false
+    },
+    {
+      "route": "/api/cron/incentives",
+      "feature": "F26",
+      "source": "src/app/api/cron/incentives/route.ts",
+      "methods": [
+        "GET"
+      ],
+      "declared_schedule_utc": "* * * * *",
+      "direct_rpc_names": [],
+      "direct_table_names": [],
+      "source_sha256": "03e11c6a0ec8ba424149d3032b1a78914c5e590ceda2678cf18d537a20f92f56",
+      "implementation_status": "planning_only",
+      "compatibility_verified": false
+    },
+    {
+      "route": "/api/cron/inquiry-history",
+      "feature": "F33",
+      "source": "src/app/api/cron/inquiry-history/route.ts",
+      "methods": [
+        "GET"
+      ],
+      "declared_schedule_utc": "1-59/2 * * * *",
+      "direct_rpc_names": [],
+      "direct_table_names": [],
+      "source_sha256": "42424f2bd712bc99326b5a2462ff0d399ced087f80d37f16a4fc51e62b215e88",
+      "implementation_status": "planning_only",
+      "compatibility_verified": false
+    },
+    {
+      "route": "/api/cron/messaging-auto-tag",
+      "feature": "F22",
+      "source": "src/app/api/cron/messaging-auto-tag/route.ts",
+      "methods": [
+        "GET"
+      ],
+      "declared_schedule_utc": "* * * * *",
+      "direct_rpc_names": [],
+      "direct_table_names": [],
+      "source_sha256": "2103985b181f2944ecf6b705aa8548c54e5858153e2351b727a9064a3c989ccf",
+      "implementation_status": "planning_only",
+      "compatibility_verified": false
+    },
+    {
+      "route": "/api/cron/meta-ads-sync",
+      "feature": "F13",
+      "source": "src/app/api/cron/meta-ads-sync/route.ts",
+      "methods": [
+        "GET"
+      ],
+      "declared_schedule_utc": "2-59/5 * * * *",
+      "direct_rpc_names": [],
+      "direct_table_names": [],
+      "source_sha256": "cec43983d3d8863469801b6c6e77df4b7b73011a1e1366bf6a23e91fd8f4480e",
+      "implementation_status": "planning_only",
+      "compatibility_verified": false
+    },
+    {
+      "route": "/api/cron/quotas",
+      "feature": "F27",
+      "source": "src/app/api/cron/quotas/route.ts",
+      "methods": [
+        "GET"
+      ],
+      "declared_schedule_utc": "1-59/5 * * * *",
+      "direct_rpc_names": [],
+      "direct_table_names": [],
+      "source_sha256": "ad1e901fab32922415af249fc52192416e9082aa038167fb212725a991f411a5",
+      "implementation_status": "planning_only",
+      "compatibility_verified": false
+    },
+    {
+      "route": "/api/cron/sync",
+      "feature": "F33",
+      "source": "src/app/api/cron/sync/route.ts",
+      "methods": [
+        "GET"
+      ],
+      "declared_schedule_utc": null,
+      "direct_rpc_names": [],
+      "direct_table_names": [
+        "contacts",
+        "pages"
+      ],
+      "source_sha256": "e6a28ffac9dc1a1a91d4d810479f092ee765403d93159a466fa125947779536e",
+      "implementation_status": "planning_only",
+      "compatibility_verified": false
+    },
+    {
+      "route": "/api/cron/workspace",
+      "feature": "F35",
+      "source": "src/app/api/cron/workspace/route.ts",
+      "methods": [
+        "GET"
+      ],
+      "declared_schedule_utc": "* * * * *",
+      "direct_rpc_names": [
+        "veo_auto_approve_pending_team_reviews",
+        "veo_claim_submissions",
+        "veo_enqueue_approved_deal_reviews",
+        "veo_finish_submission",
+        "veo_handoff",
+        "veo_maintenance",
+        "veo_operations_maintenance",
+        "veo_request_source_refresh",
+        "veo_submission_requirements",
+        "veo_telegram_intake_maintenance"
+      ],
+      "direct_table_names": [],
+      "source_sha256": "824786888b63c303935aeedefd685678eee9d4b49f1dc9d26ccb4357977411e4",
+      "implementation_status": "planning_only",
+      "compatibility_verified": false
+    },
+    {
+      "route": "/api/cron/workspace-events",
+      "feature": "F33",
+      "source": "src/app/api/cron/workspace-events/route.ts",
+      "methods": [
+        "GET"
+      ],
+      "declared_schedule_utc": "* * * * *",
+      "direct_rpc_names": [
+        "veo_recover_queued_contact_identities"
+      ],
+      "direct_table_names": [],
+      "source_sha256": "a32d73db4903baba4fc173a14b258c34cb85ae98e8f65ce39b7dda6cf34b5c76",
+      "implementation_status": "planning_only",
+      "compatibility_verified": false
+    }
+  ],
+  "bot_routes": [
+    {
+      "route": "/api/clients",
+      "feature": "F23",
+      "methods": "GET",
+      "blocked_by_workspace_mode_410": false,
+      "compatibility_verified": false
+    },
+    {
+      "route": "/api/cron/dispatch",
+      "feature": "F29",
+      "methods": "GET",
+      "blocked_by_workspace_mode_410": false,
+      "compatibility_verified": false
+    },
+    {
+      "route": "/api/freebies/status",
+      "feature": "F19",
+      "methods": "GET",
+      "blocked_by_workspace_mode_410": false,
+      "compatibility_verified": false
+    },
+    {
+      "route": "/api/groups",
+      "feature": "F29",
+      "methods": "GET",
+      "blocked_by_workspace_mode_410": false,
+      "compatibility_verified": false
+    },
+    {
+      "route": "/api/health",
+      "feature": "F35",
+      "methods": "GET",
+      "blocked_by_workspace_mode_410": false,
+      "compatibility_verified": false
+    },
+    {
+      "route": "/api/messages",
+      "feature": "F07",
+      "methods": "GET",
+      "blocked_by_workspace_mode_410": false,
+      "compatibility_verified": false
+    },
+    {
+      "route": "/api/new-clients/status",
+      "feature": "F23",
+      "methods": "GET",
+      "blocked_by_workspace_mode_410": false,
+      "compatibility_verified": false
+    },
+    {
+      "route": "/api/new-clients/suno-supply",
+      "feature": "F23",
+      "methods": "GET",
+      "blocked_by_workspace_mode_410": true,
+      "compatibility_verified": false
+    },
+    {
+      "route": "/api/referrals/audit",
+      "feature": "F26",
+      "methods": "GET",
+      "blocked_by_workspace_mode_410": false,
+      "compatibility_verified": false
+    },
+    {
+      "route": "/api/referrals/status",
+      "feature": "F26",
+      "methods": "GET",
+      "blocked_by_workspace_mode_410": false,
+      "compatibility_verified": false
+    },
+    {
+      "route": "/api/reports/concerns",
+      "feature": "F28",
+      "methods": "GET",
+      "blocked_by_workspace_mode_410": false,
+      "compatibility_verified": false
+    },
+    {
+      "route": "/api/reports/daily-summary",
+      "feature": "F26",
+      "methods": "GET",
+      "blocked_by_workspace_mode_410": false,
+      "compatibility_verified": false
+    },
+    {
+      "route": "/api/reports/members",
+      "feature": "F28",
+      "methods": "GET",
+      "blocked_by_workspace_mode_410": true,
+      "compatibility_verified": false
+    },
+    {
+      "route": "/api/reports/plan",
+      "feature": "F27",
+      "methods": "GET",
+      "blocked_by_workspace_mode_410": true,
+      "compatibility_verified": false
+    },
+    {
+      "route": "/api/reports/replace",
+      "feature": "F28",
+      "methods": "POST",
+      "blocked_by_workspace_mode_410": true,
+      "compatibility_verified": false
+    },
+    {
+      "route": "/api/reports/surveys",
+      "feature": "F27",
+      "methods": "POST",
+      "blocked_by_workspace_mode_410": false,
+      "compatibility_verified": false
+    },
+    {
+      "route": "/api/reports/topics",
+      "feature": "F29",
+      "methods": "GET",
+      "blocked_by_workspace_mode_410": false,
+      "compatibility_verified": false
+    },
+    {
+      "route": "/api/reports/warnings",
+      "feature": "F28",
+      "methods": "GET",
+      "blocked_by_workspace_mode_410": false,
+      "compatibility_verified": false
+    },
+    {
+      "route": "/api/reports/workload",
+      "feature": "F27",
+      "methods": "GET, POST",
+      "blocked_by_workspace_mode_410": false,
+      "compatibility_verified": false
+    },
+    {
+      "route": "/api/scheduler",
+      "feature": "F35",
+      "methods": "GET, POST",
+      "blocked_by_workspace_mode_410": false,
+      "compatibility_verified": false
+    },
+    {
+      "route": "/api/schedules",
+      "feature": "F35",
+      "methods": "GET, POST, DELETE",
+      "blocked_by_workspace_mode_410": false,
+      "compatibility_verified": false
+    },
+    {
+      "route": "/api/status",
+      "feature": "F35",
+      "methods": "GET",
+      "blocked_by_workspace_mode_410": false,
+      "compatibility_verified": false
+    },
+    {
+      "route": "/api/suno/makata",
+      "feature": "F29",
+      "methods": "GET, POST",
+      "blocked_by_workspace_mode_410": true,
+      "compatibility_verified": false
+    },
+    {
+      "route": "/api/veo/handoff",
+      "feature": "F25",
+      "methods": "POST",
+      "blocked_by_workspace_mode_410": false,
+      "compatibility_verified": false
+    },
+    {
+      "route": "/api/veo/workspace",
+      "feature": "F29",
+      "methods": "Delegated handler",
+      "blocked_by_workspace_mode_410": false,
+      "compatibility_verified": false
+    },
+    {
+      "route": "/api/webhook",
+      "feature": "F29",
+      "methods": "POST",
+      "blocked_by_workspace_mode_410": false,
+      "compatibility_verified": false
+    },
+    {
+      "route": "/api/workers/activity",
+      "feature": "F28",
+      "methods": "GET",
+      "blocked_by_workspace_mode_410": false,
+      "compatibility_verified": false
+    },
+    {
+      "route": "/api/workers/capacity",
+      "feature": "F27",
+      "methods": "GET",
+      "blocked_by_workspace_mode_410": true,
+      "compatibility_verified": false
+    }
+  ],
+  "counts": {
+    "api_routes": 125,
+    "pages": 23,
+    "components": 58,
+    "cron_routes": 17,
+    "scheduled_in_vercel": 16,
+    "not_scheduled_in_vercel": 1,
+    "bot_routes": 28,
+    "current_data_column_records": 411,
+    "unclassified": 0
+  },
+  "current_suno_schema": {
+    "read_only": true,
+    "public_tables": 30,
+    "column_records": 411,
+    "public_function_names": 28,
+    "trigger_event_records": 21,
+    "database_crons": [
+      {
+        "jobname": "tokko-database-maintenance",
+        "schedule": "17 * * * *",
+        "active": true
+      }
+    ]
+  },
+  "manual_crosscutting_coverage_required": [
+    "shared libraries and indirect dependencies",
+    "workspace subviews and action branches",
+    "SQL triggers, functions, caches and retention",
+    "external schedulers and deployed configuration",
+    "Suno-specific legacy helper behaviors",
+    "Telegram Python routes and dispatcher branches"
+  ]
+}

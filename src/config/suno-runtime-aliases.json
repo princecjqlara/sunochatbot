@@ -1,0 +1,35 @@
+{
+  "rpc": {
+    "acquire_page_sync_lease": "suno_workspace_acquire_page_sync_lease",
+    "cancel_campaign_delivery": "suno_workspace_cancel_campaign_delivery",
+    "claim_campaign_recipients": "suno_workspace_claim_campaign_recipients",
+    "claim_conversation_export_job": "suno_workspace_claim_conversation_export_job",
+    "cleanup_terminal_campaign_recipients": "suno_workspace_cleanup_terminal_campaign_recipients",
+    "create_default_page_tags": "suno_workspace_create_default_page_tags",
+    "create_filtered_tracked_bulk_campaign": "suno_workspace_create_filtered_tracked_bulk_campaign",
+    "finish_campaign_recipient": "suno_workspace_finish_campaign_recipient",
+    "finish_campaign_recipient_batch": "suno_workspace_finish_campaign_recipient_batch",
+    "finish_chatbot_message": "suno_workspace_finish_chatbot_message",
+    "finish_loop_campaign_recipient": "suno_workspace_finish_loop_campaign_recipient",
+    "get_campaign_delivery_progress": "suno_workspace_get_campaign_delivery_progress",
+    "get_chatbot_activity_analytics": "suno_workspace_get_chatbot_activity_analytics",
+    "get_chatbot_contact_analytics": "suno_workspace_get_chatbot_contact_analytics",
+    "get_chatbot_contact_metrics": "suno_workspace_get_chatbot_contact_metrics",
+    "get_contact_pipeline_counts": "suno_workspace_get_contact_pipeline_counts",
+    "get_database_health": "suno_workspace_get_database_health",
+    "match_chatbot_knowledge": "suno_workspace_match_chatbot_knowledge",
+    "materialize_dynamic_campaign_audience": "suno_workspace_materialize_dynamic_campaign_audience",
+    "pause_campaign_delivery": "suno_workspace_pause_campaign_delivery",
+    "preserve_contact_last_inbound_at": "suno_workspace_preserve_contact_last_inbound_at",
+    "record_chatbot_conversation_quote": "suno_workspace_record_chatbot_conversation_quote",
+    "record_chatbot_form_sent": "suno_workspace_record_chatbot_form_sent",
+    "record_chatbot_human_takeover": "suno_workspace_record_chatbot_human_takeover",
+    "release_page_sync_lease": "suno_workspace_release_page_sync_lease",
+    "reserve_chatbot_message": "suno_workspace_reserve_chatbot_message",
+    "reset_chatbot_form_delivery": "suno_workspace_reset_chatbot_form_delivery",
+    "update_updated_at_column": "suno_workspace_update_updated_at_column"
+  },
+  "relations": {
+    "contact_interactions": "suno_workspace_contact_interactions"
+  }
+}

@@ -3,12 +3,8 @@ import type { FacebookMessage } from '@/types';
 import { classifyChatbotStopIntent, hasReachedChatbotDetailTarget, isChatbotFollowUpPauseRequest,
     normalizeDetailsToCollect } from './chatbot-control';
 
-export const SONG_BRIEF_FIELDS = [
-    ['Business Name', 'Business name'], ['Specialty/Products', 'Main products or services'],
-    ['Tagline', 'Tagline or slogan'], ['English or Tagalog lyrics', 'Lyrics language'],
-    ['Male or Female singer', 'Vocal preference'], ['Genre', 'Preferred mood/style'],
-    ['Additional requests', 'Additional requests']
-] as const;
+import { SONG_BRIEF_FIELDS } from './suno-business';
+export { SONG_BRIEF_FIELDS } from './suno-business';
 
 export function prioritizesChatbotForm(instructions: string): boolean {
     return /^PRIORITIZE_FILL_UP_FORM:\s*true\s*$/im.test(instructions) &&

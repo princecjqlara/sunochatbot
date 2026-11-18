@@ -1,5 +1,6 @@
 import type { ChatbotStopReason } from '@/lib/chatbot-control';
 import type { MessengerSystemSignal } from '@/lib/messaging-auto-tag';
+import { assignMessengerOutcomeTags } from '@/lib/messenger-outcome-tags';
 
 export const CONTACT_PIPELINE_STAGES = [
     'new',
@@ -48,12 +49,21 @@ export function isContactPipelineStage(value: unknown): value is ContactPipeline
 }
 
 /** Contacts in these stages have finished the bot qualification flow. */
-export function isPipelineClosedForAutomation(value: unknown): boolean {
-    return isContactPipelineStage(value) && AUTOMATION_CLOSED_STAGES.has(value);
+export function isPipelineClosedForAutomation(value: unknown, source?: unknown, policy?: { commercial_video_intake_enabled?: boolean }): boolean {
+    return source === 'manual' || source === 'messenger' ||
+        (!(policy?.commercial_video_intake_enabled && source === 'chatbot' && value === 'qualified') &&
+        (isContactPipelineStage(value) && AUTOMATION_CLOSED_STAGES.has(value)));
+}
+
+export function chatbotStopReasonForPipelineStage(stage: unknown, source?: unknown, policy?: { commercial_video_intake_enabled?: boolean }): ChatbotStopReason | null {
+    if (stage === 'opted_out') return 'opt_out';
+    if (stage === 'qualified' && policy?.commercial_video_intake_enabled && source === 'chatbot') return null;
+    if (stage === 'qualified' || stage === 'order_created' || stage === 'converted' || stage === 'not_qualified') return stage;
+    return source === 'manual' || source === 'messenger' ? 'manual' : null;
 }
 
 export function pipelineStageForMessengerSignal(signal: MessengerSystemSignal): ContactPipelineStage {
-    return signal;
+    return signal === 'manual' ? 'engaged' : signal;
 }
 
 export function pipelineStageForChatbotProgress(input: {
@@ -100,12 +110,13 @@ export async function updateContactPipelineStage(
         stage: ContactPipelineStage;
         source: ContactPipelineSource;
         force?: boolean;
+        preserveStage?: boolean;
         now?: Date;
     }
 ): Promise<boolean> {
     const { data: contact, error: contactError } = await supabase
         .from('contacts')
-        .select('pipeline_stage,pipeline_stage_source,pipeline_stage_updated_at')
+        .select('pipeline_stage,pipeline_stage_source')
         .eq('id', input.contactId)
         .eq('page_id', input.pageId)
         .maybeSingle();
@@ -113,27 +124,53 @@ export async function updateContactPipelineStage(
     if (!contact) return false;
 
     const current = isContactPipelineStage(contact.pipeline_stage) ? contact.pipeline_stage : 'new';
-    const confirmMessengerStage = input.source === 'messenger' && current === input.stage &&
-        contact.pipeline_stage_source !== 'messenger';
-    if (!input.force && !confirmMessengerStage && !shouldAutoMovePipeline(current, input.stage)) return false;
-    // An older bot turn cannot reopen or change a lead that staff already closed.
-    if (!input.force && input.source === 'chatbot' && isPipelineClosedForAutomation(current)) return false;
+    const preservesStage = input.preserveStage || (input.source === 'messenger' && input.stage === 'engaged');
+    const nextStage = preservesStage ? current : input.stage;
+    const assignOutcome = async () => {
+        if (input.source !== 'messenger') return;
+        try {
+            if (preservesStage) {
+                // Human ownership can preserve a completed stage. Tag that stage
+                // without interpreting the staff reply as a positive outcome event.
+                await assignMessengerOutcomeTags(supabase, input.pageId, input.contactId, nextStage, { includePositiveTag: false });
+            } else {
+                await assignMessengerOutcomeTags(supabase, input.pageId, input.contactId, input.stage);
+            }
+        } catch (error) {
+            // Optional tags must not undo a saved stop or human ownership.
+            console.warn('Messenger stage saved but outcome tagging failed', { pageId: input.pageId, contactId: input.contactId, error });
+        }
+    };
+
+    // A generic staff handoff has no replacement lead stage. Keep the stage,
+    // but mark Messenger ownership so every automation honors the handoff.
+    if (input.source === 'chatbot' &&
+        (contact.pipeline_stage_source === 'manual' || contact.pipeline_stage_source === 'messenger')) return false;
+    // A person confirming the same stage in Messenger is still a handoff.
+    // Retain that source so later photo requests cannot reopen bot intake.
+    const humanHandoff = current === nextStage && (input.source === 'messenger' || input.source === 'manual') &&
+        contact.pipeline_stage_source !== input.source;
+    if (!input.force && !humanHandoff && !shouldAutoMovePipeline(current, nextStage)) {
+        await assignOutcome();
+        return false;
+    }
 
     let update = supabase
         .from('contacts')
         .update({
-            pipeline_stage: input.stage,
+            pipeline_stage: nextStage,
             pipeline_stage_source: input.source,
             pipeline_stage_updated_at: (input.now || new Date()).toISOString()
         })
         .eq('id', input.contactId)
         .eq('page_id', input.pageId);
+    // A human may change the stage between the read and this update.
     if (!input.force) {
-        update = update.eq('pipeline_stage', current);
+        update = update.eq('pipeline_stage', contact.pipeline_stage);
         if (contact.pipeline_stage_source) update = update.eq('pipeline_stage_source', contact.pipeline_stage_source);
-        if (contact.pipeline_stage_updated_at) update = update.eq('pipeline_stage_updated_at', contact.pipeline_stage_updated_at);
     }
-    const { data: updated, error: updateError } = await update.select('id').maybeSingle();
+    const { error: updateError } = await update;
     if (updateError) throw new Error(updateError.message || 'Could not update contact pipeline stage');
-    return Boolean(updated);
+    await assignOutcome();
+    return true;
 }

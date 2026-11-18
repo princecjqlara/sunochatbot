@@ -1,4 +1,3 @@
--- Restore the October 6 repair already applied to the production database.
 BEGIN;
 
 ALTER TABLE public.chatbot_knowledge_documents
@@ -56,9 +55,6 @@ INSERT INTO app_private.schema_migrations (version, description)
 VALUES ('20261006_001', 'Complete media reverse linkage and restrict privileged application RPCs to server access')
 ON CONFLICT (version) DO UPDATE SET description = EXCLUDED.description;
 
--- This file ledger is optional on clean installations.
-ALTER TABLE IF EXISTS app_private.sunobot_migration_files
-  ADD COLUMN IF NOT EXISTS sql_text TEXT;
-
+ALTER TABLE app_private.sunobot_migration_files ADD COLUMN IF NOT EXISTS sql_text TEXT;
 NOTIFY pgrst, 'reload schema';
 COMMIT;
