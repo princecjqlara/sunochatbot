@@ -71,6 +71,7 @@ def handle(update: dict, allowed: set[int], now: dt.datetime) -> bool:
 def send(action: dict) -> dict:
     from veo_directory import verify_identity, teams
     from telegram_sender import telegram_call
+    from daily_automation import GROUPS
     p,chat=action['payload'],int(action['chat_id'])
     if not song_action(action) or p['veo_tenant_id'] != os.environ.get('VEO_WORKSPACE_TENANT_ID') or chat not in teams():
         from veo_intake import IntakeScopeChanged
@@ -81,6 +82,7 @@ def send(action: dict) -> dict:
     if len(str(current.get('text') or '').encode('utf-16-le'))//2>3500:
         raise ValueError('Song work reply is too long')
     payload={'chat_id':chat,'text':current['text']}
-    if current.get('thread_id'):
-        payload['message_thread_id']=int(current['thread_id'])
+    topic = current.get('thread_id') or GROUPS.get(chat, {}).get('songs')
+    if topic:
+        payload['message_thread_id']=int(topic)
     return telegram_call('sendMessage',payload)

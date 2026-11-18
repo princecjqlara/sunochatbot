@@ -32,6 +32,23 @@ class SunoTopicTests(unittest.TestCase):
     def test_invalid_topic_values_never_become_valid_destinations(self):
         self.assertEqual(suno_profile.topic_routes({"songs": True, "active": 0, "receipts": -4}), {})
 
+    def test_song_replies_use_each_groups_song_topic_unless_the_team_has_an_explicit_override(self):
+        import suno_workspace_songs as songs
+        tenant = "00000000-0000-4000-8000-000000000001"
+        for chat, expected in [(CHAT, 7692), (OTHER, 133)]:
+            for override in (None, 500):
+                with self.subTest(chat=chat, override=override):
+                    action = {"chat_id": chat, "payload": {"suno_song_request_id": "request", "veo_tenant_id": tenant, "suno_song_user_id": 42}}
+                    with patch.dict(os.environ, {**ENV, "VEO_WORKSPACE_TENANT_ID": tenant}), \
+                            patch("daily_automation.GROUPS", suno_profile.workspace_groups()), \
+                            patch("veo_directory.teams", return_value={CHAT, OTHER}), \
+                            patch("veo_directory.verify_identity"), \
+                            patch.object(songs, "call", return_value={"text": "Song confirmation", "thread_id": override}), \
+                            patch("telegram_sender.telegram_call", return_value={"message_id": 99}) as send:
+                        songs.send(action)
+                    self.assertEqual(send.call_args.args[0], "sendMessage")
+                    self.assertEqual(send.call_args.args[1]["message_thread_id"], override or expected)
+
     def test_authenticated_suno_inventory_works_without_the_veo_reports_recipient(self):
         with patch.dict(os.environ, ENV), patch.object(report_topics, "request", return_value=[]) as read, patch("telegram_sender.telegram_call") as telegram:
             status, body = call_app("/api/reports/topics", headers={"Authorization": "Bearer topic-test"})
