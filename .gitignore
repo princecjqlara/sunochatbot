@@ -21,6 +21,7 @@
 !/verification/production-runtime-configuration.json
 !/verification/retained-page-authorization.json
 !/verification/evidence-storage.json
+!/verification/facebook-subscription-upgrade.json
 !/verification/workspace-feature-configuration.json
 !/verification/actual-production-project.json
 /.pnp

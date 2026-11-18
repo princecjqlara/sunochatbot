@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getSessionFromRequest } from '@/lib/get-session';
 import { getSupabaseAdmin } from '@/lib/supabase';
 import { subscribePageToAppWebhook } from '@/lib/facebook';
+import { FACEBOOK_PAGE_WEBHOOK_FIELDS } from '@/lib/facebook-permissions';
 
 function isReconnectRequiredError(error: unknown) {
     const message = ((error as Error).message || '').toLowerCase();
@@ -107,7 +108,7 @@ export async function POST(
         }
 
         try {
-            await subscribePageToAppWebhook(page.fb_page_id, page.access_token, ['messages', 'messaging_postbacks', 'message_echoes']);
+            await subscribePageToAppWebhook(page.fb_page_id, page.access_token, [...FACEBOOK_PAGE_WEBHOOK_FIELDS]);
             logInfo('Successfully refreshed page webhook subscription', {
                 userId,
                 pageId,
