@@ -22,6 +22,7 @@
 !/verification/retained-page-authorization.json
 !/verification/evidence-storage.json
 !/verification/facebook-subscription-upgrade.json
+!/verification/suno-topic-audit.json
 !/verification/workspace-feature-configuration.json
 !/verification/actual-production-project.json
 /.pnp

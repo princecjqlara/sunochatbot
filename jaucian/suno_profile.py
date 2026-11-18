@@ -32,6 +32,15 @@ def workspace_groups() -> dict[int, dict]:
     }
 
 
+def topic_routes(config: dict) -> dict[str, int]:
+    """The complete operational destinations, including Suno song work."""
+    keys = {"general": "general", "announcements": "announcements", "active": "active",
+            "clients": "contact_thread", "receipts": "receipts", "close": "close",
+            "done": "done", "songs": "songs"}
+    return {role: config[key] for role, key in keys.items()
+            if isinstance(config.get(key), int) and not isinstance(config[key], bool) and config[key] > 0}
+
+
 def validate_archive(url: str) -> None:
     if not enabled():
         return

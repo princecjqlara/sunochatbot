@@ -53,6 +53,9 @@ def group_directory(chat: int) -> dict:
     topics = {k: config[k] for k in ("announcements", "done", "close", "active") if k in config}
     if config.get("contact_thread"):
         topics["clients"] = config["contact_thread"]
+    from suno_profile import enabled as suno_enabled, topic_routes
+    if suno_enabled():
+        topics = topic_routes(config)
     from automation_controls import new_clients_enabled
     return {"chat_id": chat, "name": config["name"], "new_clients_enabled": new_clients_enabled(chat),
             "topics": topics,

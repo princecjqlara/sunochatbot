@@ -30,7 +30,7 @@ def main() -> None:
     scheduler_setup = commands.add_parser("configure-scheduler", help="Install or repair the database's one-minute dispatcher")
     scheduler_setup.add_argument("--verify-recovery", action="store_true", help="Test watchdog repair inside a rolled-back savepoint")
     commands.add_parser("daily-plan", help="Read-only tomorrow staffing and planned-ad-budget preview")
-    commands.add_parser("report-topics", help="Read named topics in DAILY REPORTS")
+    commands.add_parser("report-topics", help="Read configured team topics and archived topic names")
     commands.add_parser("report-members", help="Read cached Telegram membership verification for capacity reports")
     warnings = commands.add_parser("warnings", help="Read completed-date VEO warnings without publishing")
     warnings.add_argument("--group", type=int)

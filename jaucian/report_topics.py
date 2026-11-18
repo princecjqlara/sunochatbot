@@ -71,3 +71,32 @@ def topics() -> list[dict]:
     return sorted(({"thread_id": int(row["payload"]["thread_id"]),
                     "name": row["payload"]["name"], "updated_at": row.get("updated_at")}
                    for row in rows), key=lambda topic: topic["thread_id"])
+
+
+def suno_topics(allowed: set[int]) -> list[dict]:
+    """Read configured team routes and observed names, without touching Telegram."""
+    from suno_profile import topic_routes, workspace_groups
+    groups = {chat: config for chat, config in workspace_groups().items() if chat in allowed}
+    if not groups:
+        return []
+    rows = request("scheduled_actions?" + urllib.parse.urlencode({
+        "select": "chat_id,payload,updated_at", "chat_id": "in.(" + ",".join(map(str, sorted(groups))) + ")",
+        "dedupe_key": "like.concerns-topic:*", "order": "updated_at.desc", "limit": 1000,
+    })) or []
+    names = {}
+    for row in rows:
+        payload = row.get("payload") or {}
+        thread, name = payload.get("thread_id"), payload.get("name")
+        chat = row.get("chat_id")
+        if chat in groups and isinstance(thread, int) and not isinstance(thread, bool) and thread > 0 and isinstance(name, str) and name.strip():
+            names.setdefault((chat, thread), (name[:128], row.get("updated_at")))
+    inventory = []
+    for chat, config in groups.items():
+        routes = topic_routes(config)
+        for thread in sorted(set(routes.values())):
+            name, observed = names.get((chat, thread), (None, None))
+            inventory.append({"chat_id": chat, "group": config["name"], "thread_id": thread,
+                "roles": [role for role, value in routes.items() if value == thread],
+                "name": name, "name_observed_at": observed, "configured": True,
+                "url": f"https://t.me/c/{str(abs(chat))[3:]}/{thread}"})
+    return inventory

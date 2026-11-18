@@ -1,0 +1,128 @@
+{
+  "checked_at": "2026-11-18T16:15:35.440185+00:00",
+  "test_messages_sent": 0,
+  "topics_created": 0,
+  "existing_topic_names_changed": false,
+  "groups": [
+    {
+      "chat_id": -1002894511895,
+      "title": "Trabawho?",
+      "is_forum": true,
+      "can_manage_topics": true,
+      "topics": [
+        {
+          "thread_id": 4,
+          "roles": [
+            "done",
+            "close",
+            "receipts"
+          ],
+          "response": {
+            "ok": true,
+            "result": true
+          }
+        },
+        {
+          "thread_id": 16,
+          "roles": [
+            "announcements"
+          ],
+          "response": {
+            "ok": true,
+            "result": true
+          }
+        },
+        {
+          "thread_id": 7581,
+          "roles": [
+            "active"
+          ],
+          "response": {
+            "ok": true,
+            "result": true
+          }
+        },
+        {
+          "thread_id": 7673,
+          "roles": [
+            "contact_thread"
+          ],
+          "response": {
+            "ok": true,
+            "result": true
+          }
+        },
+        {
+          "thread_id": 7692,
+          "roles": [
+            "songs"
+          ],
+          "response": {
+            "ok": true,
+            "result": true
+          }
+        }
+      ]
+    },
+    {
+      "chat_id": -1004498344479,
+      "title": "Suno makata",
+      "is_forum": true,
+      "can_manage_topics": true,
+      "topics": [
+        {
+          "thread_id": 4,
+          "roles": [
+            "announcements"
+          ],
+          "response": {
+            "ok": true,
+            "result": true
+          }
+        },
+        {
+          "thread_id": 8,
+          "roles": [
+            "done",
+            "close",
+            "receipts"
+          ],
+          "response": {
+            "ok": true,
+            "result": true
+          }
+        },
+        {
+          "thread_id": 13,
+          "roles": [
+            "contact_thread"
+          ],
+          "response": {
+            "ok": true,
+            "result": true
+          }
+        },
+        {
+          "thread_id": 132,
+          "roles": [
+            "active"
+          ],
+          "response": {
+            "ok": true,
+            "result": true
+          }
+        },
+        {
+          "thread_id": 133,
+          "roles": [
+            "songs"
+          ],
+          "response": {
+            "ok": true,
+            "result": true
+          }
+        }
+      ]
+    }
+  ]
+}

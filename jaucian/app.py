@@ -495,6 +495,14 @@ def concerns_route(environ, start_response):
 def report_topics_route(environ, start_response):
     if not authorized(environ.get("HTTP_AUTHORIZATION"), "INSIGHTS_API_KEY"):
         return response(start_response, 401, {"ok": False})
+    if suno_system_enabled():
+        try:
+            return response(start_response, 200, {"ok": True, "read_only": True,
+                "topics": report_topics.suno_topics(allowed_chat_ids()),
+                "coverage": "Configured Suno operational routes; names come only from archived topic events. This is not a list of every Telegram topic."})
+        except Exception as error:
+            print(f"Suno topic query failed: {type(error).__name__}")
+            return response(start_response, 503, {"ok": False})
     if DAILY_REPORTS_CHAT_ID not in allowed_chat_ids():
         return response(start_response, 403, {"ok": False})
     try:
