@@ -1,0 +1,98 @@
+{
+  "read_only_provider_check": true,
+  "pages": [
+    {
+      "page_id": "230b1564-733c-4663-aa52-28795c456ca5",
+      "facebook_page_id": "573992485795257",
+      "verified": true,
+      "permission_count": 11,
+      "error_code": null
+    },
+    {
+      "page_id": "2cfbc100-df0b-4e93-bcc1-182151935a2e",
+      "facebook_page_id": "697291860141214",
+      "verified": true,
+      "permission_count": 11,
+      "error_code": null
+    },
+    {
+      "page_id": "43a3cd1c-ef84-4a4c-bbfa-ca5991b059b8",
+      "facebook_page_id": "551256468065614",
+      "verified": true,
+      "permission_count": 11,
+      "error_code": null
+    },
+    {
+      "page_id": "4804f899-c5c5-46a4-8ca0-1674f6bf52fd",
+      "facebook_page_id": "558841917314834",
+      "verified": true,
+      "permission_count": 11,
+      "error_code": null
+    },
+    {
+      "page_id": "4ba03769-14fc-44f6-a0d6-698793d717e6",
+      "facebook_page_id": "505255682680407",
+      "verified": true,
+      "permission_count": 11,
+      "error_code": null
+    },
+    {
+      "page_id": "546ac33e-307c-4d2c-9f0a-76bc0eb75a74",
+      "facebook_page_id": "552094384656613",
+      "verified": true,
+      "permission_count": 11,
+      "error_code": null
+    },
+    {
+      "page_id": "6374f336-273d-4483-bea1-5108dfbc4c02",
+      "facebook_page_id": "533584419840779",
+      "verified": true,
+      "permission_count": 11,
+      "error_code": null
+    },
+    {
+      "page_id": "6f76cc18-6ab8-4ab6-bd49-c4241eaf9d15",
+      "facebook_page_id": "600867369770679",
+      "verified": true,
+      "permission_count": 11,
+      "error_code": null
+    },
+    {
+      "page_id": "923227a1-a82f-455c-bc31-d90bc42bf039",
+      "facebook_page_id": "492160583990696",
+      "verified": true,
+      "permission_count": 11,
+      "error_code": null
+    },
+    {
+      "page_id": "b43d3af1-7b75-4ba3-a471-32158c53f4d6",
+      "facebook_page_id": "1108946172305214",
+      "verified": false,
+      "permission_count": 3,
+      "error_code": null
+    },
+    {
+      "page_id": "ba210fc3-a45b-43b3-aae4-e76893c0d36d",
+      "facebook_page_id": "540901085777059",
+      "verified": true,
+      "permission_count": 11,
+      "error_code": null
+    },
+    {
+      "page_id": "cb97a6c4-71c0-46eb-b9e4-bc6d5601ebc2",
+      "facebook_page_id": "663521640185928",
+      "verified": true,
+      "permission_count": 11,
+      "error_code": null
+    },
+    {
+      "page_id": "f1150f60-70f7-412e-bd05-ff69babf2673",
+      "facebook_page_id": "606945225824770",
+      "verified": true,
+      "permission_count": 11,
+      "error_code": null
+    }
+  ],
+  "verified_count": 12,
+  "credentials_changed": false
+}

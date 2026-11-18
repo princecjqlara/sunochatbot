@@ -12,6 +12,17 @@
 !/verification/suno-incremental-review.sql
 !/verification/implementation-http-smoke.json
 !/verification/current-suno-schema-inventory.json
+!/verification/retained-chatbot-source.json
+!/verification/retained-engine-test-disposition.json
+!/verification/veo-engine-reference-tests/
+!/verification/runtime-upgrade-rehearsal.json
+!/verification/real-data-runtime-upgrade-rehearsal.json
+!/verification/live-runtime-upgrade.json
+!/verification/production-runtime-configuration.json
+!/verification/retained-page-authorization.json
+!/verification/evidence-storage.json
+!/verification/workspace-feature-configuration.json
+!/verification/actual-production-project.json
 /.pnp
 .pnp.js
 

@@ -1,0 +1,39 @@
+{
+  "reason": "Existing Suno chatbot implementation is retained by explicit user requirement. The inactive Veo-engine-specific route tests are preserved as reference. Active verification uses all 875 original tests plus live-route forwarding/security contracts and management-feature tests.",
+  "archived_engine_reference_tests": [
+    "src/app/api/cron/campaign-scheduled/route.test.ts",
+    "src/app/api/cron/follow-up-automations/route.test.ts",
+    "src/app/api/cron/messaging-auto-tag/route.test.ts",
+    "src/app/api/cron/sync/route.test.ts",
+    "src/app/api/facebook/messages/send/route.test.ts",
+    "src/app/api/facebook/webhook/route.test.ts",
+    "src/app/api/pages/[pageId]/chatbot/analytics/route.test.ts",
+    "src/app/api/pages/[pageId]/chatbot/folders/route.test.ts",
+    "src/app/api/pages/[pageId]/chatbot/interruptions/route.test.ts",
+    "src/app/api/pages/[pageId]/chatbot/library-reads.test.ts",
+    "src/app/api/pages/[pageId]/chatbot/route.test.ts",
+    "src/app/api/pages/[pageId]/chatbot/trial/route.test.ts",
+    "src/app/dashboard/chatbot/page.test.ts",
+    "src/app/dashboard/chatbot/__tests__/page.test.ts"
+  ],
+  "legacy_tests_remain_active": true,
+  "delegated_routes": [
+    "src/app/api/chatbot-media/[assetId]/route.ts",
+    "src/app/api/cron/campaign-loop/route.ts",
+    "src/app/api/cron/campaign-scheduled/route.ts",
+    "src/app/api/cron/exports/route.ts",
+    "src/app/api/cron/follow-up-automations/route.ts",
+    "src/app/api/cron/messaging-auto-tag/route.ts",
+    "src/app/api/cron/sync/route.ts",
+    "src/app/api/facebook/messages/send/route.ts",
+    "src/app/api/facebook/webhook/route.ts",
+    "src/app/api/pages/[pageId]/chatbot/analytics/route.ts",
+    "src/app/api/pages/[pageId]/chatbot/folders/route.ts",
+    "src/app/api/pages/[pageId]/chatbot/follow-ups/route.ts",
+    "src/app/api/pages/[pageId]/chatbot/interruptions/route.ts",
+    "src/app/api/pages/[pageId]/chatbot/knowledge/route.ts",
+    "src/app/api/pages/[pageId]/chatbot/media/route.ts",
+    "src/app/api/pages/[pageId]/chatbot/route.ts",
+    "src/app/api/pages/[pageId]/chatbot/trial/route.ts"
+  ]
+}

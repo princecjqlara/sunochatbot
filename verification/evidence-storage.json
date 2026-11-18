@@ -1,0 +1,7 @@
+{
+  "bucket": "veo-conversation-submissions",
+  "private": true,
+  "existing_objects_deleted": false,
+  "upload_bytes_limit": 3145728,
+  "images_only": true
+}

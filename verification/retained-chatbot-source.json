@@ -1,0 +1,1903 @@
+{
+  "baseline_commit": "743ca57879e396e3c715ae5a2a59f2fa682fab6f",
+  "namespace": "src/legacy-runtime",
+  "files": [
+    {
+      "source": "src/app/api/auth/[...nextauth]/route.ts",
+      "embedded": "src/legacy-runtime/app/api/auth/[...nextauth]/route.ts",
+      "original_sha256": "e0e2afa575b27107e08f018b8fb9fafd05eef9b9a39b9293103f4ed1b460acb5",
+      "relocated_sha256": "e763cc55786f9f58e06cb3f7f7b1a97c8bcf46415f446b8defc78734723e206e",
+      "changes": "Module import relocation; test fixture source paths relocated where needed",
+      "original_checkout_sha256": "e0e2afa575b27107e08f018b8fb9fafd05eef9b9a39b9293103f4ed1b460acb5"
+    },
+    {
+      "source": "src/app/api/campaigns/[campaignId]/cancel/route.test.ts",
+      "embedded": "src/legacy-runtime/app/api/campaigns/[campaignId]/cancel/route.test.ts",
+      "original_sha256": "b7b5a1abc46d7e16d281ef08e8c0ee4e490f718e570fc0dfd47ed5b7f51c6673",
+      "relocated_sha256": "ec96ab50d62542039e0aa8ed3756bf7c5228ad1d4c9e6232f7a782f9eb122279",
+      "changes": "Original assertions retained; module imports and filesystem fixture source paths relocated",
+      "original_checkout_sha256": "b7b5a1abc46d7e16d281ef08e8c0ee4e490f718e570fc0dfd47ed5b7f51c6673"
+    },
+    {
+      "source": "src/app/api/campaigns/[campaignId]/cancel/route.ts",
+      "embedded": "src/legacy-runtime/app/api/campaigns/[campaignId]/cancel/route.ts",
+      "original_sha256": "390176dd57dd3bfdf70cde832f02113a7d80db16b14864863a3544708d599264",
+      "relocated_sha256": "73f6614165728a49b6439029e958301968335fcc6ad1e8b18335e71b35bcca1f",
+      "changes": "Module import relocation; test fixture source paths relocated where needed",
+      "original_checkout_sha256": "390176dd57dd3bfdf70cde832f02113a7d80db16b14864863a3544708d599264"
+    },
+    {
+      "source": "src/app/api/campaigns/[campaignId]/recipients/route.ts",
+      "embedded": "src/legacy-runtime/app/api/campaigns/[campaignId]/recipients/route.ts",
+      "original_sha256": "d6e7e19a775ffa9e0be119b62a8090ba9b92f8d1590952d94ebe384ff54e0ef8",
+      "relocated_sha256": "4b4844d87be6b740a6ab76792d47185e2a8e5b63eb9e0f91ff1427ef1a5035f0",
+      "changes": "Module import relocation; test fixture source paths relocated where needed",
+      "original_checkout_sha256": "d6e7e19a775ffa9e0be119b62a8090ba9b92f8d1590952d94ebe384ff54e0ef8"
+    },
+    {
+      "source": "src/app/api/campaigns/[campaignId]/send/route.test.ts",
+      "embedded": "src/legacy-runtime/app/api/campaigns/[campaignId]/send/route.test.ts",
+      "original_sha256": "e8bcddd56b8b943c85a77a47f3f3c7d4e3c0388662fd494c820e02825baa4c82",
+      "relocated_sha256": "cdef4e2d1a876676e3b9766fce84dd2575b33e0bcc8b14189b532290e6804dff",
+      "changes": "Original assertions retained; module imports and filesystem fixture source paths relocated",
+      "original_checkout_sha256": "e8bcddd56b8b943c85a77a47f3f3c7d4e3c0388662fd494c820e02825baa4c82"
+    },
+    {
+      "source": "src/app/api/campaigns/[campaignId]/send/route.ts",
+      "embedded": "src/legacy-runtime/app/api/campaigns/[campaignId]/send/route.ts",
+      "original_sha256": "9a72fa4ceaaca0e7fe8992498402d86d0198ccf894310f332741f5b627fdb0ce",
+      "relocated_sha256": "729f8727bd682946be7b1c84e6cfb8661d882d741b7a69fa3189775725fbcb51",
+      "changes": "Module import relocation; test fixture source paths relocated where needed",
+      "original_checkout_sha256": "9a72fa4ceaaca0e7fe8992498402d86d0198ccf894310f332741f5b627fdb0ce"
+    },
+    {
+      "source": "src/app/api/campaigns/route.test.ts",
+      "embedded": "src/legacy-runtime/app/api/campaigns/route.test.ts",
+      "original_sha256": "48a145ebb6e584eb93571fefaa4307e257fa8b198aaccde4608e8a9d31f41293",
+      "relocated_sha256": "a1b8714d4efa060501de8d4e5973dc8ba9fd56fa19c992d1fa7e39ba05c2a675",
+      "changes": "Original assertions retained; module imports and filesystem fixture source paths relocated",
+      "original_checkout_sha256": "48a145ebb6e584eb93571fefaa4307e257fa8b198aaccde4608e8a9d31f41293"
+    },
+    {
+      "source": "src/app/api/campaigns/route.ts",
+      "embedded": "src/legacy-runtime/app/api/campaigns/route.ts",
+      "original_sha256": "6819cc2ad4c6a8b7e3801bd448f19bd97e22411ff902ac56f80b04601637d82f",
+      "relocated_sha256": "571c3977db9a088c32961b5ea376d0de5824849b2ac44c1b30ff28e6c7800d1e",
+      "changes": "Module import relocation; test fixture source paths relocated where needed",
+      "original_checkout_sha256": "6819cc2ad4c6a8b7e3801bd448f19bd97e22411ff902ac56f80b04601637d82f"
+    },
+    {
+      "source": "src/app/api/chatbot-media/[assetId]/route.ts",
+      "embedded": "src/legacy-runtime/app/api/chatbot-media/[assetId]/route.ts",
+      "original_sha256": "3c27aeee5873aa514584134d6b6ef3b1f2427e16f0593de604e9972b6c45f511",
+      "relocated_sha256": "3ad2101ac6faed8821e09fe0d8c4b5873d262603ee932de8bdc348f9f4e2e5cc",
+      "changes": "Module import relocation; test fixture source paths relocated where needed",
+      "original_checkout_sha256": "3c27aeee5873aa514584134d6b6ef3b1f2427e16f0593de604e9972b6c45f511"
+    },
+    {
+      "source": "src/app/api/check-oauth-config/route.ts",
+      "embedded": "src/legacy-runtime/app/api/check-oauth-config/route.ts",
+      "original_sha256": "4c634b53cb67c31a7f7e96dda9b618c35ce94984348c46e923aa3d1506e24920",
+      "relocated_sha256": "9287ccb2abe5e7da64cf0f69dae57f7c2859a1ba2f5fdcd3569cc9ac6d0df487",
+      "changes": "Module import relocation; test fixture source paths relocated where needed",
+      "original_checkout_sha256": "4c634b53cb67c31a7f7e96dda9b618c35ce94984348c46e923aa3d1506e24920"
+    },
+    {
+      "source": "src/app/api/cron/campaign-loop/route.ts",
+      "embedded": "src/legacy-runtime/app/api/cron/campaign-loop/route.ts",
+      "original_sha256": "b4c44a11355ce1d0c51fedd5878dba5f9ab14e4db7d086e63c39f0cb03b80eed",
+      "relocated_sha256": "4798a32aa4eada5f0f59518556322baff2039732200b5bcf46aa41d240f4fea2",
+      "changes": "Module import relocation; test fixture source paths relocated where needed",
+      "original_checkout_sha256": "b4c44a11355ce1d0c51fedd5878dba5f9ab14e4db7d086e63c39f0cb03b80eed"
+    },
+    {
+      "source": "src/app/api/cron/campaign-scheduled/route.test.ts",
+      "embedded": "src/legacy-runtime/app/api/cron/campaign-scheduled/route.test.ts",
+      "original_sha256": "9376df029d51ec8bb657166e78a498f1b0fb9e969b02c44bff367b85941435b1",
+      "relocated_sha256": "32bec5075768b9d83e61ae6213c05902401c82331ebdc5b7c1439830f7e25d98",
+      "changes": "Original assertions retained; module imports and filesystem fixture source paths relocated",
+      "original_checkout_sha256": "9376df029d51ec8bb657166e78a498f1b0fb9e969b02c44bff367b85941435b1"
+    },
+    {
+      "source": "src/app/api/cron/campaign-scheduled/route.ts",
+      "embedded": "src/legacy-runtime/app/api/cron/campaign-scheduled/route.ts",
+      "original_sha256": "47fcd9f3d3bf85230c72fc5a159b4c7f89f67c109721093c10fe24b950893dca",
+      "relocated_sha256": "4baff524b2f56955fb5edced818e1f1d704e7b81644d0520dc556cba903de8df",
+      "changes": "Module import relocation; test fixture source paths relocated where needed",
+      "original_checkout_sha256": "47fcd9f3d3bf85230c72fc5a159b4c7f89f67c109721093c10fe24b950893dca"
+    },
+    {
+      "source": "src/app/api/cron/exports/route.ts",
+      "embedded": "src/legacy-runtime/app/api/cron/exports/route.ts",
+      "original_sha256": "3851e055dc0adbd07f626c9ad190428d087c969c9700fbd716287f56b7b921fb",
+      "relocated_sha256": "51102994ec9bea3cfb671916131d5c91ca181820dcea1a7eeed427a8478ae31a",
+      "changes": "Module import relocation; test fixture source paths relocated where needed",
+      "original_checkout_sha256": "3851e055dc0adbd07f626c9ad190428d087c969c9700fbd716287f56b7b921fb"
+    },
+    {
+      "source": "src/app/api/cron/follow-up-automations/route.test.ts",
+      "embedded": "src/legacy-runtime/app/api/cron/follow-up-automations/route.test.ts",
+      "original_sha256": "b5f81577979ef20d8dc7fa066d7234b91914c13895edf9a157967eb3c9bf159c",
+      "relocated_sha256": "4566e63e811024c1193a1bedf619a213da470fc179671e80b3a179426f21b9aa",
+      "changes": "Original assertions retained; module imports and filesystem fixture source paths relocated",
+      "original_checkout_sha256": "b5f81577979ef20d8dc7fa066d7234b91914c13895edf9a157967eb3c9bf159c"
+    },
+    {
+      "source": "src/app/api/cron/follow-up-automations/route.ts",
+      "embedded": "src/legacy-runtime/app/api/cron/follow-up-automations/route.ts",
+      "original_sha256": "5eb93a624e1767ad2ec3df882dd1dbd96f041052777440c9289ecafd0e42a0f4",
+      "relocated_sha256": "85e82db5ffdebc8412dc97aba821a199b628da801b068a596634431df19b1fdc",
+      "changes": "Module import relocation; forwards authenticated scheduler transport to the retained campaign worker",
+      "original_checkout_sha256": "5eb93a624e1767ad2ec3df882dd1dbd96f041052777440c9289ecafd0e42a0f4"
+    },
+    {
+      "source": "src/app/api/cron/messaging-auto-tag/route.ts",
+      "embedded": "src/legacy-runtime/app/api/cron/messaging-auto-tag/route.ts",
+      "original_sha256": "543ce433e1bb9bc7ca3a2da684056c33a0edc837e1e6ffa2a29057971aa64d92",
+      "relocated_sha256": "47f36d1fc89bc51784163cc889a715e86674c18223ea9fcf96fb8d23bff63e9b",
+      "changes": "Module import relocation; test fixture source paths relocated where needed",
+      "original_checkout_sha256": "543ce433e1bb9bc7ca3a2da684056c33a0edc837e1e6ffa2a29057971aa64d92"
+    },
+    {
+      "source": "src/app/api/cron/sync/route.test.ts",
+      "embedded": "src/legacy-runtime/app/api/cron/sync/route.test.ts",
+      "original_sha256": "1673bd48542bf3c2faa9268dc48ab720eaeab267debd47da7a503af74fe53ce3",
+      "relocated_sha256": "500e35fc97346856dc0837c3b44b18f8657b3b5090e5845a603e6857d8534656",
+      "changes": "Original assertions retained; module imports and filesystem fixture source paths relocated",
+      "original_checkout_sha256": "1673bd48542bf3c2faa9268dc48ab720eaeab267debd47da7a503af74fe53ce3"
+    },
+    {
+      "source": "src/app/api/cron/sync/route.ts",
+      "embedded": "src/legacy-runtime/app/api/cron/sync/route.ts",
+      "original_sha256": "35e0e223dd98a4388f10da35da72467ea71d239f4e0971b53bfc458dee38d804",
+      "relocated_sha256": "8da644e2e3354a2ee00a150a7b45f7af1be4e12083ee8b728ecabd5d40c53e07",
+      "changes": "Module import relocation; test fixture source paths relocated where needed",
+      "original_checkout_sha256": "35e0e223dd98a4388f10da35da72467ea71d239f4e0971b53bfc458dee38d804"
+    },
+    {
+      "source": "src/app/api/diagnostic-routes.test.ts",
+      "embedded": "src/legacy-runtime/app/api/diagnostic-routes.test.ts",
+      "original_sha256": "f2389a97c638b6695ea880573e3d1215b8a967d55fa24e90592e808bcaba4259",
+      "relocated_sha256": "1cafb811eef0154a8f804f61bb19c461f88436e52b97d5b90dc038e313e722d6",
+      "changes": "Original assertions retained; module imports and filesystem fixture source paths relocated",
+      "original_checkout_sha256": "f2389a97c638b6695ea880573e3d1215b8a967d55fa24e90592e808bcaba4259"
+    },
+    {
+      "source": "src/app/api/exports/[exportId]/download/route.test.ts",
+      "embedded": "src/legacy-runtime/app/api/exports/[exportId]/download/route.test.ts",
+      "original_sha256": "51978e2484d21e0e7a7e2a03bf3af549a85e7dc5475e1ffe1503eeaceaa99883",
+      "relocated_sha256": "2ce2f41ba111ee58b12fffc6da4129a88e63ab24d6bdc5cec46d87221e2bba2c",
+      "changes": "Original assertions retained; module imports and filesystem fixture source paths relocated",
+      "original_checkout_sha256": "51978e2484d21e0e7a7e2a03bf3af549a85e7dc5475e1ffe1503eeaceaa99883"
+    },
+    {
+      "source": "src/app/api/exports/[exportId]/download/route.ts",
+      "embedded": "src/legacy-runtime/app/api/exports/[exportId]/download/route.ts",
+      "original_sha256": "95facc251741721787612cd391527a54d418da2aa0230a6e2371fe0315ec10fd",
+      "relocated_sha256": "87b94eafee224dd5162929260a14c5d584614f93afb9fcec861e92ace3c38285",
+      "changes": "Module import relocation; test fixture source paths relocated where needed",
+      "original_checkout_sha256": "95facc251741721787612cd391527a54d418da2aa0230a6e2371fe0315ec10fd"
+    },
+    {
+      "source": "src/app/api/exports/[exportId]/process/route.test.ts",
+      "embedded": "src/legacy-runtime/app/api/exports/[exportId]/process/route.test.ts",
+      "original_sha256": "abdf71b32ef729db5e4f992019853ddd4d9d32b2ea802adbf228fdbfa5d27470",
+      "relocated_sha256": "b29bc998f6970812f33fbdc57ff44e956a1a67d05b8a215c35dd4b26d348bbee",
+      "changes": "Original assertions retained; module imports and filesystem fixture source paths relocated",
+      "original_checkout_sha256": "abdf71b32ef729db5e4f992019853ddd4d9d32b2ea802adbf228fdbfa5d27470"
+    },
+    {
+      "source": "src/app/api/exports/[exportId]/process/route.ts",
+      "embedded": "src/legacy-runtime/app/api/exports/[exportId]/process/route.ts",
+      "original_sha256": "c61c52cf78e73077f816d70aac1139aa105c29f749c0f97521c4c590096667f2",
+      "relocated_sha256": "583313d934655019c071b9ce9db11f48dea55ae5c6a6a3ff7ab58e363409516a",
+      "changes": "Module import relocation; test fixture source paths relocated where needed",
+      "original_checkout_sha256": "c61c52cf78e73077f816d70aac1139aa105c29f749c0f97521c4c590096667f2"
+    },
+    {
+      "source": "src/app/api/exports/[exportId]/retry/route.test.ts",
+      "embedded": "src/legacy-runtime/app/api/exports/[exportId]/retry/route.test.ts",
+      "original_sha256": "2527772261d2abf8bf7334fe7aa6e5b202082927fe81b815f97a98e1e1fd0b99",
+      "relocated_sha256": "2d402d1cb325dd387845ebf64e5dc38a0ee3996d665363f165a7c9137166d7fa",
+      "changes": "Original assertions retained; module imports and filesystem fixture source paths relocated",
+      "original_checkout_sha256": "2527772261d2abf8bf7334fe7aa6e5b202082927fe81b815f97a98e1e1fd0b99"
+    },
+    {
+      "source": "src/app/api/exports/[exportId]/retry/route.ts",
+      "embedded": "src/legacy-runtime/app/api/exports/[exportId]/retry/route.ts",
+      "original_sha256": "0f5ff4068db62fd6244477c2ed477d2764857dee02ea202d8ddff2121ea757f1",
+      "relocated_sha256": "d7e4791478065a8ad73204b6198cc2fd0186f71273e878a31cdac5057baf8337",
+      "changes": "Module import relocation; test fixture source paths relocated where needed",
+      "original_checkout_sha256": "0f5ff4068db62fd6244477c2ed477d2764857dee02ea202d8ddff2121ea757f1"
+    },
+    {
+      "source": "src/app/api/exports/route.test.ts",
+      "embedded": "src/legacy-runtime/app/api/exports/route.test.ts",
+      "original_sha256": "fbb58a31f89fcd2c10a954e4835c507b9eb4c02467a171c5f88cbe1e64244870",
+      "relocated_sha256": "75acae5fd9577a23ec23301d407325c74d8bca69a94915aff78ba7912ea87c86",
+      "changes": "Original assertions retained; module imports and filesystem fixture source paths relocated",
+      "original_checkout_sha256": "fbb58a31f89fcd2c10a954e4835c507b9eb4c02467a171c5f88cbe1e64244870"
+    },
+    {
+      "source": "src/app/api/exports/route.ts",
+      "embedded": "src/legacy-runtime/app/api/exports/route.ts",
+      "original_sha256": "0c0070b1b25d612e8f73613956b0af990edc2b0edef462578eda96f838ec4ca9",
+      "relocated_sha256": "f0d64b1496959bdd1d7eea041b3b8630f75a6feddebfd79c879def90f84689b8",
+      "changes": "Module import relocation; test fixture source paths relocated where needed",
+      "original_checkout_sha256": "0c0070b1b25d612e8f73613956b0af990edc2b0edef462578eda96f838ec4ca9"
+    },
+    {
+      "source": "src/app/api/facebook/connect/route.test.ts",
+      "embedded": "src/legacy-runtime/app/api/facebook/connect/route.test.ts",
+      "original_sha256": "e84ff4f6ac75266d4b02e1f60fe0385ac24e29276a910a6d0546f7d57a209526",
+      "relocated_sha256": "e97084f0787bd2a949b47eaf3f28224bd24bcc2c35f394cba3f4d455db522545",
+      "changes": "Original assertions retained; module imports and filesystem fixture source paths relocated",
+      "original_checkout_sha256": "e84ff4f6ac75266d4b02e1f60fe0385ac24e29276a910a6d0546f7d57a209526"
+    },
+    {
+      "source": "src/app/api/facebook/connect/route.ts",
+      "embedded": "src/legacy-runtime/app/api/facebook/connect/route.ts",
+      "original_sha256": "c72456e63d31e01a1d4d8ba8621f53f530d675a3ec9273db8bb7fbbfdd501b91",
+      "relocated_sha256": "8ffe45328be70d87162e0a4b3c678b34805b17ca3891b9937118edc76e1723fe",
+      "changes": "Module import relocation; test fixture source paths relocated where needed",
+      "original_checkout_sha256": "c72456e63d31e01a1d4d8ba8621f53f530d675a3ec9273db8bb7fbbfdd501b91"
+    },
+    {
+      "source": "src/app/api/facebook/messages/send/helpers.ts",
+      "embedded": "src/legacy-runtime/app/api/facebook/messages/send/helpers.ts",
+      "original_sha256": "726af110e3012b27b8b8638cb8193e1f56d94c76c619273d85c0ccab3e03f3b1",
+      "relocated_sha256": "b4db23881e6937717a695c2360be346f7b29b78cbd26a6bb26854712463b151f",
+      "changes": "Module import relocation; test fixture source paths relocated where needed",
+      "original_checkout_sha256": "726af110e3012b27b8b8638cb8193e1f56d94c76c619273d85c0ccab3e03f3b1"
+    },
+    {
+      "source": "src/app/api/facebook/messages/send/route.test.ts",
+      "embedded": "src/legacy-runtime/app/api/facebook/messages/send/route.test.ts",
+      "original_sha256": "d99ee5b6f437a181ca5c2f96bfe034cc6699f4ac65f7d26d4e8d5b5017c0f68a",
+      "relocated_sha256": "d99ee5b6f437a181ca5c2f96bfe034cc6699f4ac65f7d26d4e8d5b5017c0f68a",
+      "changes": "Original assertions retained; module imports and filesystem fixture source paths relocated",
+      "original_checkout_sha256": "d99ee5b6f437a181ca5c2f96bfe034cc6699f4ac65f7d26d4e8d5b5017c0f68a"
+    },
+    {
+      "source": "src/app/api/facebook/messages/send/route.ts",
+      "embedded": "src/legacy-runtime/app/api/facebook/messages/send/route.ts",
+      "original_sha256": "4ca384c37154dfca707fd4c95398dc0c461683a6ed013c35913b225e3585efea",
+      "relocated_sha256": "5c2e86f52066c093524c52570eef9200fee083aa29b70e5739098721860e9429",
+      "changes": "Module import relocation; test fixture source paths relocated where needed",
+      "original_checkout_sha256": "4ca384c37154dfca707fd4c95398dc0c461683a6ed013c35913b225e3585efea"
+    },
+    {
+      "source": "src/app/api/facebook/pages/route.test.ts",
+      "embedded": "src/legacy-runtime/app/api/facebook/pages/route.test.ts",
+      "original_sha256": "9a61f44ad49054863ef142b91b147b84786106c9a30cabb20cdbe964294c2033",
+      "relocated_sha256": "9c181bdf58de73b29ee239c6223d22f38c63455b8ac61acc75ebd57b068359f6",
+      "changes": "Original assertions retained; module imports and filesystem fixture source paths relocated",
+      "original_checkout_sha256": "9a61f44ad49054863ef142b91b147b84786106c9a30cabb20cdbe964294c2033"
+    },
+    {
+      "source": "src/app/api/facebook/pages/route.ts",
+      "embedded": "src/legacy-runtime/app/api/facebook/pages/route.ts",
+      "original_sha256": "8140b88a47c29deb9e5b8bc7cbe71473987a553052906b420b366f051393dbfb",
+      "relocated_sha256": "2b3f8a931a3860d93d8dbc389ba2ef5c967879b8728a9ac53dfe0f4167caad30",
+      "changes": "Module import relocation; test fixture source paths relocated where needed",
+      "original_checkout_sha256": "8140b88a47c29deb9e5b8bc7cbe71473987a553052906b420b366f051393dbfb"
+    },
+    {
+      "source": "src/app/api/facebook/templates/route.ts",
+      "embedded": "src/legacy-runtime/app/api/facebook/templates/route.ts",
+      "original_sha256": "d7a95992cc5d8095c1287f8e2117eec0afd28b25bfd64258d00a4c1f4c7f8549",
+      "relocated_sha256": "8c395739e18353aa23aec798c3044b7fdfa11c63a4b274d1d26453c798fb5ae5",
+      "changes": "Module import relocation; test fixture source paths relocated where needed",
+      "original_checkout_sha256": "d7a95992cc5d8095c1287f8e2117eec0afd28b25bfd64258d00a4c1f4c7f8549"
+    },
+    {
+      "source": "src/app/api/facebook/templates/send/route.ts",
+      "embedded": "src/legacy-runtime/app/api/facebook/templates/send/route.ts",
+      "original_sha256": "958ba0a0a4dfc705ad6db22e512cd439240812e493595b844103d24dad804079",
+      "relocated_sha256": "1cbc20febdde4a417f39c9de7d41f1512c3bb8256defaa4d006f0bd19e21345b",
+      "changes": "Module import relocation; test fixture source paths relocated where needed",
+      "original_checkout_sha256": "958ba0a0a4dfc705ad6db22e512cd439240812e493595b844103d24dad804079"
+    },
+    {
+      "source": "src/app/api/facebook/templates/status/route.ts",
+      "embedded": "src/legacy-runtime/app/api/facebook/templates/status/route.ts",
+      "original_sha256": "4e56305bbdca8fc51b6c2419a42229c5f790369ab0e9f9149d011b1ef3390497",
+      "relocated_sha256": "0f1c4e56dcea70b0c0922c5371941b9bae3cc437737f6faf03cfc6076fc2d0e5",
+      "changes": "Module import relocation; test fixture source paths relocated where needed",
+      "original_checkout_sha256": "4e56305bbdca8fc51b6c2419a42229c5f790369ab0e9f9149d011b1ef3390497"
+    },
+    {
+      "source": "src/app/api/facebook/templates/submit-all/route.ts",
+      "embedded": "src/legacy-runtime/app/api/facebook/templates/submit-all/route.ts",
+      "original_sha256": "ea948f40b781496483e93824da93b9d8558e0e0cb54fdfb35c2c81d66e3f373e",
+      "relocated_sha256": "b7a3ba6d3ff54b1ac482a0ccfd3fe089873359d3dd4315c3be87b1200327f3ce",
+      "changes": "Module import relocation; test fixture source paths relocated where needed",
+      "original_checkout_sha256": "ea948f40b781496483e93824da93b9d8558e0e0cb54fdfb35c2c81d66e3f373e"
+    },
+    {
+      "source": "src/app/api/facebook/webhook/route.test.ts",
+      "embedded": "src/legacy-runtime/app/api/facebook/webhook/route.test.ts",
+      "original_sha256": "e7426f97dd877ff0c045089ec939b2cddaa7d8883aa103cf1632440663045695",
+      "relocated_sha256": "dbbc4951608a9dcce784eca5d1537f8a6cbce08629a4169a673c271111df4115",
+      "changes": "Original assertions retained; module imports and filesystem fixture source paths relocated",
+      "original_checkout_sha256": "e7426f97dd877ff0c045089ec939b2cddaa7d8883aa103cf1632440663045695"
+    },
+    {
+      "source": "src/app/api/facebook/webhook/route.ts",
+      "embedded": "src/legacy-runtime/app/api/facebook/webhook/route.ts",
+      "original_sha256": "a8af766fa0ffe40f0e2b0952d04d43f000ec0f43cb6a67e6983d5105d51cfa4c",
+      "relocated_sha256": "b4b50e2be7406be07128bc41349b4403ca534182bc08ea084fdff57768f800ef",
+      "changes": "Module import relocation; test fixture source paths relocated where needed",
+      "original_checkout_sha256": "a8af766fa0ffe40f0e2b0952d04d43f000ec0f43cb6a67e6983d5105d51cfa4c"
+    },
+    {
+      "source": "src/app/api/media/photo-header/route.test.ts",
+      "embedded": "src/legacy-runtime/app/api/media/photo-header/route.test.ts",
+      "original_sha256": "547139fb36bf085cd05590de1050c9d7e1db889412815ab891b3623a70e88ce0",
+      "relocated_sha256": "d7f9a85b0ad18380ac5d456e7867b1b0b0e1ffce3d6b8d95deaf0f2ae191f43e",
+      "changes": "Original assertions retained; module imports and filesystem fixture source paths relocated",
+      "original_checkout_sha256": "547139fb36bf085cd05590de1050c9d7e1db889412815ab891b3623a70e88ce0"
+    },
+    {
+      "source": "src/app/api/media/photo-header/route.ts",
+      "embedded": "src/legacy-runtime/app/api/media/photo-header/route.ts",
+      "original_sha256": "a8a756aaa27a2f420744a8cba8ae54e10ddd2338919b555f84a15230b0d0cf70",
+      "relocated_sha256": "97f48edca3d1687907246bb87563e3555b583d05bd90ce76d54036fdc9e57e88",
+      "changes": "Module import relocation; test fixture source paths relocated where needed",
+      "original_checkout_sha256": "a8a756aaa27a2f420744a8cba8ae54e10ddd2338919b555f84a15230b0d0cf70"
+    },
+    {
+      "source": "src/app/api/pages/[pageId]/automations/[automationId]/reset/route.ts",
+      "embedded": "src/legacy-runtime/app/api/pages/[pageId]/automations/[automationId]/reset/route.ts",
+      "original_sha256": "7cd0f679a87993d483ac8ba74e0a7c46bc5df47ceb9577bb2874ed59463293a7",
+      "relocated_sha256": "7c26020ca1696538f85ee1d62940a282f7272e77c669317d5f8749e271c40328",
+      "changes": "Module import relocation; test fixture source paths relocated where needed",
+      "original_checkout_sha256": "7cd0f679a87993d483ac8ba74e0a7c46bc5df47ceb9577bb2874ed59463293a7"
+    },
+    {
+      "source": "src/app/api/pages/[pageId]/automations/[automationId]/route.ts",
+      "embedded": "src/legacy-runtime/app/api/pages/[pageId]/automations/[automationId]/route.ts",
+      "original_sha256": "7e0f15e1169cbe31ea0f9e024044f9ddb6d2f62c702b68d336ee9043678a0df7",
+      "relocated_sha256": "06cfd58bbc5cdc6f6efbfd434d3725237ec809e2e7df16eba5b25aedc3c2ac88",
+      "changes": "Module import relocation; test fixture source paths relocated where needed",
+      "original_checkout_sha256": "7e0f15e1169cbe31ea0f9e024044f9ddb6d2f62c702b68d336ee9043678a0df7"
+    },
+    {
+      "source": "src/app/api/pages/[pageId]/automations/route.ts",
+      "embedded": "src/legacy-runtime/app/api/pages/[pageId]/automations/route.ts",
+      "original_sha256": "abbccffefc7ea753bc92ca7ba19129c5216f5d8f1c8f1c09473d9eeb4c118dd6",
+      "relocated_sha256": "8048f17838c612d643b473e7318b2842a157906e1dedb5e0b1614a6783fba5e4",
+      "changes": "Module import relocation; test fixture source paths relocated where needed",
+      "original_checkout_sha256": "abbccffefc7ea753bc92ca7ba19129c5216f5d8f1c8f1c09473d9eeb4c118dd6"
+    },
+    {
+      "source": "src/app/api/pages/[pageId]/chatbot/analytics/route.test.ts",
+      "embedded": "src/legacy-runtime/app/api/pages/[pageId]/chatbot/analytics/route.test.ts",
+      "original_sha256": "b122f9c78bf650800367d1a1f295637db6347c6ff2a0b6c00b3d972fa968c216",
+      "relocated_sha256": "53850540e1d9194b798c45b91e7f1a7715cae26828ddd87d1590d1c132077d27",
+      "changes": "Original assertions retained; module imports and filesystem fixture source paths relocated",
+      "original_checkout_sha256": "b122f9c78bf650800367d1a1f295637db6347c6ff2a0b6c00b3d972fa968c216"
+    },
+    {
+      "source": "src/app/api/pages/[pageId]/chatbot/analytics/route.ts",
+      "embedded": "src/legacy-runtime/app/api/pages/[pageId]/chatbot/analytics/route.ts",
+      "original_sha256": "0b8f214af6d67be1630176da688e7e59b6fe14d89f00b8ecb5138b869166a304",
+      "relocated_sha256": "7cf276d5089101da79c288c0a35917d8cfcd52596c5e7df67feba803eaeb6d3a",
+      "changes": "Module import relocation; test fixture source paths relocated where needed",
+      "original_checkout_sha256": "0b8f214af6d67be1630176da688e7e59b6fe14d89f00b8ecb5138b869166a304"
+    },
+    {
+      "source": "src/app/api/pages/[pageId]/chatbot/folders/route.test.ts",
+      "embedded": "src/legacy-runtime/app/api/pages/[pageId]/chatbot/folders/route.test.ts",
+      "original_sha256": "8a56a7871ac30a3d1e42cb0ad338a25012035aca7f7f9ca5945c92cadc1a3aea",
+      "relocated_sha256": "6ebfaeaf64097b4a88e16bb19a871666461cebbe9fc3291a6868c8e8d5691f9f",
+      "changes": "Original assertions retained; module imports and filesystem fixture source paths relocated",
+      "original_checkout_sha256": "8a56a7871ac30a3d1e42cb0ad338a25012035aca7f7f9ca5945c92cadc1a3aea"
+    },
+    {
+      "source": "src/app/api/pages/[pageId]/chatbot/folders/route.ts",
+      "embedded": "src/legacy-runtime/app/api/pages/[pageId]/chatbot/folders/route.ts",
+      "original_sha256": "af2e376678217620c2f3cef8f96460723e1f7ccdbedce6961f3656305d6498cc",
+      "relocated_sha256": "e371e032dc47633d8609b3463d45ee5c08370a6f5514f0febb6be81b483276c3",
+      "changes": "Module import relocation; test fixture source paths relocated where needed",
+      "original_checkout_sha256": "af2e376678217620c2f3cef8f96460723e1f7ccdbedce6961f3656305d6498cc"
+    },
+    {
+      "source": "src/app/api/pages/[pageId]/chatbot/follow-ups/route.ts",
+      "embedded": "src/legacy-runtime/app/api/pages/[pageId]/chatbot/follow-ups/route.ts",
+      "original_sha256": "5c72f72b68ca2680f790bc77b5833c13efc8ca90b803cba5ad0ef0e4e8d92d5c",
+      "relocated_sha256": "dbef286c073a52a005f628098b58debe41eed9a523b75c5d7ffe7252933fc48f",
+      "changes": "Module import relocation; test fixture source paths relocated where needed",
+      "original_checkout_sha256": "5c72f72b68ca2680f790bc77b5833c13efc8ca90b803cba5ad0ef0e4e8d92d5c"
+    },
+    {
+      "source": "src/app/api/pages/[pageId]/chatbot/interruptions/route.test.ts",
+      "embedded": "src/legacy-runtime/app/api/pages/[pageId]/chatbot/interruptions/route.test.ts",
+      "original_sha256": "dce222ff36109eb2b3f2deb26baf23924972001f73e0c157fa5fbae6b5e94ae5",
+      "relocated_sha256": "b7640f9c4bb07412d7c4bf9056fbd7e4d0f61184f141216efa9c1fae78fbc3eb",
+      "changes": "Original assertions retained; module imports and filesystem fixture source paths relocated",
+      "original_checkout_sha256": "dce222ff36109eb2b3f2deb26baf23924972001f73e0c157fa5fbae6b5e94ae5"
+    },
+    {
+      "source": "src/app/api/pages/[pageId]/chatbot/interruptions/route.ts",
+      "embedded": "src/legacy-runtime/app/api/pages/[pageId]/chatbot/interruptions/route.ts",
+      "original_sha256": "b9cc2a1b3098ce9785005cbd813ad39f290d9fa0458fe6428eb5cc83b96f6fc0",
+      "relocated_sha256": "7470cbb7fb24fc90da94485769d946ef133a959f6cca6e859b136a2f84345493",
+      "changes": "Module import relocation; test fixture source paths relocated where needed",
+      "original_checkout_sha256": "b9cc2a1b3098ce9785005cbd813ad39f290d9fa0458fe6428eb5cc83b96f6fc0"
+    },
+    {
+      "source": "src/app/api/pages/[pageId]/chatbot/knowledge/route.ts",
+      "embedded": "src/legacy-runtime/app/api/pages/[pageId]/chatbot/knowledge/route.ts",
+      "original_sha256": "d5c53be847e5dee08210dff1c34e5622ec2feea62e5e36d3ca59c744bba033b9",
+      "relocated_sha256": "7a0530694fd4bd53db755c29ef49e043483d76e491bc3f88d6849062e907128c",
+      "changes": "Module import relocation; test fixture source paths relocated where needed",
+      "original_checkout_sha256": "d5c53be847e5dee08210dff1c34e5622ec2feea62e5e36d3ca59c744bba033b9"
+    },
+    {
+      "source": "src/app/api/pages/[pageId]/chatbot/media/route.ts",
+      "embedded": "src/legacy-runtime/app/api/pages/[pageId]/chatbot/media/route.ts",
+      "original_sha256": "efefd9521b8615ee5191f0ece1ff41e6322e0edc2c277b6eb7ba86a20b54b886",
+      "relocated_sha256": "96adf6e0be2361d71f2cecb8d5c025f3fcf3563cf115a09046890d50c7b71345",
+      "changes": "Module import relocation; test fixture source paths relocated where needed",
+      "original_checkout_sha256": "efefd9521b8615ee5191f0ece1ff41e6322e0edc2c277b6eb7ba86a20b54b886"
+    },
+    {
+      "source": "src/app/api/pages/[pageId]/chatbot/route.test.ts",
+      "embedded": "src/legacy-runtime/app/api/pages/[pageId]/chatbot/route.test.ts",
+      "original_sha256": "37f49942f6c440a212808b65d1148703a1dbc7714c63c5119cac2aaeb6cae0ea",
+      "relocated_sha256": "e2fdd24e619d1a91c1914ae56dcf879a916f2729c5838747aa5e9317b5bf72f7",
+      "changes": "Original assertions retained; module imports and filesystem fixture source paths relocated",
+      "original_checkout_sha256": "37f49942f6c440a212808b65d1148703a1dbc7714c63c5119cac2aaeb6cae0ea"
+    },
+    {
+      "source": "src/app/api/pages/[pageId]/chatbot/route.ts",
+      "embedded": "src/legacy-runtime/app/api/pages/[pageId]/chatbot/route.ts",
+      "original_sha256": "c6d491aa033f4a3576e71f5ab208fb82e00fddf7320857d813847f887305f3fe",
+      "relocated_sha256": "b25ebeb420c86c6e0038d1d016467de7007820141cc8de42590b9f518ef6e4df",
+      "changes": "Module import relocation; test fixture source paths relocated where needed",
+      "original_checkout_sha256": "c6d491aa033f4a3576e71f5ab208fb82e00fddf7320857d813847f887305f3fe"
+    },
+    {
+      "source": "src/app/api/pages/[pageId]/chatbot/trial/route.test.ts",
+      "embedded": "src/legacy-runtime/app/api/pages/[pageId]/chatbot/trial/route.test.ts",
+      "original_sha256": "0161fa86d3f4a5f04fb28bd99615155d4a838b6403f741be8d95333bd70df5ce",
+      "relocated_sha256": "3824afb87fb2d59d4493b4d85aa90814e3144ae3bef45d7e21ef9952e9a30686",
+      "changes": "Original assertions retained; module imports and filesystem fixture source paths relocated",
+      "original_checkout_sha256": "0161fa86d3f4a5f04fb28bd99615155d4a838b6403f741be8d95333bd70df5ce"
+    },
+    {
+      "source": "src/app/api/pages/[pageId]/chatbot/trial/route.ts",
+      "embedded": "src/legacy-runtime/app/api/pages/[pageId]/chatbot/trial/route.ts",
+      "original_sha256": "2ac49b64295aed3aa586f28172831ddcfceed3bc38e8e32ff941318191b19ac6",
+      "relocated_sha256": "933763e460d1155973e34dfde61cfb57949cf0519724a5cbe4468f49a5f33177",
+      "changes": "Module import relocation; test fixture source paths relocated where needed",
+      "original_checkout_sha256": "2ac49b64295aed3aa586f28172831ddcfceed3bc38e8e32ff941318191b19ac6"
+    },
+    {
+      "source": "src/app/api/pages/[pageId]/contacts/best-time/route.ts",
+      "embedded": "src/legacy-runtime/app/api/pages/[pageId]/contacts/best-time/route.ts",
+      "original_sha256": "2f7a694d97e607672e00feee7c8c10688db1f480c82505a3ca9b139ad7f5842b",
+      "relocated_sha256": "b42b68f4ad1a167085abbc4ba6b9a473916dbd423bb3e09be35c7238f80147d0",
+      "changes": "Module import relocation; test fixture source paths relocated where needed",
+      "original_checkout_sha256": "2f7a694d97e607672e00feee7c8c10688db1f480c82505a3ca9b139ad7f5842b"
+    },
+    {
+      "source": "src/app/api/pages/[pageId]/contacts/bulk-add-tags/route.test.ts",
+      "embedded": "src/legacy-runtime/app/api/pages/[pageId]/contacts/bulk-add-tags/route.test.ts",
+      "original_sha256": "c98fe85c6e7cbb7979b508db03ab56b9578314be4bd8fcffeda72c1900b35c68",
+      "relocated_sha256": "7c8facd1774e074094d8679edd56d66257673bcbeccee4261164a89bf1d6eaa5",
+      "changes": "Original assertions retained; module imports and filesystem fixture source paths relocated",
+      "original_checkout_sha256": "c98fe85c6e7cbb7979b508db03ab56b9578314be4bd8fcffeda72c1900b35c68"
+    },
+    {
+      "source": "src/app/api/pages/[pageId]/contacts/bulk-add-tags/route.ts",
+      "embedded": "src/legacy-runtime/app/api/pages/[pageId]/contacts/bulk-add-tags/route.ts",
+      "original_sha256": "cf5b5ec4edffc8fd1f9169568545af1ab4d4a7e4b574d9c169ef4c1e64e5cca8",
+      "relocated_sha256": "cecf8afdd8bfa7ffaab215c62cfe7bac7034abb24578367204f715cace24e539",
+      "changes": "Module import relocation; test fixture source paths relocated where needed",
+      "original_checkout_sha256": "cf5b5ec4edffc8fd1f9169568545af1ab4d4a7e4b574d9c169ef4c1e64e5cca8"
+    },
+    {
+      "source": "src/app/api/pages/[pageId]/contacts/bulk-remove-tags/route.test.ts",
+      "embedded": "src/legacy-runtime/app/api/pages/[pageId]/contacts/bulk-remove-tags/route.test.ts",
+      "original_sha256": "bf4250e741a32fd2eb9e54160ed6c3c7026df2a2418170f1ef16a6e577b08d36",
+      "relocated_sha256": "030bbfe487069af0382484ef1367bd0beed2142e2882fb28746947ed94c2a9de",
+      "changes": "Original assertions retained; module imports and filesystem fixture source paths relocated",
+      "original_checkout_sha256": "bf4250e741a32fd2eb9e54160ed6c3c7026df2a2418170f1ef16a6e577b08d36"
+    },
+    {
+      "source": "src/app/api/pages/[pageId]/contacts/bulk-remove-tags/route.ts",
+      "embedded": "src/legacy-runtime/app/api/pages/[pageId]/contacts/bulk-remove-tags/route.ts",
+      "original_sha256": "1311751102dffa410e2be68b2606f982863d69cf8d4f4ad541217a0f12b0d0b8",
+      "relocated_sha256": "4405abbc054c16acf94553c7f18060f354e1939dd46c9c31bc048ce0a5c68b8c",
+      "changes": "Module import relocation; test fixture source paths relocated where needed",
+      "original_checkout_sha256": "1311751102dffa410e2be68b2606f982863d69cf8d4f4ad541217a0f12b0d0b8"
+    },
+    {
+      "source": "src/app/api/pages/[pageId]/contacts/bulk/route.ts",
+      "embedded": "src/legacy-runtime/app/api/pages/[pageId]/contacts/bulk/route.ts",
+      "original_sha256": "c25260991a1814cca0f6d86346ad8fa04493b2e9ff956a19bf827fc8a291ed11",
+      "relocated_sha256": "1fa63ce7022afc863bea158bba11109e828d8cb24b629a03f8da6101220763f4",
+      "changes": "Module import relocation; test fixture source paths relocated where needed",
+      "original_checkout_sha256": "c25260991a1814cca0f6d86346ad8fa04493b2e9ff956a19bf827fc8a291ed11"
+    },
+    {
+      "source": "src/app/api/pages/[pageId]/contacts/route.test.ts",
+      "embedded": "src/legacy-runtime/app/api/pages/[pageId]/contacts/route.test.ts",
+      "original_sha256": "66f1602bdc009923d819e52b3e08009b2aa60e6216a8eee7ddef61158174dda4",
+      "relocated_sha256": "56b631f7d356de9c5f211a7fd999e028a3a083bc5152405d63bd6743c692973c",
+      "changes": "Original assertions retained; module imports and filesystem fixture source paths relocated",
+      "original_checkout_sha256": "66f1602bdc009923d819e52b3e08009b2aa60e6216a8eee7ddef61158174dda4"
+    },
+    {
+      "source": "src/app/api/pages/[pageId]/contacts/route.ts",
+      "embedded": "src/legacy-runtime/app/api/pages/[pageId]/contacts/route.ts",
+      "original_sha256": "87fb8e6d7e53b107fea0230cba6bd3c10950b25c03a173b2c85aced36e5e1d9e",
+      "relocated_sha256": "32efc048245ff97af3fbbb6bcb844f44ad96987eb266684e60353f3a0475fc76",
+      "changes": "Module import relocation; test fixture source paths relocated where needed",
+      "original_checkout_sha256": "87fb8e6d7e53b107fea0230cba6bd3c10950b25c03a173b2c85aced36e5e1d9e"
+    },
+    {
+      "source": "src/app/api/pages/[pageId]/contacts/tracked-bulk-message/route.test.ts",
+      "embedded": "src/legacy-runtime/app/api/pages/[pageId]/contacts/tracked-bulk-message/route.test.ts",
+      "original_sha256": "55b9681c3a6241db8af879fc44c11bc58d073741ade45c68ed7d14fb680f10fe",
+      "relocated_sha256": "ac32e598e02c9bf32a7b73e11b7335805a0f992c91bfd432d0729b61670c9508",
+      "changes": "Original assertions retained; module imports and filesystem fixture source paths relocated",
+      "original_checkout_sha256": "55b9681c3a6241db8af879fc44c11bc58d073741ade45c68ed7d14fb680f10fe"
+    },
+    {
+      "source": "src/app/api/pages/[pageId]/contacts/tracked-bulk-message/route.ts",
+      "embedded": "src/legacy-runtime/app/api/pages/[pageId]/contacts/tracked-bulk-message/route.ts",
+      "original_sha256": "5667fa343d150d245860082e908133a1218e6736941705d5d93cbd58aec41b64",
+      "relocated_sha256": "72ff4149b6f95a2293d90f56d9f929a6cbce528a4f819c5643a6313149cb92a2",
+      "changes": "Module import relocation; test fixture source paths relocated where needed",
+      "original_checkout_sha256": "5667fa343d150d245860082e908133a1218e6736941705d5d93cbd58aec41b64"
+    },
+    {
+      "source": "src/app/api/pages/[pageId]/conversations/export/route.test.ts",
+      "embedded": "src/legacy-runtime/app/api/pages/[pageId]/conversations/export/route.test.ts",
+      "original_sha256": "ecf0f67522dfb08ee624edc6d27601407b44e479d359f205cf1b9eb1621536f3",
+      "relocated_sha256": "04e2ff9e2e74874139c1a12984f674ca518e56ed2cdd8db32535fd657c482c18",
+      "changes": "Original assertions retained; module imports and filesystem fixture source paths relocated",
+      "original_checkout_sha256": "ecf0f67522dfb08ee624edc6d27601407b44e479d359f205cf1b9eb1621536f3"
+    },
+    {
+      "source": "src/app/api/pages/[pageId]/conversations/export/route.ts",
+      "embedded": "src/legacy-runtime/app/api/pages/[pageId]/conversations/export/route.ts",
+      "original_sha256": "4bac3388fe60ed36997f9b3a075d66af9fa7bea2f00c3f012f9a4c274b6d96e1",
+      "relocated_sha256": "38015321ced587dc6fade99ebeffcefa14f74d3bccee63b7a03370e23153506d",
+      "changes": "Module import relocation; test fixture source paths relocated where needed",
+      "original_checkout_sha256": "4bac3388fe60ed36997f9b3a075d66af9fa7bea2f00c3f012f9a4c274b6d96e1"
+    },
+    {
+      "source": "src/app/api/pages/[pageId]/exports/route.ts",
+      "embedded": "src/legacy-runtime/app/api/pages/[pageId]/exports/route.ts",
+      "original_sha256": "2090c8ba51d787bde840a7f25b1a865eefade2734776f1cc47e951174eac0eca",
+      "relocated_sha256": "153f6e3d7a8966ba1964dd85b04620c817bdc194f977cd8ef3f984ee8a9fe92d",
+      "changes": "Module import relocation; test fixture source paths relocated where needed",
+      "original_checkout_sha256": "2090c8ba51d787bde840a7f25b1a865eefade2734776f1cc47e951174eac0eca"
+    },
+    {
+      "source": "src/app/api/pages/[pageId]/history/route.ts",
+      "embedded": "src/legacy-runtime/app/api/pages/[pageId]/history/route.ts",
+      "original_sha256": "bca23490bfcc875017317470ff40c6224b328f90c74c61a2903dc5770986ea9b",
+      "relocated_sha256": "ba0398aec9569c0df7aa038874ee394454a14c51006624652ab6e5a443a09e28",
+      "changes": "Module import relocation; test fixture source paths relocated where needed",
+      "original_checkout_sha256": "bca23490bfcc875017317470ff40c6224b328f90c74c61a2903dc5770986ea9b"
+    },
+    {
+      "source": "src/app/api/pages/[pageId]/human-agent-media/route.test.ts",
+      "embedded": "src/legacy-runtime/app/api/pages/[pageId]/human-agent-media/route.test.ts",
+      "original_sha256": "802d41fe0f40ad898625f7c2898116954d3116d2c8ef61b793b691b9bd26f54d",
+      "relocated_sha256": "5c53c25f06e1128df95595e5a345e5895404a7e8ee5d6090fb1b12ff0a0290fc",
+      "changes": "Original assertions retained; module imports and filesystem fixture source paths relocated",
+      "original_checkout_sha256": "802d41fe0f40ad898625f7c2898116954d3116d2c8ef61b793b691b9bd26f54d"
+    },
+    {
+      "source": "src/app/api/pages/[pageId]/human-agent-media/route.ts",
+      "embedded": "src/legacy-runtime/app/api/pages/[pageId]/human-agent-media/route.ts",
+      "original_sha256": "f02b9aee71f9b7f7c373d66a404570adb8e10ac445f1f820545cd7716456a0bc",
+      "relocated_sha256": "7aed72cb95b8dd96aefd139084ea9659cfe4907eb7078bd62ed8e4596524dabd",
+      "changes": "Module import relocation; test fixture source paths relocated where needed",
+      "original_checkout_sha256": "f02b9aee71f9b7f7c373d66a404570adb8e10ac445f1f820545cd7716456a0bc"
+    },
+    {
+      "source": "src/app/api/pages/[pageId]/human-agent-send/route.test.ts",
+      "embedded": "src/legacy-runtime/app/api/pages/[pageId]/human-agent-send/route.test.ts",
+      "original_sha256": "2edbb4a1f63aa63b7a5dd351550c3ea7d8755a604d81f0737c2680baadc32ff8",
+      "relocated_sha256": "e61fdf0f1b9f410ebb7d8ba2e4f7690203556be15a267be884699a3ec1cc3434",
+      "changes": "Original assertions retained; module imports and filesystem fixture source paths relocated",
+      "original_checkout_sha256": "2edbb4a1f63aa63b7a5dd351550c3ea7d8755a604d81f0737c2680baadc32ff8"
+    },
+    {
+      "source": "src/app/api/pages/[pageId]/human-agent-send/route.ts",
+      "embedded": "src/legacy-runtime/app/api/pages/[pageId]/human-agent-send/route.ts",
+      "original_sha256": "c86cb9a4ffbd3d3c10543ae65d771b97538564f26dd6ff9e147843da8a41b008",
+      "relocated_sha256": "63e58a0ad4d4f69784717cc5e0fd5251d2f9171e1065f120b7ac2837a35ba5d5",
+      "changes": "Module import relocation; test fixture source paths relocated where needed",
+      "original_checkout_sha256": "c86cb9a4ffbd3d3c10543ae65d771b97538564f26dd6ff9e147843da8a41b008"
+    },
+    {
+      "source": "src/app/api/pages/[pageId]/pipeline/route.test.ts",
+      "embedded": "src/legacy-runtime/app/api/pages/[pageId]/pipeline/route.test.ts",
+      "original_sha256": "753deacac3a9fe29dd9e2b0bf83ef62ad9db98b5e61c36fb749e59cb67556305",
+      "relocated_sha256": "65e216f3b471041e058ccb4465090f95b715c65c08701aae572664ff0128a73f",
+      "changes": "Original assertions retained; module imports and filesystem fixture source paths relocated",
+      "original_checkout_sha256": "753deacac3a9fe29dd9e2b0bf83ef62ad9db98b5e61c36fb749e59cb67556305"
+    },
+    {
+      "source": "src/app/api/pages/[pageId]/pipeline/route.ts",
+      "embedded": "src/legacy-runtime/app/api/pages/[pageId]/pipeline/route.ts",
+      "original_sha256": "ef4af507a77bdf543e2315a33cad3b0e76b702fe93eea1d1a7ad28c3dd0e6e91",
+      "relocated_sha256": "ee1765dc7c0e68e57d2b7a2783c507f02168fcaa0bdcc57898589f078ef526f7",
+      "changes": "Module import relocation; test fixture source paths relocated where needed",
+      "original_checkout_sha256": "ef4af507a77bdf543e2315a33cad3b0e76b702fe93eea1d1a7ad28c3dd0e6e91"
+    },
+    {
+      "source": "src/app/api/pages/[pageId]/sync/route.test.ts",
+      "embedded": "src/legacy-runtime/app/api/pages/[pageId]/sync/route.test.ts",
+      "original_sha256": "627aa35b7168688de3fcb5df82fa1c975adbde42a2280b6acbe53057bb5282d0",
+      "relocated_sha256": "a4c1a10663dae8fa9502168bcfc8b8755ae5a953d808f29f45f2807cbd1d8c82",
+      "changes": "Original assertions retained; module imports and filesystem fixture source paths relocated",
+      "original_checkout_sha256": "627aa35b7168688de3fcb5df82fa1c975adbde42a2280b6acbe53057bb5282d0"
+    },
+    {
+      "source": "src/app/api/pages/[pageId]/sync/route.ts",
+      "embedded": "src/legacy-runtime/app/api/pages/[pageId]/sync/route.ts",
+      "original_sha256": "275ab542a152f392e06955445fafc988eb9b3cb5623a6cd9b66eebb1e63a0ad8",
+      "relocated_sha256": "ca8cfc083e964f45e6794dbc92646bab54fedae830b185531ccbda3a7cf33139",
+      "changes": "Module import relocation; test fixture source paths relocated where needed",
+      "original_checkout_sha256": "275ab542a152f392e06955445fafc988eb9b3cb5623a6cd9b66eebb1e63a0ad8"
+    },
+    {
+      "source": "src/app/api/pages/[pageId]/team/route.test.ts",
+      "embedded": "src/legacy-runtime/app/api/pages/[pageId]/team/route.test.ts",
+      "original_sha256": "53f586e5376d174ef119a00b86a1afe00aa12f250e3e3f076856c0fb453c3cb0",
+      "relocated_sha256": "648247c41b228c6ce50ecf34b42082843b183624c8c1865a09f0f7d767d38bc1",
+      "changes": "Original assertions retained; module imports and filesystem fixture source paths relocated",
+      "original_checkout_sha256": "53f586e5376d174ef119a00b86a1afe00aa12f250e3e3f076856c0fb453c3cb0"
+    },
+    {
+      "source": "src/app/api/pages/[pageId]/team/route.ts",
+      "embedded": "src/legacy-runtime/app/api/pages/[pageId]/team/route.ts",
+      "original_sha256": "1c88a43f45b884052f9bac37943f09caa2f51f4d149ab53eef938659c8249485",
+      "relocated_sha256": "51be8dc824f7d783973f2e3c19a14dd15aa5c5560f4d0c3978973962c29a7eb1",
+      "changes": "Module import relocation; test fixture source paths relocated where needed",
+      "original_checkout_sha256": "1c88a43f45b884052f9bac37943f09caa2f51f4d149ab53eef938659c8249485"
+    },
+    {
+      "source": "src/app/api/pages/[pageId]/webhook/route.test.ts",
+      "embedded": "src/legacy-runtime/app/api/pages/[pageId]/webhook/route.test.ts",
+      "original_sha256": "becce80994a45272e3faa56383182bf4b2f3e3c39e0a3bd2b9d9fb82ff9f6483",
+      "relocated_sha256": "0d460e4b6eed01615c56b793639fbf8212a5285c8333c2511f075a231358abf9",
+      "changes": "Original assertions retained; module imports and filesystem fixture source paths relocated",
+      "original_checkout_sha256": "becce80994a45272e3faa56383182bf4b2f3e3c39e0a3bd2b9d9fb82ff9f6483"
+    },
+    {
+      "source": "src/app/api/pages/[pageId]/webhook/route.ts",
+      "embedded": "src/legacy-runtime/app/api/pages/[pageId]/webhook/route.ts",
+      "original_sha256": "f7bd6d6a81a9efec71086cd744b8ba7a0f20e996a97b5b8305a96daf6421d3c1",
+      "relocated_sha256": "865d3be4bc16b213c6f543e46df26f2e39d7e7a732ef42b49b0457942500d779",
+      "changes": "Module import relocation; test fixture source paths relocated where needed",
+      "original_checkout_sha256": "f7bd6d6a81a9efec71086cd744b8ba7a0f20e996a97b5b8305a96daf6421d3c1"
+    },
+    {
+      "source": "src/app/api/pages/[pageId]/welcome/route.ts",
+      "embedded": "src/legacy-runtime/app/api/pages/[pageId]/welcome/route.ts",
+      "original_sha256": "6296502cd2e2ede3ba15503cce890175bae90b37db4981e05496f28115d968bc",
+      "relocated_sha256": "d371225df3faeb25bb22ee185ffe1c9f937cadec6905348e9b2d642fb060060f",
+      "changes": "Module import relocation; test fixture source paths relocated where needed",
+      "original_checkout_sha256": "6296502cd2e2ede3ba15503cce890175bae90b37db4981e05496f28115d968bc"
+    },
+    {
+      "source": "src/app/api/pages/route.test.ts",
+      "embedded": "src/legacy-runtime/app/api/pages/route.test.ts",
+      "original_sha256": "cf44ba2bfe26122ae9cf61fa3908b87a1bde12a05d86741215a028c1e67174f4",
+      "relocated_sha256": "c583a00df68e43ccffd9326460853c4c68eb7e2778414eac2c58b0417a3bf39d",
+      "changes": "Original assertions retained; module imports and filesystem fixture source paths relocated",
+      "original_checkout_sha256": "cf44ba2bfe26122ae9cf61fa3908b87a1bde12a05d86741215a028c1e67174f4"
+    },
+    {
+      "source": "src/app/api/pages/route.ts",
+      "embedded": "src/legacy-runtime/app/api/pages/route.ts",
+      "original_sha256": "d466c29b97962e8493a039ae8a74db2fbbc756024e6541697fafa0552cd3e549",
+      "relocated_sha256": "abeb7897f3e1c7b750431717d60cd0dde102e1694ed35e05369c4363817cd0df",
+      "changes": "Module import relocation; test fixture source paths relocated where needed",
+      "original_checkout_sha256": "d466c29b97962e8493a039ae8a74db2fbbc756024e6541697fafa0552cd3e549"
+    },
+    {
+      "source": "src/app/api/settings/messaging-auto-tag/route.ts",
+      "embedded": "src/legacy-runtime/app/api/settings/messaging-auto-tag/route.ts",
+      "original_sha256": "9accdac0658539fb1b897a0d07e0fbd540f6476939efae957194c1476a4ce0f6",
+      "relocated_sha256": "6c0d2776fa0607304d9f3c966bc840c270414fc4a68a6cfc1f9280b3557c4ff5",
+      "changes": "Module import relocation; test fixture source paths relocated where needed",
+      "original_checkout_sha256": "9accdac0658539fb1b897a0d07e0fbd540f6476939efae957194c1476a4ce0f6"
+    },
+    {
+      "source": "src/app/api/tags/bulk/route.test.ts",
+      "embedded": "src/legacy-runtime/app/api/tags/bulk/route.test.ts",
+      "original_sha256": "9dde67fca77f67ecc0c139303be070be79422b0b1b8fe8299b703140eb8078d8",
+      "relocated_sha256": "3a2c8cb61d430706b032044a42605e1a85a40144a6de3d63553ffca54cfe849b",
+      "changes": "Original assertions retained; module imports and filesystem fixture source paths relocated",
+      "original_checkout_sha256": "9dde67fca77f67ecc0c139303be070be79422b0b1b8fe8299b703140eb8078d8"
+    },
+    {
+      "source": "src/app/api/tags/bulk/route.ts",
+      "embedded": "src/legacy-runtime/app/api/tags/bulk/route.ts",
+      "original_sha256": "56370f4e6b6ac459815732c5b352acc95f9dab814f6c99eecbfd4c68f022b38c",
+      "relocated_sha256": "51918906965e89848018950803c42411d776a83470618468160ce4a3ece8b05f",
+      "changes": "Module import relocation; test fixture source paths relocated where needed",
+      "original_checkout_sha256": "56370f4e6b6ac459815732c5b352acc95f9dab814f6c99eecbfd4c68f022b38c"
+    },
+    {
+      "source": "src/app/api/tags/route.test.ts",
+      "embedded": "src/legacy-runtime/app/api/tags/route.test.ts",
+      "original_sha256": "6ab5fe27f649336f3b4af9387c5fe8b3ae75284199bd176cc8ec00c905ef2a04",
+      "relocated_sha256": "17647ad6a942152e34c242588412d762afd6d92e005beaf04bc706ff11aed3f0",
+      "changes": "Original assertions retained; module imports and filesystem fixture source paths relocated",
+      "original_checkout_sha256": "6ab5fe27f649336f3b4af9387c5fe8b3ae75284199bd176cc8ec00c905ef2a04"
+    },
+    {
+      "source": "src/app/api/tags/route.ts",
+      "embedded": "src/legacy-runtime/app/api/tags/route.ts",
+      "original_sha256": "a6dea3bd44e63107c2a86ac93f37bcad4d6115dae2440b4482df7dfb40d5d511",
+      "relocated_sha256": "6c7b03b265987b8b3102d73c70e4016568b5f4697a1419e64d023bc7efae36cb",
+      "changes": "Module import relocation; test fixture source paths relocated where needed",
+      "original_checkout_sha256": "a6dea3bd44e63107c2a86ac93f37bcad4d6115dae2440b4482df7dfb40d5d511"
+    },
+    {
+      "source": "src/app/api/telegram/webhook/route.test.ts",
+      "embedded": "src/legacy-runtime/app/api/telegram/webhook/route.test.ts",
+      "original_sha256": "56764f14b9889d63ea5afbb8579697d9d36a66445c896233f7304143c140318e",
+      "relocated_sha256": "d64d5b0ff5ee43efee8c4d596a5c1a4232b4c78c9afbe2b97208ee5ae75bac16",
+      "changes": "Original assertions retained; module imports and filesystem fixture source paths relocated",
+      "original_checkout_sha256": "56764f14b9889d63ea5afbb8579697d9d36a66445c896233f7304143c140318e"
+    },
+    {
+      "source": "src/app/api/telegram/webhook/route.ts",
+      "embedded": "src/legacy-runtime/app/api/telegram/webhook/route.ts",
+      "original_sha256": "cdd6067d43e1471bece932b1b98a8e03774dcdda84ae15eb6f8c5e33b48d382d",
+      "relocated_sha256": "ba0b2ac0d6f0d77f73f8e01cb4d81bdc44e620a65bec1cd0c94b3a20f0ec735d",
+      "changes": "Module import relocation; test fixture source paths relocated where needed",
+      "original_checkout_sha256": "cdd6067d43e1471bece932b1b98a8e03774dcdda84ae15eb6f8c5e33b48d382d"
+    },
+    {
+      "source": "src/app/api/test-db/route.ts",
+      "embedded": "src/legacy-runtime/app/api/test-db/route.ts",
+      "original_sha256": "9b967495b6e556342b6fdbe5af8e83270e70b55a7f65a54eab518eb24c7ed49f",
+      "relocated_sha256": "a4bbb53ec091a9f3cb162f7554ca92b04e97fa14d00a6d9ee35caff3c39054a7",
+      "changes": "Module import relocation; test fixture source paths relocated where needed",
+      "original_checkout_sha256": "9b967495b6e556342b6fdbe5af8e83270e70b55a7f65a54eab518eb24c7ed49f"
+    },
+    {
+      "source": "src/app/api/test-facebook-oauth/route.ts",
+      "embedded": "src/legacy-runtime/app/api/test-facebook-oauth/route.ts",
+      "original_sha256": "58b0ec69fbacb87eb898b73858a7664920c20715f67da0a1c21ccfb2bf626b29",
+      "relocated_sha256": "624326710063d435404816f71f577674f29d776b3e93f86584d13b7b11f8881a",
+      "changes": "Module import relocation; test fixture source paths relocated where needed",
+      "original_checkout_sha256": "58b0ec69fbacb87eb898b73858a7664920c20715f67da0a1c21ccfb2bf626b29"
+    },
+    {
+      "source": "src/app/api/test-logging/route.ts",
+      "embedded": "src/legacy-runtime/app/api/test-logging/route.ts",
+      "original_sha256": "a8cc1320afac67c3dce9e3516e092886a77d8ee704b283c7a053a0d5ca723c83",
+      "relocated_sha256": "c1d197238ebf2a5670c3a1036ef9f522083d23a931ee2c502a45107c0ed3c718",
+      "changes": "Module import relocation; test fixture source paths relocated where needed",
+      "original_checkout_sha256": "a8cc1320afac67c3dce9e3516e092886a77d8ee704b283c7a053a0d5ca723c83"
+    },
+    {
+      "source": "src/app/api/test-sync/route.ts",
+      "embedded": "src/legacy-runtime/app/api/test-sync/route.ts",
+      "original_sha256": "67d81d930dd1d20e99a8937f114d9d4a740d4b1d36ff86d58b0d613f31ccab95",
+      "relocated_sha256": "a394d13ba60aa2de8e501bc7afcfd438826e99bfc2841b772c9fa77bb2545ea5",
+      "changes": "Module import relocation; test fixture source paths relocated where needed",
+      "original_checkout_sha256": "67d81d930dd1d20e99a8937f114d9d4a740d4b1d36ff86d58b0d613f31ccab95"
+    },
+    {
+      "source": "src/app/dashboard/7-day-contacts/page.tsx",
+      "embedded": "src/legacy-runtime/app/dashboard/7-day-contacts/page.tsx",
+      "original_sha256": "261fb5ff68073e9fc00a9c31cd70c1bee2daea5b8a34fd4697ed43ab78a0c2e9",
+      "relocated_sha256": "4e4e866abe7cf57c5e5527492f390c8111a22143d812c75ba58d8cd03275497b",
+      "changes": "Module import relocation; test fixture source paths relocated where needed",
+      "original_checkout_sha256": "261fb5ff68073e9fc00a9c31cd70c1bee2daea5b8a34fd4697ed43ab78a0c2e9"
+    },
+    {
+      "source": "src/app/dashboard/automations/page.tsx",
+      "embedded": "src/legacy-runtime/app/dashboard/automations/page.tsx",
+      "original_sha256": "3aca4adcc6b96382609c61e63f76b6d333868fc824de292815a2d9041db47612",
+      "relocated_sha256": "3aca4adcc6b96382609c61e63f76b6d333868fc824de292815a2d9041db47612",
+      "changes": "Module import relocation; test fixture source paths relocated where needed",
+      "original_checkout_sha256": "3aca4adcc6b96382609c61e63f76b6d333868fc824de292815a2d9041db47612"
+    },
+    {
+      "source": "src/app/dashboard/campaigns/page.tsx",
+      "embedded": "src/legacy-runtime/app/dashboard/campaigns/page.tsx",
+      "original_sha256": "6d8d94e94f6b987ec0d2042cf55c89eea9897680c0f0de1e88421158818fafd0",
+      "relocated_sha256": "bc014bc156fe98cc2bc49dc44d9eed69027f8712fddb75f5fa34e65ddb495326",
+      "changes": "Module import relocation; test fixture source paths relocated where needed",
+      "original_checkout_sha256": "6d8d94e94f6b987ec0d2042cf55c89eea9897680c0f0de1e88421158818fafd0"
+    },
+    {
+      "source": "src/app/dashboard/chatbot/page.tsx",
+      "embedded": "src/legacy-runtime/app/dashboard/chatbot/page.tsx",
+      "original_sha256": "c0f8031f952c7d1f6eebd9dde7950d359e9819ec97da1955aba1e8575e241fab",
+      "relocated_sha256": "1d31ef7dbb224d9527a73b018f279926aaffc29325462feeb16a0fff939a3c3b",
+      "changes": "Module import relocation; test fixture source paths relocated where needed",
+      "original_checkout_sha256": "c0f8031f952c7d1f6eebd9dde7950d359e9819ec97da1955aba1e8575e241fab"
+    },
+    {
+      "source": "src/app/dashboard/connect/page.tsx",
+      "embedded": "src/legacy-runtime/app/dashboard/connect/page.tsx",
+      "original_sha256": "a09259e6523bc093f16331cd1547d3703416e7752afc20e51265a7d26cf8a907",
+      "relocated_sha256": "affa12ff2241d3fc774d4ec49c18f62f78b330be315dc402707b3ada0edc6226",
+      "changes": "Module import relocation; test fixture source paths relocated where needed",
+      "original_checkout_sha256": "a09259e6523bc093f16331cd1547d3703416e7752afc20e51265a7d26cf8a907"
+    },
+    {
+      "source": "src/app/dashboard/contacts/page.tsx",
+      "embedded": "src/legacy-runtime/app/dashboard/contacts/page.tsx",
+      "original_sha256": "8c56f0682d3de4d3a1ba19522044565998aaa698d09b3ea0f3e6d1d0007dfd7e",
+      "relocated_sha256": "463eefd2ccc680c7fae9426af16b1d0f7134695c111c376a43c8cb3b064d2968",
+      "changes": "Module import relocation; test fixture source paths relocated where needed",
+      "original_checkout_sha256": "8c56f0682d3de4d3a1ba19522044565998aaa698d09b3ea0f3e6d1d0007dfd7e"
+    },
+    {
+      "source": "src/app/dashboard/error.tsx",
+      "embedded": "src/legacy-runtime/app/dashboard/error.tsx",
+      "original_sha256": "51dbcab002bef9739c373a9f0366d03bbf8fa210fb23ba8e3f948902830c58fb",
+      "relocated_sha256": "51dbcab002bef9739c373a9f0366d03bbf8fa210fb23ba8e3f948902830c58fb",
+      "changes": "Module import relocation; test fixture source paths relocated where needed",
+      "original_checkout_sha256": "51dbcab002bef9739c373a9f0366d03bbf8fa210fb23ba8e3f948902830c58fb"
+    },
+    {
+      "source": "src/app/dashboard/exports/page.tsx",
+      "embedded": "src/legacy-runtime/app/dashboard/exports/page.tsx",
+      "original_sha256": "fb214cb4dddf53c8b177b361971d7fa4b7fb0b6ec096a68812027885fba3cb73",
+      "relocated_sha256": "fb214cb4dddf53c8b177b361971d7fa4b7fb0b6ec096a68812027885fba3cb73",
+      "changes": "Module import relocation; test fixture source paths relocated where needed",
+      "original_checkout_sha256": "fb214cb4dddf53c8b177b361971d7fa4b7fb0b6ec096a68812027885fba3cb73"
+    },
+    {
+      "source": "src/app/dashboard/history/page.tsx",
+      "embedded": "src/legacy-runtime/app/dashboard/history/page.tsx",
+      "original_sha256": "a4f30cfef03ba34c8abcf98116333c4021626f22d6551dbda199a2ddbd61b62f",
+      "relocated_sha256": "3c55cb86675e1479c1a79f7a43cb605c1b46f365994d021372f622a3441e6a63",
+      "changes": "Module import relocation; test fixture source paths relocated where needed",
+      "original_checkout_sha256": "a4f30cfef03ba34c8abcf98116333c4021626f22d6551dbda199a2ddbd61b62f"
+    },
+    {
+      "source": "src/app/dashboard/layout.tsx",
+      "embedded": "src/legacy-runtime/app/dashboard/layout.tsx",
+      "original_sha256": "e208db73edb89af6a86936c43c8f32f3a7b3d33d96b168325e94fa636980d260",
+      "relocated_sha256": "7c568aa2e2a4e9b58c05a99512b4b454c0c105df4802630c593b55fd0c11e26e",
+      "changes": "Module import relocation; test fixture source paths relocated where needed",
+      "original_checkout_sha256": "e208db73edb89af6a86936c43c8f32f3a7b3d33d96b168325e94fa636980d260"
+    },
+    {
+      "source": "src/app/dashboard/page.tsx",
+      "embedded": "src/legacy-runtime/app/dashboard/page.tsx",
+      "original_sha256": "2820cf5c58a6cde98a9ebca90ece6be27721a21d83e3561edb908fb4377bdb58",
+      "relocated_sha256": "51758ad9fb208d65c81575aeb9b4c6c0095914747eccc912f1fb9471e5a0c882",
+      "changes": "Module import relocation; test fixture source paths relocated where needed",
+      "original_checkout_sha256": "2820cf5c58a6cde98a9ebca90ece6be27721a21d83e3561edb908fb4377bdb58"
+    },
+    {
+      "source": "src/app/dashboard/pipeline/page.tsx",
+      "embedded": "src/legacy-runtime/app/dashboard/pipeline/page.tsx",
+      "original_sha256": "41449a2193932e91a7ba64ec46b404b009e1a5e36a1acc1fffde02e762bd260b",
+      "relocated_sha256": "5601239809b448fe957e74258f41168ca0a02221856e0f6eac947a776efead6c",
+      "changes": "Module import relocation; test fixture source paths relocated where needed",
+      "original_checkout_sha256": "41449a2193932e91a7ba64ec46b404b009e1a5e36a1acc1fffde02e762bd260b"
+    },
+    {
+      "source": "src/app/dashboard/settings/page.tsx",
+      "embedded": "src/legacy-runtime/app/dashboard/settings/page.tsx",
+      "original_sha256": "7f77571581e0b69fc6051715b9d74110467ada5f30b18e3a78280576671e2072",
+      "relocated_sha256": "287a5fe00e9fc5f2fffd1a513aee840524a01fb4630d6f11d39ad3838de4e405",
+      "changes": "Module import relocation; test fixture source paths relocated where needed",
+      "original_checkout_sha256": "7f77571581e0b69fc6051715b9d74110467ada5f30b18e3a78280576671e2072"
+    },
+    {
+      "source": "src/app/dashboard/tags/page.tsx",
+      "embedded": "src/legacy-runtime/app/dashboard/tags/page.tsx",
+      "original_sha256": "82d5a266c336946a82196e1acad7e59899968c875cbf51a5105821340523330f",
+      "relocated_sha256": "cfc9e26fdefd07b4f41e39ce4d8d84dcf1ae0b6b3f3f4c275d535c0b27c88192",
+      "changes": "Module import relocation; test fixture source paths relocated where needed",
+      "original_checkout_sha256": "82d5a266c336946a82196e1acad7e59899968c875cbf51a5105821340523330f"
+    },
+    {
+      "source": "src/app/dashboard/templates/page.tsx",
+      "embedded": "src/legacy-runtime/app/dashboard/templates/page.tsx",
+      "original_sha256": "80cb4369fd4a8f4f21d19b39c89014f60c1cbf17be2817131dd62608a2c929ed",
+      "relocated_sha256": "a41e5f2d1f445b45902db74a01e629d1a1b0126dbf33eb54d031b4bcd1789e9d",
+      "changes": "Module import relocation; test fixture source paths relocated where needed",
+      "original_checkout_sha256": "80cb4369fd4a8f4f21d19b39c89014f60c1cbf17be2817131dd62608a2c929ed"
+    },
+    {
+      "source": "src/app/dashboard/welcome/page.tsx",
+      "embedded": "src/legacy-runtime/app/dashboard/welcome/page.tsx",
+      "original_sha256": "76960718a192f5910a8763554f644a784e71d6d88d61942ee281137498530250",
+      "relocated_sha256": "76960718a192f5910a8763554f644a784e71d6d88d61942ee281137498530250",
+      "changes": "Module import relocation; test fixture source paths relocated where needed",
+      "original_checkout_sha256": "76960718a192f5910a8763554f644a784e71d6d88d61942ee281137498530250"
+    },
+    {
+      "source": "src/app/error.tsx",
+      "embedded": "src/legacy-runtime/app/error.tsx",
+      "original_sha256": "eeba7c789a71697c83f4576b7d09302f8df5f5d6ff9c35da3d60341a2a879508",
+      "relocated_sha256": "eeba7c789a71697c83f4576b7d09302f8df5f5d6ff9c35da3d60341a2a879508",
+      "changes": "Module import relocation; test fixture source paths relocated where needed",
+      "original_checkout_sha256": "eeba7c789a71697c83f4576b7d09302f8df5f5d6ff9c35da3d60341a2a879508"
+    },
+    {
+      "source": "src/app/global-error.tsx",
+      "embedded": "src/legacy-runtime/app/global-error.tsx",
+      "original_sha256": "c4d9b7745f0e034d7c1dc634457a055bcd7688c92635c2bce29a7360e908e3dd",
+      "relocated_sha256": "c4d9b7745f0e034d7c1dc634457a055bcd7688c92635c2bce29a7360e908e3dd",
+      "changes": "Module import relocation; test fixture source paths relocated where needed",
+      "original_checkout_sha256": "c4d9b7745f0e034d7c1dc634457a055bcd7688c92635c2bce29a7360e908e3dd"
+    },
+    {
+      "source": "src/app/layout.tsx",
+      "embedded": "src/legacy-runtime/app/layout.tsx",
+      "original_sha256": "e7a2d427d6256a6f7555d0c82943fafba4b4c2f88f73ec338b0788e98a2fa011",
+      "relocated_sha256": "fa5b74d5fb70962e71b650d3c62a9dc1a95d6f8a52d8ae3b70086b0f5d7ab475",
+      "changes": "Module import relocation; test fixture source paths relocated where needed",
+      "original_checkout_sha256": "e7a2d427d6256a6f7555d0c82943fafba4b4c2f88f73ec338b0788e98a2fa011"
+    },
+    {
+      "source": "src/app/not-found.tsx",
+      "embedded": "src/legacy-runtime/app/not-found.tsx",
+      "original_sha256": "d8313ac2e48a839a83c6933017c50d650702351db9b5ebb29f92ec40e3f5fc01",
+      "relocated_sha256": "d8313ac2e48a839a83c6933017c50d650702351db9b5ebb29f92ec40e3f5fc01",
+      "changes": "Module import relocation; test fixture source paths relocated where needed",
+      "original_checkout_sha256": "d8313ac2e48a839a83c6933017c50d650702351db9b5ebb29f92ec40e3f5fc01"
+    },
+    {
+      "source": "src/app/page.tsx",
+      "embedded": "src/legacy-runtime/app/page.tsx",
+      "original_sha256": "08a6c41c338c232947d5ff519ff7f77486a803c0b54d92def81603c1cbcba0c6",
+      "relocated_sha256": "803622caea902b01d392abf4c8148977027621e78a9e82e3e9feaaeaf23c5a04",
+      "changes": "Module import relocation; test fixture source paths relocated where needed",
+      "original_checkout_sha256": "08a6c41c338c232947d5ff519ff7f77486a803c0b54d92def81603c1cbcba0c6"
+    },
+    {
+      "source": "src/app/vintage/page.tsx",
+      "embedded": "src/legacy-runtime/app/vintage/page.tsx",
+      "original_sha256": "b230adc12ec1903d898a2424c7f08dc54e0a8a58553fadf3e3fdb3e3c182e158",
+      "relocated_sha256": "d53b5a054d143eeaa91b18b2ee319a13e7e419074994e52973fc3b73846cc50e",
+      "changes": "Module import relocation; test fixture source paths relocated where needed",
+      "original_checkout_sha256": "b230adc12ec1903d898a2424c7f08dc54e0a8a58553fadf3e3fdb3e3c182e158"
+    },
+    {
+      "source": "src/components/FacebookConnectButton.tsx",
+      "embedded": "src/legacy-runtime/components/FacebookConnectButton.tsx",
+      "original_sha256": "23e57b06fe35a5285153e0b010853fd5002cf169073310f61233cdd1abfa22e9",
+      "relocated_sha256": "f00bb427395871cbffdaeb77def94eaaaab9c14c039107a9d9b4a1c54e7ac43c",
+      "changes": "Module import relocation; test fixture source paths relocated where needed",
+      "original_checkout_sha256": "23e57b06fe35a5285153e0b010853fd5002cf169073310f61233cdd1abfa22e9"
+    },
+    {
+      "source": "src/components/Modal.tsx",
+      "embedded": "src/legacy-runtime/components/Modal.tsx",
+      "original_sha256": "0f2dc789768a591b719dbeeea345a20f31fd18e303eeb2ebfb343e0a87201e0a",
+      "relocated_sha256": "0f2dc789768a591b719dbeeea345a20f31fd18e303eeb2ebfb343e0a87201e0a",
+      "changes": "Module import relocation; test fixture source paths relocated where needed",
+      "original_checkout_sha256": "0f2dc789768a591b719dbeeea345a20f31fd18e303eeb2ebfb343e0a87201e0a"
+    },
+    {
+      "source": "src/components/Pagination.tsx",
+      "embedded": "src/legacy-runtime/components/Pagination.tsx",
+      "original_sha256": "15559692a49343b71778c22e91024ebde5f3f2591505cce7d496253bdd064056",
+      "relocated_sha256": "15559692a49343b71778c22e91024ebde5f3f2591505cce7d496253bdd064056",
+      "changes": "Module import relocation; test fixture source paths relocated where needed",
+      "original_checkout_sha256": "15559692a49343b71778c22e91024ebde5f3f2591505cce7d496253bdd064056"
+    },
+    {
+      "source": "src/components/Providers.tsx",
+      "embedded": "src/legacy-runtime/components/Providers.tsx",
+      "original_sha256": "f8d8aea0b92771e144ebcbca47dbd4d77cd29173feb5e935913fe325093fa96b",
+      "relocated_sha256": "f8d8aea0b92771e144ebcbca47dbd4d77cd29173feb5e935913fe325093fa96b",
+      "changes": "Module import relocation; test fixture source paths relocated where needed",
+      "original_checkout_sha256": "f8d8aea0b92771e144ebcbca47dbd4d77cd29173feb5e935913fe325093fa96b"
+    },
+    {
+      "source": "src/components/SunoDashboardNavigation.tsx",
+      "embedded": "src/legacy-runtime/components/SunoDashboardNavigation.tsx",
+      "original_sha256": "db385b2edea65a9194b56e48b78b583666dc2a836c7f263ee24875041bd83c1a",
+      "relocated_sha256": "f50c6296db8a493a7de2ade357dbaca60970a8d8151c481ac572dfdba69aaab3",
+      "changes": "Module import relocation; test fixture source paths relocated where needed",
+      "original_checkout_sha256": "db385b2edea65a9194b56e48b78b583666dc2a836c7f263ee24875041bd83c1a"
+    },
+    {
+      "source": "src/components/SunoSignIn.test.ts",
+      "embedded": "src/legacy-runtime/components/SunoSignIn.test.ts",
+      "original_sha256": "d181b1ddd159fe1a4167a6343109fbf5b192a14a863d60628ab158cd727d988e",
+      "relocated_sha256": "7019a2c80b1e90c66aa3516c2a73c2018b4a85230013271223cd709d64810dba",
+      "changes": "Original assertions retained; module imports and filesystem fixture source paths relocated",
+      "original_checkout_sha256": "d181b1ddd159fe1a4167a6343109fbf5b192a14a863d60628ab158cd727d988e"
+    },
+    {
+      "source": "src/components/SunoSignIn.tsx",
+      "embedded": "src/legacy-runtime/components/SunoSignIn.tsx",
+      "original_sha256": "32a6725fa97c29f6dc87d5ce9eb8688bc412cce4c21228cf375d9bcd014d8fe8",
+      "relocated_sha256": "8ae3cc68314445e4fda53446eafe2cfd575de99bb393d5974fc829076ccf3a90",
+      "changes": "Module import relocation; test fixture source paths relocated where needed",
+      "original_checkout_sha256": "32a6725fa97c29f6dc87d5ce9eb8688bc412cce4c21228cf375d9bcd014d8fe8"
+    },
+    {
+      "source": "src/components/Toast.tsx",
+      "embedded": "src/legacy-runtime/components/Toast.tsx",
+      "original_sha256": "6a4b7323487dd5a0c0ce28ac37d5ab74e6bd7aa1849f708615103af012cd28c6",
+      "relocated_sha256": "6a4b7323487dd5a0c0ce28ac37d5ab74e6bd7aa1849f708615103af012cd28c6",
+      "changes": "Module import relocation; test fixture source paths relocated where needed",
+      "original_checkout_sha256": "6a4b7323487dd5a0c0ce28ac37d5ab74e6bd7aa1849f708615103af012cd28c6"
+    },
+    {
+      "source": "src/lib/__tests__/campaign-audience.test.ts",
+      "embedded": "src/legacy-runtime/lib/__tests__/campaign-audience.test.ts",
+      "original_sha256": "41f0afae918b2a95cba344e621cada9b7724eaed969337bd3d288461ff2e4de3",
+      "relocated_sha256": "41f0afae918b2a95cba344e621cada9b7724eaed969337bd3d288461ff2e4de3",
+      "changes": "Original assertions retained; module imports and filesystem fixture source paths relocated",
+      "original_checkout_sha256": "41f0afae918b2a95cba344e621cada9b7724eaed969337bd3d288461ff2e4de3"
+    },
+    {
+      "source": "src/lib/__tests__/campaign-errors.test.ts",
+      "embedded": "src/legacy-runtime/lib/__tests__/campaign-errors.test.ts",
+      "original_sha256": "3e4d2d261b4c0c0df8565e69132abd3ed1c57288078e952a1ce35e112fddcbb7",
+      "relocated_sha256": "3e4d2d261b4c0c0df8565e69132abd3ed1c57288078e952a1ce35e112fddcbb7",
+      "changes": "Original assertions retained; module imports and filesystem fixture source paths relocated",
+      "original_checkout_sha256": "3e4d2d261b4c0c0df8565e69132abd3ed1c57288078e952a1ce35e112fddcbb7"
+    },
+    {
+      "source": "src/lib/__tests__/campaign-message-sequence.test.ts",
+      "embedded": "src/legacy-runtime/lib/__tests__/campaign-message-sequence.test.ts",
+      "original_sha256": "3e6edde9c611e2763c9d3d13b882a314e91588e14350987c0c5a2c1fbc29aa6f",
+      "relocated_sha256": "0758188bf4d89186b05ae0a56f56c7883af873e4a8445c78011888ba5cf15ee1",
+      "changes": "Original assertions retained; module imports and filesystem fixture source paths relocated",
+      "original_checkout_sha256": "3e6edde9c611e2763c9d3d13b882a314e91588e14350987c0c5a2c1fbc29aa6f"
+    },
+    {
+      "source": "src/lib/__tests__/campaign-send.test.ts",
+      "embedded": "src/legacy-runtime/lib/__tests__/campaign-send.test.ts",
+      "original_sha256": "939bbf3290582f9877d6d8249787f86ef976a2d885d9e47861e4382dca1e0135",
+      "relocated_sha256": "939bbf3290582f9877d6d8249787f86ef976a2d885d9e47861e4382dca1e0135",
+      "changes": "Original assertions retained; module imports and filesystem fixture source paths relocated",
+      "original_checkout_sha256": "939bbf3290582f9877d6d8249787f86ef976a2d885d9e47861e4382dca1e0135"
+    },
+    {
+      "source": "src/lib/__tests__/chatbot-control.test.ts",
+      "embedded": "src/legacy-runtime/lib/__tests__/chatbot-control.test.ts",
+      "original_sha256": "354dd73af17fe86ca1a25d1aad9e1e6cc08f028dc37b68f45c769b6787d1df58",
+      "relocated_sha256": "ce0088887eeb8c6c5697fa6d50c0df3c849a803f361ff94516491336cad510b6",
+      "changes": "Original assertions retained; module imports and filesystem fixture source paths relocated",
+      "original_checkout_sha256": "354dd73af17fe86ca1a25d1aad9e1e6cc08f028dc37b68f45c769b6787d1df58"
+    },
+    {
+      "source": "src/lib/__tests__/chatbot-conversation-pricing.test.ts",
+      "embedded": "src/legacy-runtime/lib/__tests__/chatbot-conversation-pricing.test.ts",
+      "original_sha256": "9652be7a9dc60fc2da0d1da78d6f194b3543bfad961300fcbc9da4dcd034fdb0",
+      "relocated_sha256": "cd4a63d94c5d701a1df02130633ea411b4b3d50085638656d38d3ee8776f8b8f",
+      "changes": "Original assertions retained; module imports and filesystem fixture source paths relocated",
+      "original_checkout_sha256": "9652be7a9dc60fc2da0d1da78d6f194b3543bfad961300fcbc9da4dcd034fdb0"
+    },
+    {
+      "source": "src/lib/__tests__/chatbot-drive-folders.test.ts",
+      "embedded": "src/legacy-runtime/lib/__tests__/chatbot-drive-folders.test.ts",
+      "original_sha256": "de559462bcca277fab248e3a2a4906268c4ae9ad39e846e1a32f1676a520d172",
+      "relocated_sha256": "ba9bc4ba43cbc3a9056a3be220a31ccad50ae94118ccd8ac9c76534c1fbb8445",
+      "changes": "Original assertions retained; module imports and filesystem fixture source paths relocated",
+      "original_checkout_sha256": "de559462bcca277fab248e3a2a4906268c4ae9ad39e846e1a32f1676a520d172"
+    },
+    {
+      "source": "src/lib/__tests__/chatbot-follow-ups.test.ts",
+      "embedded": "src/legacy-runtime/lib/__tests__/chatbot-follow-ups.test.ts",
+      "original_sha256": "eb93c7855d913e71295a250f01b1d97f30bedbf772359d0f8a997deb0f508508",
+      "relocated_sha256": "f1c9ee7fa210260cd2518d42d17d4c96a102b285aba5c80a3a3134b639d9fb86",
+      "changes": "Original assertions retained; module imports and filesystem fixture source paths relocated",
+      "original_checkout_sha256": "eb93c7855d913e71295a250f01b1d97f30bedbf772359d0f8a997deb0f508508"
+    },
+    {
+      "source": "src/lib/__tests__/chatbot-form-policy.test.ts",
+      "embedded": "src/legacy-runtime/lib/__tests__/chatbot-form-policy.test.ts",
+      "original_sha256": "638979eddad0f36afe9bd431887d1eca6e052a167db885bc900a135a44271c7a",
+      "relocated_sha256": "c5909e1e796368487fae468916889980837f81cbd7dcb1767c41e96bf6ce5893",
+      "changes": "Original assertions retained; module imports and filesystem fixture source paths relocated",
+      "original_checkout_sha256": "638979eddad0f36afe9bd431887d1eca6e052a167db885bc900a135a44271c7a"
+    },
+    {
+      "source": "src/lib/__tests__/chatbot-form-priority.test.ts",
+      "embedded": "src/legacy-runtime/lib/__tests__/chatbot-form-priority.test.ts",
+      "original_sha256": "bbfedbf0fe336b8a2237455100f4958782187859e92af394c3fa600fbcf197a5",
+      "relocated_sha256": "668e9bcbefc94cb40ef0a3d8c1382e8cc2f0ee0d6397a4cf518cf8d0e9f64d3c",
+      "changes": "Original assertions retained; module imports and filesystem fixture source paths relocated",
+      "original_checkout_sha256": "bbfedbf0fe336b8a2237455100f4958782187859e92af394c3fa600fbcf197a5"
+    },
+    {
+      "source": "src/lib/__tests__/chatbot-human-takeover.test.ts",
+      "embedded": "src/legacy-runtime/lib/__tests__/chatbot-human-takeover.test.ts",
+      "original_sha256": "be45c498582c57c7072917d8e9d97d268ae8eecad750a4e3c7d1e67ac7dc10f3",
+      "relocated_sha256": "bb043019af1f2bc248e468bc6d0cad44596ffcb9911d0edc64430e9c52dab034",
+      "changes": "Original assertions retained; module imports and filesystem fixture source paths relocated",
+      "original_checkout_sha256": "be45c498582c57c7072917d8e9d97d268ae8eecad750a4e3c7d1e67ac7dc10f3"
+    },
+    {
+      "source": "src/lib/__tests__/chatbot-inbound.test.ts",
+      "embedded": "src/legacy-runtime/lib/__tests__/chatbot-inbound.test.ts",
+      "original_sha256": "28fcf97830989985a8e81035fbcc6e27604d373925abf7fad9e047e53e686dc7",
+      "relocated_sha256": "916c8757b2024bbad75dc5dc59de660c2b6e7568cb7fcab5e947a96c68806914",
+      "changes": "Original assertions retained; module imports and filesystem fixture source paths relocated",
+      "original_checkout_sha256": "28fcf97830989985a8e81035fbcc6e27604d373925abf7fad9e047e53e686dc7"
+    },
+    {
+      "source": "src/lib/__tests__/chatbot-knowledge-policy.test.ts",
+      "embedded": "src/legacy-runtime/lib/__tests__/chatbot-knowledge-policy.test.ts",
+      "original_sha256": "7db6c6175c2b3935ad93f553d97a5ab80f153d8e0761ea040cb087376a82a0dc",
+      "relocated_sha256": "e15a26cd35954f1694d2e8ab6a6cf0c58785cfeabc61409a94deeb04243e965f",
+      "changes": "Original assertions retained; module imports and filesystem fixture source paths relocated",
+      "original_checkout_sha256": "7db6c6175c2b3935ad93f553d97a5ab80f153d8e0761ea040cb087376a82a0dc"
+    },
+    {
+      "source": "src/lib/__tests__/chatbot-lead-stage.test.ts",
+      "embedded": "src/legacy-runtime/lib/__tests__/chatbot-lead-stage.test.ts",
+      "original_sha256": "cb896f4a63b98238da211fa903ca412256ac8825a805fe626464ccb1683af1d8",
+      "relocated_sha256": "f78ef57b649a7f549b244b8ca8fd28b99a1bebb7f51fa11732c6c128c325defe",
+      "changes": "Original assertions retained; module imports and filesystem fixture source paths relocated",
+      "original_checkout_sha256": "cb896f4a63b98238da211fa903ca412256ac8825a805fe626464ccb1683af1d8"
+    },
+    {
+      "source": "src/lib/__tests__/chatbot-media.test.ts",
+      "embedded": "src/legacy-runtime/lib/__tests__/chatbot-media.test.ts",
+      "original_sha256": "96c65ba9e72a4104d2c8df66db65e61fae77e175aa6b9a6f90ab1022df3cbbe4",
+      "relocated_sha256": "07eca014379c3faa3e55488f762187ad64ffbd1f29d5b460275e27293e386e10",
+      "changes": "Original assertions retained; module imports and filesystem fixture source paths relocated",
+      "original_checkout_sha256": "96c65ba9e72a4104d2c8df66db65e61fae77e175aa6b9a6f90ab1022df3cbbe4"
+    },
+    {
+      "source": "src/lib/__tests__/chatbot-message-delivery.test.ts",
+      "embedded": "src/legacy-runtime/lib/__tests__/chatbot-message-delivery.test.ts",
+      "original_sha256": "64698d08db39ee161d08f6013349437ad8f705ba9af367a384805a4236c2a4a7",
+      "relocated_sha256": "6750aa5106a5e407766b77f9c4252af52021d38e8c2c52d42e660aefbe986626",
+      "changes": "Original assertions retained; module imports and filesystem fixture source paths relocated",
+      "original_checkout_sha256": "64698d08db39ee161d08f6013349437ad8f705ba9af367a384805a4236c2a4a7"
+    },
+    {
+      "source": "src/lib/__tests__/chatbot-purchase-intent.test.ts",
+      "embedded": "src/legacy-runtime/lib/__tests__/chatbot-purchase-intent.test.ts",
+      "original_sha256": "a2a33516af915a6638ea8fb5dc061b4bbb6028ca1e461c4e9ef0fea797465d7a",
+      "relocated_sha256": "07429a8ef198935c3bb2879e32d41e62e5cb5d894b2f9958a73374594ea9fa40",
+      "changes": "Original assertions retained; module imports and filesystem fixture source paths relocated",
+      "original_checkout_sha256": "a2a33516af915a6638ea8fb5dc061b4bbb6028ca1e461c4e9ef0fea797465d7a"
+    },
+    {
+      "source": "src/lib/__tests__/chatbot-replies.test.ts",
+      "embedded": "src/legacy-runtime/lib/__tests__/chatbot-replies.test.ts",
+      "original_sha256": "56e6744ce81511c561536bb94dd90e87620a7ba540b7e74f1e7831c6dace4ced",
+      "relocated_sha256": "a1673d04796fa61f57d8297259af8b1b81193d390ba7ff18e68cb5a7c0585864",
+      "changes": "Original assertions retained; module imports and filesystem fixture source paths relocated",
+      "original_checkout_sha256": "56e6744ce81511c561536bb94dd90e87620a7ba540b7e74f1e7831c6dace4ced"
+    },
+    {
+      "source": "src/lib/__tests__/chatbot.test.ts",
+      "embedded": "src/legacy-runtime/lib/__tests__/chatbot.test.ts",
+      "original_sha256": "467d69721ce95bfc694f7172e456b3182b005ad2a9bf077242044b1bcb4df8b6",
+      "relocated_sha256": "252b6f454367bdacc7b7387d48a39179421611093bd20ba17f39a4fdbc64ea2d",
+      "changes": "Original assertions retained; module imports and filesystem fixture source paths relocated",
+      "original_checkout_sha256": "467d69721ce95bfc694f7172e456b3182b005ad2a9bf077242044b1bcb4df8b6"
+    },
+    {
+      "source": "src/lib/__tests__/chunking.test.ts",
+      "embedded": "src/legacy-runtime/lib/__tests__/chunking.test.ts",
+      "original_sha256": "736b0a6f4e705c8d1e83dc951e732f24b1e3bd09d75e02f5f53681b420d6e933",
+      "relocated_sha256": "736b0a6f4e705c8d1e83dc951e732f24b1e3bd09d75e02f5f53681b420d6e933",
+      "changes": "Original assertions retained; module imports and filesystem fixture source paths relocated",
+      "original_checkout_sha256": "736b0a6f4e705c8d1e83dc951e732f24b1e3bd09d75e02f5f53681b420d6e933"
+    },
+    {
+      "source": "src/lib/__tests__/contact-best-time.test.ts",
+      "embedded": "src/legacy-runtime/lib/__tests__/contact-best-time.test.ts",
+      "original_sha256": "73ae66c5e59fafaf4237405e7c384b285630361833e1bd4d3a5db6e0008d5a74",
+      "relocated_sha256": "4d7473f44a1b2dfffcc6000bb8a62527a1ee71e91b14491627eaa8e8bda2f3f7",
+      "changes": "Original assertions retained; module imports and filesystem fixture source paths relocated",
+      "original_checkout_sha256": "73ae66c5e59fafaf4237405e7c384b285630361833e1bd4d3a5db6e0008d5a74"
+    },
+    {
+      "source": "src/lib/__tests__/contact-name-db-guard.test.ts",
+      "embedded": "src/legacy-runtime/lib/__tests__/contact-name-db-guard.test.ts",
+      "original_sha256": "e08ce131ddaada60f105c096dbedc67b912585314e2e759002996d353678f4ac",
+      "relocated_sha256": "f5cde7fb3f3d9ec866f093ae3021c46ba47f6d8d61c42f6162cf84861f89fb6d",
+      "changes": "Original assertions retained; module imports and filesystem fixture source paths relocated",
+      "original_checkout_sha256": "e08ce131ddaada60f105c096dbedc67b912585314e2e759002996d353678f4ac"
+    },
+    {
+      "source": "src/lib/__tests__/contact-name-repair.test.ts",
+      "embedded": "src/legacy-runtime/lib/__tests__/contact-name-repair.test.ts",
+      "original_sha256": "1021432bf0df34143b0c0aa6f6164f2dc8d6d9415bad4c67e672979f27c440e4",
+      "relocated_sha256": "8d088d170501932449bc817236195d6f2edc2dbe83fbcfad0b74c152f921a0a5",
+      "changes": "Original assertions retained; module imports and filesystem fixture source paths relocated",
+      "original_checkout_sha256": "1021432bf0df34143b0c0aa6f6164f2dc8d6d9415bad4c67e672979f27c440e4"
+    },
+    {
+      "source": "src/lib/__tests__/contact-names.test.ts",
+      "embedded": "src/legacy-runtime/lib/__tests__/contact-names.test.ts",
+      "original_sha256": "d042483ee5390ae96ffc298676520e710b0f7cb5d25d1dbccc00439081c60323",
+      "relocated_sha256": "4701ae545dde9d01bba628da1875739aa9b0963f8149ad96e74cdaa2a9fd483f",
+      "changes": "Original assertions retained; module imports and filesystem fixture source paths relocated",
+      "original_checkout_sha256": "d042483ee5390ae96ffc298676520e710b0f7cb5d25d1dbccc00439081c60323"
+    },
+    {
+      "source": "src/lib/__tests__/contact-pipeline.test.ts",
+      "embedded": "src/legacy-runtime/lib/__tests__/contact-pipeline.test.ts",
+      "original_sha256": "5e906c95cbd38b76b2321414c8db6f96bb3c4ce429993751bc2b53550bd58b95",
+      "relocated_sha256": "1991b0d6675cd51d24064c7b8e4939ac91d4eda42298a8802e3d866b1c9ea968",
+      "changes": "Original assertions retained; module imports and filesystem fixture source paths relocated",
+      "original_checkout_sha256": "5e906c95cbd38b76b2321414c8db6f96bb3c4ce429993751bc2b53550bd58b95"
+    },
+    {
+      "source": "src/lib/__tests__/contact-sync-client.test.ts",
+      "embedded": "src/legacy-runtime/lib/__tests__/contact-sync-client.test.ts",
+      "original_sha256": "50b801ad74372a212eb6dcd5397e19255e8a4e5a000f1e68da97e9fb740e3589",
+      "relocated_sha256": "cc934b918a4d60094771f74f7970264425e5444037e6afb45da1f31d29d5c609",
+      "changes": "Original assertions retained; module imports and filesystem fixture source paths relocated",
+      "original_checkout_sha256": "50b801ad74372a212eb6dcd5397e19255e8a4e5a000f1e68da97e9fb740e3589"
+    },
+    {
+      "source": "src/lib/__tests__/conversation-export-jobs.test.ts",
+      "embedded": "src/legacy-runtime/lib/__tests__/conversation-export-jobs.test.ts",
+      "original_sha256": "e78bbd0c2ea9d7cf7544b939ea2379eb36c0b56d0ec913ac66432082a9fbad43",
+      "relocated_sha256": "3c95d9fcd1b9127c70832afcea0dab6bdd2fdc24a85d901c3f11a19ed99209e7",
+      "changes": "Original assertions retained; module imports and filesystem fixture source paths relocated",
+      "original_checkout_sha256": "e78bbd0c2ea9d7cf7544b939ea2379eb36c0b56d0ec913ac66432082a9fbad43"
+    },
+    {
+      "source": "src/lib/__tests__/facebook-errors.test.ts",
+      "embedded": "src/legacy-runtime/lib/__tests__/facebook-errors.test.ts",
+      "original_sha256": "de93c8058c9cc2934afcf810b2ef94a15a37b8d86df246996faeb43bb8abd0b7",
+      "relocated_sha256": "148da6ffb558da23756c5bf1ea1f71a250a7e79e2ed1303b114d2d9588b3b501",
+      "changes": "Original assertions retained; module imports and filesystem fixture source paths relocated",
+      "original_checkout_sha256": "de93c8058c9cc2934afcf810b2ef94a15a37b8d86df246996faeb43bb8abd0b7"
+    },
+    {
+      "source": "src/lib/__tests__/facebook-pages.test.ts",
+      "embedded": "src/legacy-runtime/lib/__tests__/facebook-pages.test.ts",
+      "original_sha256": "ca5896d3b4be8147dbd2c85cf6b36cf547370b84ca6fcc35138f9f13c3140ac6",
+      "relocated_sha256": "9d5fbd0c08e942634abcc8fb30ae4a9e7cb2f929818d8c7946ea1c3925f04504",
+      "changes": "Original assertions retained; module imports and filesystem fixture source paths relocated",
+      "original_checkout_sha256": "ca5896d3b4be8147dbd2c85cf6b36cf547370b84ca6fcc35138f9f13c3140ac6"
+    },
+    {
+      "source": "src/lib/__tests__/facebook-send-retry.test.ts",
+      "embedded": "src/legacy-runtime/lib/__tests__/facebook-send-retry.test.ts",
+      "original_sha256": "b340293764e1a4c053169d88214f7c38cfffbdeed8d22f9353a51424ea3d8661",
+      "relocated_sha256": "7b93a5d38b349ad8c77152eb7377a7e7c85f596a41328a2a2e682fa218e53c92",
+      "changes": "Original assertions retained; module imports and filesystem fixture source paths relocated",
+      "original_checkout_sha256": "b340293764e1a4c053169d88214f7c38cfffbdeed8d22f9353a51424ea3d8661"
+    },
+    {
+      "source": "src/lib/__tests__/facebook-send.test.ts",
+      "embedded": "src/legacy-runtime/lib/__tests__/facebook-send.test.ts",
+      "original_sha256": "f9a71560277d9af88dd4005e90ceb2dbf8a24b0cb9e077965d5e27318a8b7f96",
+      "relocated_sha256": "5364b87bcc8708fccef98177baa7e29934cc341ab7e4dc3940110eba7ce7aef7",
+      "changes": "Original assertions retained; module imports and filesystem fixture source paths relocated",
+      "original_checkout_sha256": "f9a71560277d9af88dd4005e90ceb2dbf8a24b0cb9e077965d5e27318a8b7f96"
+    },
+    {
+      "source": "src/lib/__tests__/facebook-templates.test.ts",
+      "embedded": "src/legacy-runtime/lib/__tests__/facebook-templates.test.ts",
+      "original_sha256": "ae3db6b08044ef5c0bc36ce1cab770e831fa143281bb59edd534a855e93e8060",
+      "relocated_sha256": "362f659a912846cd6c9a99ab0ccf054d402c390594e502334d1c5fd6a41179d5",
+      "changes": "Original assertions retained; module imports and filesystem fixture source paths relocated",
+      "original_checkout_sha256": "ae3db6b08044ef5c0bc36ce1cab770e831fa143281bb59edd534a855e93e8060"
+    },
+    {
+      "source": "src/lib/__tests__/google-drive.test.ts",
+      "embedded": "src/legacy-runtime/lib/__tests__/google-drive.test.ts",
+      "original_sha256": "e9f2c7fe50da70c40c0dfe3f9a76453459c5b4acf0186552fa093ccb7b120405",
+      "relocated_sha256": "ed2b33dd0dacfbf859f22206a136f8265812e93da90a5c87e044dcee868ccb57",
+      "changes": "Original assertions retained; module imports and filesystem fixture source paths relocated",
+      "original_checkout_sha256": "e9f2c7fe50da70c40c0dfe3f9a76453459c5b4acf0186552fa093ccb7b120405"
+    },
+    {
+      "source": "src/lib/__tests__/human-agent-window.test.ts",
+      "embedded": "src/legacy-runtime/lib/__tests__/human-agent-window.test.ts",
+      "original_sha256": "8266be56074ca0877fdc635286fb0fb235de60322404c5480e50878a9cadc551",
+      "relocated_sha256": "de2cb6a48330b7f02f401217c0a3006462fc3e67a68ac37010038fab7393f065",
+      "changes": "Original assertions retained; module imports and filesystem fixture source paths relocated",
+      "original_checkout_sha256": "8266be56074ca0877fdc635286fb0fb235de60322404c5480e50878a9cadc551"
+    },
+    {
+      "source": "src/lib/__tests__/manual-reply-retry.test.ts",
+      "embedded": "src/legacy-runtime/lib/__tests__/manual-reply-retry.test.ts",
+      "original_sha256": "9894876f46a805b54ded76b4762f8bfcc787af09a0f3a29efd75ac6f7a913503",
+      "relocated_sha256": "b2a7949297b56463002a01944f18e5f0fc6cc2e42eaa03449c461cd9aabc7e19",
+      "changes": "Original assertions retained; module imports and filesystem fixture source paths relocated",
+      "original_checkout_sha256": "9894876f46a805b54ded76b4762f8bfcc787af09a0f3a29efd75ac6f7a913503"
+    },
+    {
+      "source": "src/lib/__tests__/million-contact-migration.test.ts",
+      "embedded": "src/legacy-runtime/lib/__tests__/million-contact-migration.test.ts",
+      "original_sha256": "a36e1a284f91e8bc2eb4c899bae8d5cb2a41c8b7c20da375e0059bbad6ac38b6",
+      "relocated_sha256": "b661d9f6c2ceffb0c8743626dd48ed32eca98d10a6cb6a2ae9e428549c651e7a",
+      "changes": "Original assertions retained; module imports and filesystem fixture source paths relocated",
+      "original_checkout_sha256": "a36e1a284f91e8bc2eb4c899bae8d5cb2a41c8b7c20da375e0059bbad6ac38b6"
+    },
+    {
+      "source": "src/lib/__tests__/outbound-message-events.test.ts",
+      "embedded": "src/legacy-runtime/lib/__tests__/outbound-message-events.test.ts",
+      "original_sha256": "a06cce7f13c87801bb834ed222c964724e7bc11fd5d8dc7016be28edb6493c4f",
+      "relocated_sha256": "2a2bc27f128ddb39d14c75d0c6d2994cfcbe5433cc287d8e4c0f8ce98a4f5048",
+      "changes": "Original assertions retained; module imports and filesystem fixture source paths relocated",
+      "original_checkout_sha256": "a06cce7f13c87801bb834ed222c964724e7bc11fd5d8dc7016be28edb6493c4f"
+    },
+    {
+      "source": "src/lib/__tests__/page-access.test.ts",
+      "embedded": "src/legacy-runtime/lib/__tests__/page-access.test.ts",
+      "original_sha256": "931a7f81bb79dca42738ca1cdaceb5fced23a86e2e28330ed575ab9914b2c8cc",
+      "relocated_sha256": "e6d5ef89240c5250dac7169694bcdafcc740cf4e3edd164ffe8f5935e15f6fd9",
+      "changes": "Original assertions retained; module imports and filesystem fixture source paths relocated",
+      "original_checkout_sha256": "931a7f81bb79dca42738ca1cdaceb5fced23a86e2e28330ed575ab9914b2c8cc"
+    },
+    {
+      "source": "src/lib/__tests__/password-sign-in.test.ts",
+      "embedded": "src/legacy-runtime/lib/__tests__/password-sign-in.test.ts",
+      "original_sha256": "0f23c255b27457fcd98acb3d8208a1d6112524f598e0b602c0a75411765c9c9a",
+      "relocated_sha256": "5d54826d5021c0046bd17921229f124c938ccf3b0d2ea3020cb7a292287d7d00",
+      "changes": "Original assertions retained; module imports and filesystem fixture source paths relocated",
+      "original_checkout_sha256": "0f23c255b27457fcd98acb3d8208a1d6112524f598e0b602c0a75411765c9c9a"
+    },
+    {
+      "source": "src/lib/__tests__/philippines-time.test.ts",
+      "embedded": "src/legacy-runtime/lib/__tests__/philippines-time.test.ts",
+      "original_sha256": "d9028ca91d39be8a5532c77f579767048a6de3c19ab401d7a783bb7f84c887f1",
+      "relocated_sha256": "867009a9a5d66d8056bb122e5145b8d814cf23de8c13f24842c6f69d737ca907",
+      "changes": "Original assertions retained; module imports and filesystem fixture source paths relocated",
+      "original_checkout_sha256": "d9028ca91d39be8a5532c77f579767048a6de3c19ab401d7a783bb7f84c887f1"
+    },
+    {
+      "source": "src/lib/__tests__/placeholders.test.ts",
+      "embedded": "src/legacy-runtime/lib/__tests__/placeholders.test.ts",
+      "original_sha256": "65e400231627a712bd2653448ff5ed85613beba153caf476f03cac6dcfe25c44",
+      "relocated_sha256": "65e400231627a712bd2653448ff5ed85613beba153caf476f03cac6dcfe25c44",
+      "changes": "Original assertions retained; module imports and filesystem fixture source paths relocated",
+      "original_checkout_sha256": "65e400231627a712bd2653448ff5ed85613beba153caf476f03cac6dcfe25c44"
+    },
+    {
+      "source": "src/lib/__tests__/request-gate.test.ts",
+      "embedded": "src/legacy-runtime/lib/__tests__/request-gate.test.ts",
+      "original_sha256": "0dbf81d13255cf12a15971c17fef162dd66c0523c7b27b25f01cc0408a087392",
+      "relocated_sha256": "0dbf81d13255cf12a15971c17fef162dd66c0523c7b27b25f01cc0408a087392",
+      "changes": "Original assertions retained; module imports and filesystem fixture source paths relocated",
+      "original_checkout_sha256": "0dbf81d13255cf12a15971c17fef162dd66c0523c7b27b25f01cc0408a087392"
+    },
+    {
+      "source": "src/lib/__tests__/send-errors.test.ts",
+      "embedded": "src/legacy-runtime/lib/__tests__/send-errors.test.ts",
+      "original_sha256": "c15b55df61fb08925279a6fc6f3cc3ae81345f502c0b67f6cc4e8c2a88300ae5",
+      "relocated_sha256": "d449ec29a7a442dfc52325daf801104b428be515cc934fa5fa966f67cbc1e369",
+      "changes": "Original assertions retained; module imports and filesystem fixture source paths relocated",
+      "original_checkout_sha256": "c15b55df61fb08925279a6fc6f3cc3ae81345f502c0b67f6cc4e8c2a88300ae5"
+    },
+    {
+      "source": "src/lib/__tests__/suno-navigation.test.ts",
+      "embedded": "src/legacy-runtime/lib/__tests__/suno-navigation.test.ts",
+      "original_sha256": "6b600c8c6994f600fe509e42f0e9e43bc28330f90000350b23f7e56c5bd2cfd9",
+      "relocated_sha256": "46f7c3a214f023ff86e0ab8db7ab1d23b286f7d58963679cd265a38001b8ee9d",
+      "changes": "Original assertions retained; module imports and filesystem fixture source paths relocated",
+      "original_checkout_sha256": "6b600c8c6994f600fe509e42f0e9e43bc28330f90000350b23f7e56c5bd2cfd9"
+    },
+    {
+      "source": "src/lib/__tests__/tag-filters.test.ts",
+      "embedded": "src/legacy-runtime/lib/__tests__/tag-filters.test.ts",
+      "original_sha256": "544ddeb88a575a184c5e6c415958adc95e60a0d73381dcd1ea1089c5733eaf4a",
+      "relocated_sha256": "544ddeb88a575a184c5e6c415958adc95e60a0d73381dcd1ea1089c5733eaf4a",
+      "changes": "Original assertions retained; module imports and filesystem fixture source paths relocated",
+      "original_checkout_sha256": "544ddeb88a575a184c5e6c415958adc95e60a0d73381dcd1ea1089c5733eaf4a"
+    },
+    {
+      "source": "src/lib/__tests__/telegram-media.test.ts",
+      "embedded": "src/legacy-runtime/lib/__tests__/telegram-media.test.ts",
+      "original_sha256": "2bd71503aa814fd12eeaa44392bc93c2e4bc2db0b2cf2a726f812a822709db68",
+      "relocated_sha256": "4ff3fcc7e3385fdf8a3a4635767a28b0517b7ab21fe9a71b6e3252171e63cb54",
+      "changes": "Original assertions retained; module imports and filesystem fixture source paths relocated",
+      "original_checkout_sha256": "2bd71503aa814fd12eeaa44392bc93c2e4bc2db0b2cf2a726f812a822709db68"
+    },
+    {
+      "source": "src/lib/__tests__/workflow-automations.test.ts",
+      "embedded": "src/legacy-runtime/lib/__tests__/workflow-automations.test.ts",
+      "original_sha256": "f3bdf6706c9e4b166969445f33c4516296e6e650ed1d9c94580309ed318c11b0",
+      "relocated_sha256": "e4c29c9079c4abc5451a57ea7cfe969bbd4e8deba2e0e745e3a81798a70d333a",
+      "changes": "Original assertions retained; module imports and filesystem fixture source paths relocated",
+      "original_checkout_sha256": "f3bdf6706c9e4b166969445f33c4516296e6e650ed1d9c94580309ed318c11b0"
+    },
+    {
+      "source": "src/lib/activity-history.ts",
+      "embedded": "src/legacy-runtime/lib/activity-history.ts",
+      "original_sha256": "bb1144b34aea2535665d7f3d55c4f20e9090a421672f4080e4d6828cfbdf6f90",
+      "relocated_sha256": "bb1144b34aea2535665d7f3d55c4f20e9090a421672f4080e4d6828cfbdf6f90",
+      "changes": "Module import relocation; test fixture source paths relocated where needed",
+      "original_checkout_sha256": "bb1144b34aea2535665d7f3d55c4f20e9090a421672f4080e4d6828cfbdf6f90"
+    },
+    {
+      "source": "src/lib/ai.ts",
+      "embedded": "src/legacy-runtime/lib/ai.ts",
+      "original_sha256": "afba6cd3a112159d0eb985ef77088e090df889b55b6842080b2717e07c75ccff",
+      "relocated_sha256": "afba6cd3a112159d0eb985ef77088e090df889b55b6842080b2717e07c75ccff",
+      "changes": "Module import relocation; test fixture source paths relocated where needed",
+      "original_checkout_sha256": "afba6cd3a112159d0eb985ef77088e090df889b55b6842080b2717e07c75ccff"
+    },
+    {
+      "source": "src/lib/auth.ts",
+      "embedded": "src/legacy-runtime/lib/auth.ts",
+      "original_sha256": "6931c3d5c2668e7b353354406b083766835c5aad103579698bef58a7f6a5c785",
+      "relocated_sha256": "17c27a065038350c3eae67c5bdfdcc2f7aae80e31dcdd5d3b2d8d15143c17c1b",
+      "changes": "Module import relocation; duplicate type-only NextAuth augmentations use the shared session types",
+      "original_checkout_sha256": "6931c3d5c2668e7b353354406b083766835c5aad103579698bef58a7f6a5c785"
+    },
+    {
+      "source": "src/lib/campaign-audience.ts",
+      "embedded": "src/legacy-runtime/lib/campaign-audience.ts",
+      "original_sha256": "97833b6dcd689c340454e4e0c15a13e20632d57b088c276e31c6bc63192996aa",
+      "relocated_sha256": "97833b6dcd689c340454e4e0c15a13e20632d57b088c276e31c6bc63192996aa",
+      "changes": "Module import relocation; test fixture source paths relocated where needed",
+      "original_checkout_sha256": "97833b6dcd689c340454e4e0c15a13e20632d57b088c276e31c6bc63192996aa"
+    },
+    {
+      "source": "src/lib/campaign-errors.ts",
+      "embedded": "src/legacy-runtime/lib/campaign-errors.ts",
+      "original_sha256": "c717c616cfd5d22e424b6cd634191b25312ddd420afe067516542c8a4a6731ad",
+      "relocated_sha256": "c717c616cfd5d22e424b6cd634191b25312ddd420afe067516542c8a4a6731ad",
+      "changes": "Module import relocation; test fixture source paths relocated where needed",
+      "original_checkout_sha256": "c717c616cfd5d22e424b6cd634191b25312ddd420afe067516542c8a4a6731ad"
+    },
+    {
+      "source": "src/lib/campaign-message-sequence.ts",
+      "embedded": "src/legacy-runtime/lib/campaign-message-sequence.ts",
+      "original_sha256": "6414b430ffda61ad6a6a670e551d0c699418266987620b4f1f4f717fae5db617",
+      "relocated_sha256": "6414b430ffda61ad6a6a670e551d0c699418266987620b4f1f4f717fae5db617",
+      "changes": "Module import relocation; test fixture source paths relocated where needed",
+      "original_checkout_sha256": "6414b430ffda61ad6a6a670e551d0c699418266987620b4f1f4f717fae5db617"
+    },
+    {
+      "source": "src/lib/campaign-recipient-queue.ts",
+      "embedded": "src/legacy-runtime/lib/campaign-recipient-queue.ts",
+      "original_sha256": "2df8255e22bb851e457217fbd6a43d20fe304ddf3f241a443e241f22c78fc0c1",
+      "relocated_sha256": "2df8255e22bb851e457217fbd6a43d20fe304ddf3f241a443e241f22c78fc0c1",
+      "changes": "Module import relocation; test fixture source paths relocated where needed",
+      "original_checkout_sha256": "2df8255e22bb851e457217fbd6a43d20fe304ddf3f241a443e241f22c78fc0c1"
+    },
+    {
+      "source": "src/lib/campaign-send.ts",
+      "embedded": "src/legacy-runtime/lib/campaign-send.ts",
+      "original_sha256": "108176373b331dec31109cf257064379606a5bcf99e9299582c79ff837b9aca5",
+      "relocated_sha256": "108176373b331dec31109cf257064379606a5bcf99e9299582c79ff837b9aca5",
+      "changes": "Module import relocation; test fixture source paths relocated where needed",
+      "original_checkout_sha256": "108176373b331dec31109cf257064379606a5bcf99e9299582c79ff837b9aca5"
+    },
+    {
+      "source": "src/lib/chatbot-control.ts",
+      "embedded": "src/legacy-runtime/lib/chatbot-control.ts",
+      "original_sha256": "f78025473cb4ab9a154d66b9d6f30515cd941112a2d366ab4535ec647e1ada1c",
+      "relocated_sha256": "f78025473cb4ab9a154d66b9d6f30515cd941112a2d366ab4535ec647e1ada1c",
+      "changes": "Module import relocation; test fixture source paths relocated where needed",
+      "original_checkout_sha256": "f78025473cb4ab9a154d66b9d6f30515cd941112a2d366ab4535ec647e1ada1c"
+    },
+    {
+      "source": "src/lib/chatbot-conversation-pricing.ts",
+      "embedded": "src/legacy-runtime/lib/chatbot-conversation-pricing.ts",
+      "original_sha256": "d82286557aecb9bfab8d0f85334308837ad26b73fa4a60881c17e0e767af274b",
+      "relocated_sha256": "813b859678c0688d10949fad00c924736f0a407dda044fb98eb24c04507b5f33",
+      "changes": "Module import relocation; test fixture source paths relocated where needed",
+      "original_checkout_sha256": "d82286557aecb9bfab8d0f85334308837ad26b73fa4a60881c17e0e767af274b"
+    },
+    {
+      "source": "src/lib/chatbot-drive-folders.ts",
+      "embedded": "src/legacy-runtime/lib/chatbot-drive-folders.ts",
+      "original_sha256": "17bd41bb624fa1a73bcfcb839bf28e59c62946f91399b0e09633cc51de33d77b",
+      "relocated_sha256": "94ed3bebfcaf1db85cf3b6d83e87a62e13e8840395a7318adcf8cb25bea4fe73",
+      "changes": "Module import relocation; test fixture source paths relocated where needed",
+      "original_checkout_sha256": "17bd41bb624fa1a73bcfcb839bf28e59c62946f91399b0e09633cc51de33d77b"
+    },
+    {
+      "source": "src/lib/chatbot-follow-ups.ts",
+      "embedded": "src/legacy-runtime/lib/chatbot-follow-ups.ts",
+      "original_sha256": "6d157726dbc2ad8b01555acb75c26e36120bf4e51ed1884c26d3cff36bd51f74",
+      "relocated_sha256": "60ab8cd06b86a45dbc5ec6533dc0c09f8b79a83b627068da35ab8eac85a6e094",
+      "changes": "Module import relocation; test fixture source paths relocated where needed",
+      "original_checkout_sha256": "6d157726dbc2ad8b01555acb75c26e36120bf4e51ed1884c26d3cff36bd51f74"
+    },
+    {
+      "source": "src/lib/chatbot-form-priority.ts",
+      "embedded": "src/legacy-runtime/lib/chatbot-form-priority.ts",
+      "original_sha256": "9e129d8127ecf5d8f4e8599272ec4e3d0b7ee01654c48c5ff2cdb2fdd6507580",
+      "relocated_sha256": "664a91d1ebbbd9a366abd81945d0d31051e9b72dba8d4fd6dfb133c95eec3bb9",
+      "changes": "Module import relocation; test fixture source paths relocated where needed",
+      "original_checkout_sha256": "9e129d8127ecf5d8f4e8599272ec4e3d0b7ee01654c48c5ff2cdb2fdd6507580"
+    },
+    {
+      "source": "src/lib/chatbot-human-takeover.ts",
+      "embedded": "src/legacy-runtime/lib/chatbot-human-takeover.ts",
+      "original_sha256": "ac8b4fac272a0e1f66f4bdf9e169e4a0f2672b68789665c3ba434da894afefa0",
+      "relocated_sha256": "54af3253a5d89ac9b2ef0739144698fa00288c682aac89f840047bbdcf5170f2",
+      "changes": "Module import relocation; test fixture source paths relocated where needed",
+      "original_checkout_sha256": "ac8b4fac272a0e1f66f4bdf9e169e4a0f2672b68789665c3ba434da894afefa0"
+    },
+    {
+      "source": "src/lib/chatbot-inbound.ts",
+      "embedded": "src/legacy-runtime/lib/chatbot-inbound.ts",
+      "original_sha256": "3972ba9c4d5bc8cf4de4057c8fd6536844a3272b59ff182fb7dc5a7018b6504f",
+      "relocated_sha256": "3972ba9c4d5bc8cf4de4057c8fd6536844a3272b59ff182fb7dc5a7018b6504f",
+      "changes": "Module import relocation; test fixture source paths relocated where needed",
+      "original_checkout_sha256": "3972ba9c4d5bc8cf4de4057c8fd6536844a3272b59ff182fb7dc5a7018b6504f"
+    },
+    {
+      "source": "src/lib/chatbot-knowledge.ts",
+      "embedded": "src/legacy-runtime/lib/chatbot-knowledge.ts",
+      "original_sha256": "f2b03e337d9a8d45ce37837a53cec805c6f217b629d9bd963274fd122f075176",
+      "relocated_sha256": "dbb70dbff3683fd481c0134e585fa9008898e329a3c032ed46c96af90c10716a",
+      "changes": "Module import relocation; test fixture source paths relocated where needed",
+      "original_checkout_sha256": "f2b03e337d9a8d45ce37837a53cec805c6f217b629d9bd963274fd122f075176"
+    },
+    {
+      "source": "src/lib/chatbot-lead-stage.ts",
+      "embedded": "src/legacy-runtime/lib/chatbot-lead-stage.ts",
+      "original_sha256": "22c9630ffd6348ca83ecc9a4d06e9c2ee4050311d1c2b0a75db2d54a717df557",
+      "relocated_sha256": "ac1361d1bcccf22c6d6efc91aa5edc1527200ffa6fc1a6e8aec2bd76bcc62f25",
+      "changes": "Module import relocation; test fixture source paths relocated where needed",
+      "original_checkout_sha256": "22c9630ffd6348ca83ecc9a4d06e9c2ee4050311d1c2b0a75db2d54a717df557"
+    },
+    {
+      "source": "src/lib/chatbot-media.ts",
+      "embedded": "src/legacy-runtime/lib/chatbot-media.ts",
+      "original_sha256": "2a03881903f6dad3a0103075a287a3aee870bd9dfb1267913f778c6819428d13",
+      "relocated_sha256": "157a6213e1318c23ba09201bff98144bcf994c5bbf11d9bb63f79a9d255c3490",
+      "changes": "Module import relocation; test fixture source paths relocated where needed",
+      "original_checkout_sha256": "2a03881903f6dad3a0103075a287a3aee870bd9dfb1267913f778c6819428d13"
+    },
+    {
+      "source": "src/lib/chatbot-message-delivery.ts",
+      "embedded": "src/legacy-runtime/lib/chatbot-message-delivery.ts",
+      "original_sha256": "90727f4929f19bbfdffa97e2ff7949305611b3301a27c10b8e69d245e9eb2720",
+      "relocated_sha256": "723ed43d2198a9f73fa232aedf3b6f16f1b75fbd943a6f748eda7b020b6c9e26",
+      "changes": "Module import relocation; test fixture source paths relocated where needed",
+      "original_checkout_sha256": "90727f4929f19bbfdffa97e2ff7949305611b3301a27c10b8e69d245e9eb2720"
+    },
+    {
+      "source": "src/lib/chatbot-replies.ts",
+      "embedded": "src/legacy-runtime/lib/chatbot-replies.ts",
+      "original_sha256": "5e87d820c3948bf960a38268f468279119164e775ddc68cbb3f048fbc1524c2c",
+      "relocated_sha256": "5e87d820c3948bf960a38268f468279119164e775ddc68cbb3f048fbc1524c2c",
+      "changes": "Module import relocation; test fixture source paths relocated where needed",
+      "original_checkout_sha256": "5e87d820c3948bf960a38268f468279119164e775ddc68cbb3f048fbc1524c2c"
+    },
+    {
+      "source": "src/lib/chatbot.ts",
+      "embedded": "src/legacy-runtime/lib/chatbot.ts",
+      "original_sha256": "ac0d3ad8c5c418832cbb696171ca65f0dc0746b3b7bef9691ce89569d056fa88",
+      "relocated_sha256": "c5dfff43244c639f8f096cff19a6eb68dfce7011ebf950a5f978d300bf0a4124",
+      "changes": "Module import relocation; test fixture source paths relocated where needed",
+      "original_checkout_sha256": "ac0d3ad8c5c418832cbb696171ca65f0dc0746b3b7bef9691ce89569d056fa88"
+    },
+    {
+      "source": "src/lib/chunking.ts",
+      "embedded": "src/legacy-runtime/lib/chunking.ts",
+      "original_sha256": "2ed7b97bb59ba50463713773377e0def9eec59227c5cab226c47c3dc69f2b9f3",
+      "relocated_sha256": "2ed7b97bb59ba50463713773377e0def9eec59227c5cab226c47c3dc69f2b9f3",
+      "changes": "Module import relocation; test fixture source paths relocated where needed",
+      "original_checkout_sha256": "2ed7b97bb59ba50463713773377e0def9eec59227c5cab226c47c3dc69f2b9f3"
+    },
+    {
+      "source": "src/lib/contact-best-time.ts",
+      "embedded": "src/legacy-runtime/lib/contact-best-time.ts",
+      "original_sha256": "83c4f89ac9b33ff906537e6e94f9eb99ede359b6ee6bfa34872885663727ee96",
+      "relocated_sha256": "0085117942e7a9b41c54c3ebd477e53a6069b2dab9524f117a17f07d25cba116",
+      "changes": "Module import relocation; test fixture source paths relocated where needed",
+      "original_checkout_sha256": "83c4f89ac9b33ff906537e6e94f9eb99ede359b6ee6bfa34872885663727ee96"
+    },
+    {
+      "source": "src/lib/contact-name-repair.ts",
+      "embedded": "src/legacy-runtime/lib/contact-name-repair.ts",
+      "original_sha256": "87fbc13ca1d18f47180b0111ca96d627f2c0b1511b0271b6cd7028038713fec6",
+      "relocated_sha256": "87fbc13ca1d18f47180b0111ca96d627f2c0b1511b0271b6cd7028038713fec6",
+      "changes": "Module import relocation; test fixture source paths relocated where needed",
+      "original_checkout_sha256": "87fbc13ca1d18f47180b0111ca96d627f2c0b1511b0271b6cd7028038713fec6"
+    },
+    {
+      "source": "src/lib/contact-names.ts",
+      "embedded": "src/legacy-runtime/lib/contact-names.ts",
+      "original_sha256": "4c37adc7eb986268bb5d9f5490389364abe343852a17a23a8fbc1ae16e5124cf",
+      "relocated_sha256": "4c37adc7eb986268bb5d9f5490389364abe343852a17a23a8fbc1ae16e5124cf",
+      "changes": "Module import relocation; test fixture source paths relocated where needed",
+      "original_checkout_sha256": "4c37adc7eb986268bb5d9f5490389364abe343852a17a23a8fbc1ae16e5124cf"
+    },
+    {
+      "source": "src/lib/contact-pipeline.ts",
+      "embedded": "src/legacy-runtime/lib/contact-pipeline.ts",
+      "original_sha256": "3f5b9f9d35b3375358babc27afb9dc4d08f732de054ed82658af493abeb6568c",
+      "relocated_sha256": "6e59aabb2580e77bf6c66f88c684306088b2f48d044963a7b786c3a190bc84e5",
+      "changes": "Module import relocation; test fixture source paths relocated where needed",
+      "original_checkout_sha256": "3f5b9f9d35b3375358babc27afb9dc4d08f732de054ed82658af493abeb6568c"
+    },
+    {
+      "source": "src/lib/contact-sync-client.ts",
+      "embedded": "src/legacy-runtime/lib/contact-sync-client.ts",
+      "original_sha256": "0a0e7a09f31b6c722a0ed3f975be9e6ad64023e4052821e25ceb95aa72c96827",
+      "relocated_sha256": "0a0e7a09f31b6c722a0ed3f975be9e6ad64023e4052821e25ceb95aa72c96827",
+      "changes": "Module import relocation; test fixture source paths relocated where needed",
+      "original_checkout_sha256": "0a0e7a09f31b6c722a0ed3f975be9e6ad64023e4052821e25ceb95aa72c96827"
+    },
+    {
+      "source": "src/lib/conversation-export-jobs.ts",
+      "embedded": "src/legacy-runtime/lib/conversation-export-jobs.ts",
+      "original_sha256": "27dc9eaed7921617d971ac97df9aaa58b525590c3eb96f96b7cc9b7a1b75567a",
+      "relocated_sha256": "42a14d1e4edc311320ebdd78f44cd2c5b3b284d7effebf5201bf5e23abe97484",
+      "changes": "Module import relocation; test fixture source paths relocated where needed",
+      "original_checkout_sha256": "27dc9eaed7921617d971ac97df9aaa58b525590c3eb96f96b7cc9b7a1b75567a"
+    },
+    {
+      "source": "src/lib/facebook-errors.ts",
+      "embedded": "src/legacy-runtime/lib/facebook-errors.ts",
+      "original_sha256": "d0dfd2b274b024e3ceddfaf0c278e3b007a53ac0c389b0ab8c83637bcf01c910",
+      "relocated_sha256": "d0dfd2b274b024e3ceddfaf0c278e3b007a53ac0c389b0ab8c83637bcf01c910",
+      "changes": "Module import relocation; test fixture source paths relocated where needed",
+      "original_checkout_sha256": "d0dfd2b274b024e3ceddfaf0c278e3b007a53ac0c389b0ab8c83637bcf01c910"
+    },
+    {
+      "source": "src/lib/facebook-permissions.ts",
+      "embedded": "src/legacy-runtime/lib/facebook-permissions.ts",
+      "original_sha256": "87a2d71250153d0df15cf744e67212abbf9d5bfbe0b082dce2ea17b51688d710",
+      "relocated_sha256": "87a2d71250153d0df15cf744e67212abbf9d5bfbe0b082dce2ea17b51688d710",
+      "changes": "Module import relocation; test fixture source paths relocated where needed",
+      "original_checkout_sha256": "87a2d71250153d0df15cf744e67212abbf9d5bfbe0b082dce2ea17b51688d710"
+    },
+    {
+      "source": "src/lib/facebook-send-retry.ts",
+      "embedded": "src/legacy-runtime/lib/facebook-send-retry.ts",
+      "original_sha256": "dd5b7df163622a05521b6a99d572926f7c74471d0aa1d32abcdc672d129d2184",
+      "relocated_sha256": "dd5b7df163622a05521b6a99d572926f7c74471d0aa1d32abcdc672d129d2184",
+      "changes": "Module import relocation; test fixture source paths relocated where needed",
+      "original_checkout_sha256": "dd5b7df163622a05521b6a99d572926f7c74471d0aa1d32abcdc672d129d2184"
+    },
+    {
+      "source": "src/lib/facebook-templates.ts",
+      "embedded": "src/legacy-runtime/lib/facebook-templates.ts",
+      "original_sha256": "99315234caef49cd8d4fdf38d4f989d1d4697d0042d7249054ea01535e2f86ee",
+      "relocated_sha256": "99315234caef49cd8d4fdf38d4f989d1d4697d0042d7249054ea01535e2f86ee",
+      "changes": "Module import relocation; test fixture source paths relocated where needed",
+      "original_checkout_sha256": "99315234caef49cd8d4fdf38d4f989d1d4697d0042d7249054ea01535e2f86ee"
+    },
+    {
+      "source": "src/lib/facebook.ts",
+      "embedded": "src/legacy-runtime/lib/facebook.ts",
+      "original_sha256": "282391c21bf0c825c466790582b138f739ba63e26ba27d4b28d41f47abbc775d",
+      "relocated_sha256": "a6ec981aad490ce1b085937911efda67fc4eda87fd4692088dbb2cf16fb74ac0",
+      "changes": "Module import relocation; test fixture source paths relocated where needed",
+      "original_checkout_sha256": "282391c21bf0c825c466790582b138f739ba63e26ba27d4b28d41f47abbc775d"
+    },
+    {
+      "source": "src/lib/get-session.ts",
+      "embedded": "src/legacy-runtime/lib/get-session.ts",
+      "original_sha256": "076803a2db1f5d152ed5b7e12e00a702c53d7a57db02d6a47d3f12a7c5972fc5",
+      "relocated_sha256": "076803a2db1f5d152ed5b7e12e00a702c53d7a57db02d6a47d3f12a7c5972fc5",
+      "changes": "Module import relocation; test fixture source paths relocated where needed",
+      "original_checkout_sha256": "076803a2db1f5d152ed5b7e12e00a702c53d7a57db02d6a47d3f12a7c5972fc5"
+    },
+    {
+      "source": "src/lib/google-drive.ts",
+      "embedded": "src/legacy-runtime/lib/google-drive.ts",
+      "original_sha256": "894bcb6e4b19550e872b375fb3300409830d4622a1a1bffef55a9b7212b35d80",
+      "relocated_sha256": "894bcb6e4b19550e872b375fb3300409830d4622a1a1bffef55a9b7212b35d80",
+      "changes": "Module import relocation; test fixture source paths relocated where needed",
+      "original_checkout_sha256": "894bcb6e4b19550e872b375fb3300409830d4622a1a1bffef55a9b7212b35d80"
+    },
+    {
+      "source": "src/lib/human-agent-window.ts",
+      "embedded": "src/legacy-runtime/lib/human-agent-window.ts",
+      "original_sha256": "3a32d85bb893b3e9f3374ad803baf0c17e7faf768d998ed2a433139c8b8fa424",
+      "relocated_sha256": "3a32d85bb893b3e9f3374ad803baf0c17e7faf768d998ed2a433139c8b8fa424",
+      "changes": "Module import relocation; test fixture source paths relocated where needed",
+      "original_checkout_sha256": "3a32d85bb893b3e9f3374ad803baf0c17e7faf768d998ed2a433139c8b8fa424"
+    },
+    {
+      "source": "src/lib/manual-reply-retry.ts",
+      "embedded": "src/legacy-runtime/lib/manual-reply-retry.ts",
+      "original_sha256": "ef246fd582bb864521f15df42c723cec008b96546da7b0fd3d1345aede81cc33",
+      "relocated_sha256": "ef246fd582bb864521f15df42c723cec008b96546da7b0fd3d1345aede81cc33",
+      "changes": "Module import relocation; test fixture source paths relocated where needed",
+      "original_checkout_sha256": "ef246fd582bb864521f15df42c723cec008b96546da7b0fd3d1345aede81cc33"
+    },
+    {
+      "source": "src/lib/media-upload-client.ts",
+      "embedded": "src/legacy-runtime/lib/media-upload-client.ts",
+      "original_sha256": "13bec59c9c92ab649595dd0316fc7af0d3d71720121d76731e49a026d0058c49",
+      "relocated_sha256": "13bec59c9c92ab649595dd0316fc7af0d3d71720121d76731e49a026d0058c49",
+      "changes": "Module import relocation; test fixture source paths relocated where needed",
+      "original_checkout_sha256": "13bec59c9c92ab649595dd0316fc7af0d3d71720121d76731e49a026d0058c49"
+    },
+    {
+      "source": "src/lib/messaging-auto-tag-worker.test.ts",
+      "embedded": "src/legacy-runtime/lib/messaging-auto-tag-worker.test.ts",
+      "original_sha256": "516aa1279e85399d73d0d17c985e9c8f6ed915afa68e4b9213d749245673d4d1",
+      "relocated_sha256": "9e140f4cfe305a96b503b6f6b1c9f16bf8a18770afcff69fd3ecca0dc9de1f65",
+      "changes": "Original assertions retained; module imports and filesystem fixture source paths relocated",
+      "original_checkout_sha256": "516aa1279e85399d73d0d17c985e9c8f6ed915afa68e4b9213d749245673d4d1"
+    },
+    {
+      "source": "src/lib/messaging-auto-tag-worker.ts",
+      "embedded": "src/legacy-runtime/lib/messaging-auto-tag-worker.ts",
+      "original_sha256": "6b1e028f0146bf630f480d9bfd73f47f2c9bf17ffbcaf6d44561e8730d045310",
+      "relocated_sha256": "c0ca48f825f1702b77b3b0767c977ecdd0a3d95cf95dcbb53dffa47cd2eac23a",
+      "changes": "Module import relocation; test fixture source paths relocated where needed",
+      "original_checkout_sha256": "6b1e028f0146bf630f480d9bfd73f47f2c9bf17ffbcaf6d44561e8730d045310"
+    },
+    {
+      "source": "src/lib/messaging-auto-tag.test.ts",
+      "embedded": "src/legacy-runtime/lib/messaging-auto-tag.test.ts",
+      "original_sha256": "a605368d51ca85fa86fb181cb07186f3af64adf62e1ff15556ea5c2bc9e1b20a",
+      "relocated_sha256": "24d979e65c9553ffe8a98a9592ac8da8ac74333dc829b6440f7336168bb708d7",
+      "changes": "Original assertions retained; module imports and filesystem fixture source paths relocated",
+      "original_checkout_sha256": "a605368d51ca85fa86fb181cb07186f3af64adf62e1ff15556ea5c2bc9e1b20a"
+    },
+    {
+      "source": "src/lib/messaging-auto-tag.ts",
+      "embedded": "src/legacy-runtime/lib/messaging-auto-tag.ts",
+      "original_sha256": "891f866b479ab8cbb76d5da5b78632569ac07f1d894ef1fe43e0d8a53b4011ba",
+      "relocated_sha256": "891f866b479ab8cbb76d5da5b78632569ac07f1d894ef1fe43e0d8a53b4011ba",
+      "changes": "Module import relocation; test fixture source paths relocated where needed",
+      "original_checkout_sha256": "891f866b479ab8cbb76d5da5b78632569ac07f1d894ef1fe43e0d8a53b4011ba"
+    },
+    {
+      "source": "src/lib/messenger-media.ts",
+      "embedded": "src/legacy-runtime/lib/messenger-media.ts",
+      "original_sha256": "3cf3a931a83e073016d44d392594f238298ae215285f461536f40ca59e1f3f27",
+      "relocated_sha256": "3cf3a931a83e073016d44d392594f238298ae215285f461536f40ca59e1f3f27",
+      "changes": "Module import relocation; test fixture source paths relocated where needed",
+      "original_checkout_sha256": "3cf3a931a83e073016d44d392594f238298ae215285f461536f40ca59e1f3f27"
+    },
+    {
+      "source": "src/lib/outbound-message-events.ts",
+      "embedded": "src/legacy-runtime/lib/outbound-message-events.ts",
+      "original_sha256": "4c62f3bfaea50ef34b68cc2430f37e20d0483c8e5ad41c009550d3f703a4f330",
+      "relocated_sha256": "dd0c9d810420b83a032766fbbfc529cc0aaf00b4e86840e9b46a9b4ea7f86199",
+      "changes": "Module import relocation; test fixture source paths relocated where needed",
+      "original_checkout_sha256": "4c62f3bfaea50ef34b68cc2430f37e20d0483c8e5ad41c009550d3f703a4f330"
+    },
+    {
+      "source": "src/lib/page-access.ts",
+      "embedded": "src/legacy-runtime/lib/page-access.ts",
+      "original_sha256": "4f39a8fe9d739cb51d35577491d397c69cc637729ee2a816acbd178a842b6435",
+      "relocated_sha256": "1476a5b06016520253e91888d71a3b5bc959a21e7fc3ca909a0321c7dc18e10a",
+      "changes": "Module import relocation; test fixture source paths relocated where needed",
+      "original_checkout_sha256": "4f39a8fe9d739cb51d35577491d397c69cc637729ee2a816acbd178a842b6435"
+    },
+    {
+      "source": "src/lib/password-sign-in.ts",
+      "embedded": "src/legacy-runtime/lib/password-sign-in.ts",
+      "original_sha256": "0d4a08f968322c31b44a385d128eddc33751fbdce5ba79d47e87b2bf3c493528",
+      "relocated_sha256": "0d4a08f968322c31b44a385d128eddc33751fbdce5ba79d47e87b2bf3c493528",
+      "changes": "Module import relocation; test fixture source paths relocated where needed",
+      "original_checkout_sha256": "0d4a08f968322c31b44a385d128eddc33751fbdce5ba79d47e87b2bf3c493528"
+    },
+    {
+      "source": "src/lib/philippines-time.ts",
+      "embedded": "src/legacy-runtime/lib/philippines-time.ts",
+      "original_sha256": "c5514ccaf690d37ab0f5344dcb9c690a257c4ee3cacffca319a0a88999ba2201",
+      "relocated_sha256": "c5514ccaf690d37ab0f5344dcb9c690a257c4ee3cacffca319a0a88999ba2201",
+      "changes": "Module import relocation; test fixture source paths relocated where needed",
+      "original_checkout_sha256": "c5514ccaf690d37ab0f5344dcb9c690a257c4ee3cacffca319a0a88999ba2201"
+    },
+    {
+      "source": "src/lib/placeholders.ts",
+      "embedded": "src/legacy-runtime/lib/placeholders.ts",
+      "original_sha256": "3e25d8c28152371d6929c09a0b3227d8ab26a7c6530eee8c6b19710d350b2b07",
+      "relocated_sha256": "3e25d8c28152371d6929c09a0b3227d8ab26a7c6530eee8c6b19710d350b2b07",
+      "changes": "Module import relocation; test fixture source paths relocated where needed",
+      "original_checkout_sha256": "3e25d8c28152371d6929c09a0b3227d8ab26a7c6530eee8c6b19710d350b2b07"
+    },
+    {
+      "source": "src/lib/request-gate.ts",
+      "embedded": "src/legacy-runtime/lib/request-gate.ts",
+      "original_sha256": "21fca71b431fcef407f44df47a42abf859d15a27e3eece47683efb3aeba8929c",
+      "relocated_sha256": "21fca71b431fcef407f44df47a42abf859d15a27e3eece47683efb3aeba8929c",
+      "changes": "Module import relocation; test fixture source paths relocated where needed",
+      "original_checkout_sha256": "21fca71b431fcef407f44df47a42abf859d15a27e3eece47683efb3aeba8929c"
+    },
+    {
+      "source": "src/lib/send-errors.ts",
+      "embedded": "src/legacy-runtime/lib/send-errors.ts",
+      "original_sha256": "e537298e43a0b5c4801b68b65c68147f020ce047301bf0370d37c37bcd71be98",
+      "relocated_sha256": "e537298e43a0b5c4801b68b65c68147f020ce047301bf0370d37c37bcd71be98",
+      "changes": "Module import relocation; test fixture source paths relocated where needed",
+      "original_checkout_sha256": "e537298e43a0b5c4801b68b65c68147f020ce047301bf0370d37c37bcd71be98"
+    },
+    {
+      "source": "src/lib/suno-navigation.ts",
+      "embedded": "src/legacy-runtime/lib/suno-navigation.ts",
+      "original_sha256": "2eb32030989bcaf0d129d35dea94969c71f824adbe56cfb9231b7e69cb49ab83",
+      "relocated_sha256": "2eb32030989bcaf0d129d35dea94969c71f824adbe56cfb9231b7e69cb49ab83",
+      "changes": "Module import relocation; test fixture source paths relocated where needed",
+      "original_checkout_sha256": "2eb32030989bcaf0d129d35dea94969c71f824adbe56cfb9231b7e69cb49ab83"
+    },
+    {
+      "source": "src/lib/supabase-pagination.ts",
+      "embedded": "src/legacy-runtime/lib/supabase-pagination.ts",
+      "original_sha256": "10903754db03d335693799e13635eb0b6ca391c22dbc306f188e33d89d3dbd9f",
+      "relocated_sha256": "10903754db03d335693799e13635eb0b6ca391c22dbc306f188e33d89d3dbd9f",
+      "changes": "Module import relocation; test fixture source paths relocated where needed",
+      "original_checkout_sha256": "10903754db03d335693799e13635eb0b6ca391c22dbc306f188e33d89d3dbd9f"
+    },
+    {
+      "source": "src/lib/supabase.ts",
+      "embedded": "src/legacy-runtime/lib/supabase.ts",
+      "original_sha256": "50fe1d11abd5f9accb8ee8b38317e89603b035358cd07bb573f5ed8611361354",
+      "relocated_sha256": "50fe1d11abd5f9accb8ee8b38317e89603b035358cd07bb573f5ed8611361354",
+      "changes": "Module import relocation; test fixture source paths relocated where needed",
+      "original_checkout_sha256": "50fe1d11abd5f9accb8ee8b38317e89603b035358cd07bb573f5ed8611361354"
+    },
+    {
+      "source": "src/lib/tag-filters.ts",
+      "embedded": "src/legacy-runtime/lib/tag-filters.ts",
+      "original_sha256": "4590b749a252d1f9b6fdc3a2bef6f0bde6aae7f832f30ac2c803491d81b97839",
+      "relocated_sha256": "4590b749a252d1f9b6fdc3a2bef6f0bde6aae7f832f30ac2c803491d81b97839",
+      "changes": "Module import relocation; test fixture source paths relocated where needed",
+      "original_checkout_sha256": "4590b749a252d1f9b6fdc3a2bef6f0bde6aae7f832f30ac2c803491d81b97839"
+    },
+    {
+      "source": "src/lib/telegram-config.ts",
+      "embedded": "src/legacy-runtime/lib/telegram-config.ts",
+      "original_sha256": "af69c09093f8bba6339c43586c2dcc353b8e89e8bf78207c353d5b4594430530",
+      "relocated_sha256": "af69c09093f8bba6339c43586c2dcc353b8e89e8bf78207c353d5b4594430530",
+      "changes": "Module import relocation; test fixture source paths relocated where needed",
+      "original_checkout_sha256": "af69c09093f8bba6339c43586c2dcc353b8e89e8bf78207c353d5b4594430530"
+    },
+    {
+      "source": "src/lib/telegram-media.ts",
+      "embedded": "src/legacy-runtime/lib/telegram-media.ts",
+      "original_sha256": "4614103e0725c06506741914c84ccbe20d391d2ab66730b30b1cca1b71bf7e08",
+      "relocated_sha256": "b9759990b3efe76ffb41bb87bac96587fa3a4ec4ee97bab9496b7825da6f8f61",
+      "changes": "Module import relocation; test fixture source paths relocated where needed",
+      "original_checkout_sha256": "4614103e0725c06506741914c84ccbe20d391d2ab66730b30b1cca1b71bf7e08"
+    },
+    {
+      "source": "src/lib/workflow-automations.ts",
+      "embedded": "src/legacy-runtime/lib/workflow-automations.ts",
+      "original_sha256": "187e84f5a8f0ad08212aaae97e0940937962632d630dda71d9f3465e75c93c5a",
+      "relocated_sha256": "187e84f5a8f0ad08212aaae97e0940937962632d630dda71d9f3465e75c93c5a",
+      "changes": "Module import relocation; test fixture source paths relocated where needed",
+      "original_checkout_sha256": "187e84f5a8f0ad08212aaae97e0940937962632d630dda71d9f3465e75c93c5a"
+    },
+    {
+      "source": "src/types/index.ts",
+      "embedded": "src/legacy-runtime/types/index.ts",
+      "original_sha256": "d67a8fe97ebf39722a50dd74ca5a88455ce8e81965793192b42e7732d04e42a5",
+      "relocated_sha256": "d67a8fe97ebf39722a50dd74ca5a88455ce8e81965793192b42e7732d04e42a5",
+      "changes": "Module import relocation; test fixture source paths relocated where needed",
+      "original_checkout_sha256": "d67a8fe97ebf39722a50dd74ca5a88455ce8e81965793192b42e7732d04e42a5"
+    }
+  ],
+  "delegated_routes": [
+    "src/app/api/chatbot-media/[assetId]/route.ts",
+    "src/app/api/cron/campaign-loop/route.ts",
+    "src/app/api/cron/campaign-scheduled/route.ts",
+    "src/app/api/cron/exports/route.ts",
+    "src/app/api/cron/follow-up-automations/route.ts",
+    "src/app/api/cron/messaging-auto-tag/route.ts",
+    "src/app/api/cron/sync/route.ts",
+    "src/app/api/facebook/messages/send/route.ts",
+    "src/app/api/facebook/webhook/route.ts",
+    "src/app/api/pages/[pageId]/chatbot/analytics/route.ts",
+    "src/app/api/pages/[pageId]/chatbot/folders/route.ts",
+    "src/app/api/pages/[pageId]/chatbot/follow-ups/route.ts",
+    "src/app/api/pages/[pageId]/chatbot/interruptions/route.ts",
+    "src/app/api/pages/[pageId]/chatbot/knowledge/route.ts",
+    "src/app/api/pages/[pageId]/chatbot/media/route.ts",
+    "src/app/api/pages/[pageId]/chatbot/route.ts",
+    "src/app/api/pages/[pageId]/chatbot/trial/route.ts"
+  ],
+  "chatbot_reply_logic_changed": false,
+  "runtime_differences_beyond_import_relocation": [
+    "src/app/api/cron/follow-up-automations/route.ts",
+    "src/lib/auth.ts"
+  ],
+  "original_reply_implementation_verified": true
+}

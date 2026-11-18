@@ -1,0 +1,9 @@
+{
+  "passed": true,
+  "legacy_credentials_changed": false,
+  "financial_policy_confirmed": false,
+  "verified_page_count": 12,
+  "reviewed_deals_enabled": true,
+  "supervisor_submissions_enabled": true,
+  "original_page_fields_unchanged": true
+}

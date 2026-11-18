@@ -1,0 +1,1548 @@
+{
+  "passed": true,
+  "production_writes": 0,
+  "schema_sha256": "b48b73a2acd5d2125083af0dc0f4dacfa0d1a48bde92f9f02b2eac525cf34085",
+  "pending": [
+    {
+      "name": "202610060000_suno_legacy_tracking_compatibility.sql",
+      "sha256": "4859b381152a36716b7c96629c82ca4f618d4f6a61ad1f7367be642cb5535289"
+    },
+    {
+      "name": "202610070001_chatbot_trial_history_reset.sql",
+      "sha256": "4fc7ec3b32cfceefa2a5bb311e21fea8cd128f5cee8d94e0f180dc7e936f391e"
+    },
+    {
+      "name": "202610130001_dashboard_query_indexes.sql",
+      "sha256": "40f40dca6093ed639b965aa3139679baf5a314bfe36e6c1b325b262108e6179b"
+    },
+    {
+      "name": "202610140001_chatbot_page_safeguards.sql",
+      "sha256": "3ec9fc24d37ba57c2c8b9667c35122c7d2d0e976d4327215b211129954a25611"
+    },
+    {
+      "name": "202610150001_chatbot_continuation_reviews.sql",
+      "sha256": "753a85731482943e9181f1f0689aebb5273021548742d2972edd3898a9f5c568"
+    },
+    {
+      "name": "202610170001_chatbot_human_takeover_and_prices.sql",
+      "sha256": "38b767cbbc0641637b5c67e023aded650e0a461c73a99c9d4783a04c3efa6ce8"
+    },
+    {
+      "name": "202610170001_commercial_video_nightly_handoff.sql",
+      "sha256": "7117078e7be49cb28bf078ee6cc0888c1e729cc25e964bc140083843a75c8249"
+    },
+    {
+      "name": "202610170002_chatbot_form_delivery.sql",
+      "sha256": "84032e1f8e33717c1b7abab06a28234e0f7c43aefddabbe579d3927864bbea8c"
+    },
+    {
+      "name": "202610170002_explicit_chatbot_reset.sql",
+      "sha256": "96f40e1c7e816aa67048e7fe00fc195011a5ad9571df688cb5bd56ab9fbcfa2c"
+    },
+    {
+      "name": "202610170003_chatbot_inbound_recovery.sql",
+      "sha256": "a791dc89d3a12537c9b81b3e2771a5778e56a5bde7cb29d8f7517900f99b7131"
+    },
+    {
+      "name": "202610170004_chatbot_recovery_enrollment.sql",
+      "sha256": "49350defcb40a6ec3996a2ba0267fc0d4c9b0c16cf19ef49bbbd99267c506f3f"
+    },
+    {
+      "name": "202610180001_chatbot_message_deliveries.sql",
+      "sha256": "3dddc32419c02868e9c7d4db6dfc10a771796a11f028ed025d29029af85853fe"
+    },
+    {
+      "name": "202610180001_chatbot_reply_inbound_timestamp.sql",
+      "sha256": "a0ebaa1090d78761dc5134d5f21d04b4602fe5c955a3644675e148960af8568e"
+    },
+    {
+      "name": "202610210001_nightly_review_requires_no_agreement.sql",
+      "sha256": "0f2df1d99cd61d8c69227f39b0474302f1957f0b5cf2523af88873cc24457f5e"
+    },
+    {
+      "name": "202610210002_interactive_eight_field_intake.sql",
+      "sha256": "fbac5b6d20f0d055be3cf51993867479f5744f37a7fe46983bf5dcde16f31fb7"
+    },
+    {
+      "name": "202610220001_chatbot_first_day_timing.sql",
+      "sha256": "ff3b69594cdbee01c64de93c4c38f788333dc2641d9c9343875e8e16c0c6fae5"
+    },
+    {
+      "name": "202610220002_chatbot_pricing_experiments.sql",
+      "sha256": "ac782387a7f1c380e084a8bf98e30924da709acdbe964d0970835b7529e7f0db"
+    },
+    {
+      "name": "202610220003_chatbot_pricing_day_sequence.sql",
+      "sha256": "1d309f9a8585f858741337b755a755b5821db3612ee69e7fea73a61f2f4fe4fe"
+    },
+    {
+      "name": "202610220004_chatbot_pricing_best_time_sequence.sql",
+      "sha256": "ba0dd954617134580d9c39585fb985f94f7d5e55b826896905aa074cfe071bbf"
+    },
+    {
+      "name": "202610270001_ad_lead_quality.sql",
+      "sha256": "11c570ec15b4f2884c885d256be0641fc4cdbbf67c3c2e007a5111317c499364"
+    },
+    {
+      "name": "202610270002_contact_bot_projections.sql",
+      "sha256": "139f4581349b76b1036856142e8f1df33d028996334438c39f3a9e28c58cbfd9"
+    },
+    {
+      "name": "202610280001_fast_ad_contact_drilldown.sql",
+      "sha256": "2f16aff286bcd734d1446bb69dfdd803b849bf69a3bd3a1ff91d43844784d6c7"
+    },
+    {
+      "name": "202610280002_ad_inventory_visibility.sql",
+      "sha256": "526b739df617bbb716e13aec777c1096c5c128b610de21633fc95928b1567865"
+    },
+    {
+      "name": "202610280003_preserve_same_message_ad_origin.sql",
+      "sha256": "c78a24c44f01a3e157ed3b8b4f2342fb6c3f3749111e6e370230a438c56fe1a1"
+    },
+    {
+      "name": "202610290001_conversion_performance.sql",
+      "sha256": "a82de6ff1ca0ee0fc492d39af6af8595cce25036e4511e80817bdd6614aed768"
+    },
+    {
+      "name": "202610290002_fast_conversion_reports.sql",
+      "sha256": "f7a8a981471d0cb6c56b43c87e51e57bf6f2f7d51d8e55e8a1de4dea3a55605d"
+    },
+    {
+      "name": "202610300001_guided_sales_intake.sql",
+      "sha256": "9c4019818f8a3a77c1703d47e1efee6d112de1293a95ef563d0da82be920655c"
+    },
+    {
+      "name": "202610300002_chatbot_sales_assistant.sql",
+      "sha256": "2975abcd51a899c7d50741376aad1834668b9bcfd198a54b532b4bdf181e2536"
+    },
+    {
+      "name": "202611020001_chatbot_gpt6_luna.sql",
+      "sha256": "6d4cd4f757e9981cd3bb9015a5547c59c11a1c9ed3185533f9956d70aaf915e0"
+    },
+    {
+      "name": "202611020002_messenger_stage_history.sql",
+      "sha256": "0dec5c61538126b70dc7aa08c90f77357a3660facef4ec042d60321e075482c0"
+    },
+    {
+      "name": "202611020003_stage_history_repair_index.sql",
+      "sha256": "526beac5df7d88bec7fb37aa54be1f1f7ccd0b17cecb2a8efb70c9571745b320"
+    },
+    {
+      "name": "202611020004_contact_profiles.sql",
+      "sha256": "62d65df17c9ffd0c1b2a065024dc1627390eb235687b364668ad20a72bab60b0"
+    },
+    {
+      "name": "202611020005_ad_calendar.sql",
+      "sha256": "878ec1bfdb3907a12c06c9325e30d49c0a405c408014c1a3c62f6d4479bc5fe8"
+    },
+    {
+      "name": "202611020006_calendar_outcome_sources.sql",
+      "sha256": "7f5e6b2b3a12a61fc86a17c240bcac2baea86acfee32f905ecca8f4415b62a5f"
+    },
+    {
+      "name": "202611020007_calendar_report_performance.sql",
+      "sha256": "0a094b588e6310c308bf55a9218017403bc6e39c7c56a82e470fbdf05b50951a"
+    },
+    {
+      "name": "202611020008_historical_repair_no_ai.sql",
+      "sha256": "6292505a5443a0388cfa1b1f4f791049d1716f7129b969e7ac50ec40c26d99c8"
+    },
+    {
+      "name": "202611020009_calendar_historical_conversions.sql",
+      "sha256": "aaa931e650ba4890d5224c7309f0659745d359a0a2b6e725d191ad9513194ca8"
+    },
+    {
+      "name": "202611030001_chatbot_pricing_control.sql",
+      "sha256": "485a3f259982dc5ebe1584436473ae72e6514c661ece34c5aaa85776ed7953d6"
+    },
+    {
+      "name": "202611030001_page_automation_ownership.sql",
+      "sha256": "f9a0cf66bd5ec3b4cc51e257f151bf5a7b4dbf2928808c1aa4512a2b438955e6"
+    },
+    {
+      "name": "202611040001_calendar_all_historical_conversions.sql",
+      "sha256": "dd92022ed0e6907af112ba8dde3d381e91fc5e8f13fea964549ebdfcbc90ffcb"
+    },
+    {
+      "name": "202611040002_automated_meta_ads_sync.sql",
+      "sha256": "46fadb9e025812dccf52dceb98ee80b0f0817f72d9fd3df10f13c383585cb29c"
+    },
+    {
+      "name": "202611050001_order_created_paid_conversion.sql",
+      "sha256": "dc574d5b7cadf22e6c2c1a2f1e3b3dfe239e48b67156e85ae42327904b257502"
+    },
+    {
+      "name": "202611050002_contact_conversation_archives.sql",
+      "sha256": "099258a1679f9802999ea549f7fdd42fc0e85dbe1f529bd0a7e04d6b3f03a904"
+    },
+    {
+      "name": "202611050003_calendar_cohort_conversation_metrics.sql",
+      "sha256": "ce9d427f6aea9a31d560e928ef2a6fd88c477933f21ede62303cbc1ace41ae65"
+    },
+    {
+      "name": "202611050004_preserve_order_created_paid_history.sql",
+      "sha256": "a980d7821274a7460c5b36912c212d09eaa9852548b91fb939137f8ec253240a"
+    },
+    {
+      "name": "202611050005_contextual_payment_cohort_metrics.sql",
+      "sha256": "2509a08122a99a527f0fe051f16b9fc5a8518963ebf1fe3957d7fd01d49b9d6d"
+    },
+    {
+      "name": "202611050006_local_only_raw_conversations.sql",
+      "sha256": "611c383dfca61f52c8e74df78c14d282fd0c41ac40a9fc6c2adbf9385b646578"
+    },
+    {
+      "name": "202611050007_scope_stage_events_to_contact.sql",
+      "sha256": "8c970768e0040b9d1464b23768ef518497fc8a5b2a2c4dfb600ba53f7e13d259"
+    },
+    {
+      "name": "202611050008_date_only_payment_cohorts.sql",
+      "sha256": "112ed471c9384ff34eb1e0c44f43577fb6b914955e7bc0a2a158c76a325b7c7a"
+    },
+    {
+      "name": "202611050009_calendar_archive_freshness.sql",
+      "sha256": "c4ef4b84caaf88c7af4c52a6ecf01c0c92377f27e833f9073bb25caf16f989b6"
+    },
+    {
+      "name": "202611050010_veo_workspace.sql",
+      "sha256": "96b45f57a6d89bb94031f370ca374e6b4915e57fd62cd24763845cd815ac86dd"
+    },
+    {
+      "name": "202611050011_veo_workspace_workers.sql",
+      "sha256": "fae522174e0a5b1a27c39e6c4aa274d343cb7eef4786e0dbc74337df6ad9faf5"
+    },
+    {
+      "name": "202611050012_veo_workspace_hardening.sql",
+      "sha256": "c953562d6530c1053619636c4ed61138e0428ec3e3a805fa3ad0268b86a1c87e"
+    },
+    {
+      "name": "202611050013_veo_refund_and_submission_recovery.sql",
+      "sha256": "def517fe1cd6001484cfa859c82b937852dee983a5fd8be071de48148c7ee1c9"
+    },
+    {
+      "name": "202611050014_veo_salary_reconciliation_queue.sql",
+      "sha256": "fb6e616d542f507f12619e0ae74b536b72ee879a4d799ff2785e37a8b2927120"
+    },
+    {
+      "name": "202611050015_veo_review_corrections.sql",
+      "sha256": "3268ae1baf10145fecfb4402bf44c888fc5fe892d112cfe582d766ab2e9a45a3"
+    },
+    {
+      "name": "202611050016_veo_contacts_and_telegram_profile.sql",
+      "sha256": "76b244dd84513ab3ef9ba72ab0b1ed93ae1ed734183ba5ca776d7c9efc45fc78"
+    },
+    {
+      "name": "202611050017_veo_team_capacity.sql",
+      "sha256": "fb61f53d7a7ecfd307fe2366187155ce72363927533340a69604f68011f51757"
+    },
+    {
+      "name": "202611050018_veo_current_team_planning.sql",
+      "sha256": "90f72bb56f16733e3988e268fb70447d27b11d60be2071be36e9a6f59f1eb99a"
+    },
+    {
+      "name": "202611050019_veo_conversation_event_leases.sql",
+      "sha256": "fb763e148a9d24cc97789c5b93ab820f486c17c678fbe4643770e82e0919b896"
+    },
+    {
+      "name": "202611050020_veo_staff_and_delivery.sql",
+      "sha256": "3e920e0f53e755d13eb5c2b219f732ff0510048e592ed81cd94948d97a582a11"
+    },
+    {
+      "name": "202611050021_veo_performance_finance.sql",
+      "sha256": "4e370eec5f70221d4138b3beb0f564a1fbcca4be037c7ebf8ba5e07bb2834903"
+    },
+    {
+      "name": "202611050022_veo_page_capacity_budget.sql",
+      "sha256": "16bd5e29f0a3a54fb2cadd43c84ede7a40702d0adec4e29c5ad917da52838d39"
+    },
+    {
+      "name": "202611050023_veo_telegram_workforce.sql",
+      "sha256": "43534b71c7f2b7203bd1d4cd345d1e69e023aceebc320b0a9f709c7fc2d9d6d2"
+    },
+    {
+      "name": "202611050024_veo_shift_reports.sql",
+      "sha256": "9f30406c81a8bfa5058e63fbc745074c43a7116aff9ec843f7095d291b58b96b"
+    },
+    {
+      "name": "202611050025_veo_current_telegram_group.sql",
+      "sha256": "5d47421529b2885409f6cfc89a0988f44624ca7fcdb4ff96bc14cc794d6a1c40"
+    },
+    {
+      "name": "202611050026_veo_calendar_message_metadata.sql",
+      "sha256": "c39cbb22e6c2a9da9d3352f41439cc34a5c97344728240a75a794c92038a74b5"
+    },
+    {
+      "name": "202611050027_veo_calendar_analytics.sql",
+      "sha256": "89d99ef4242cf82e1bb2c8ccf9ca10bd89b0bcb39ae6d1aa991cee24154692ba"
+    },
+    {
+      "name": "202611050028_veo_distinct_client_release.sql",
+      "sha256": "b4fc09c4e5edb9fa55964dc994945e9f83a330d3f70873230200de72361d4684"
+    },
+    {
+      "name": "202611070001_veo_ad_spend_coverage.sql",
+      "sha256": "6b393f4ade62ccb722e0577d5ad6a0d9b5e5273d59b25a0e84ef94c2b11ba5f9"
+    },
+    {
+      "name": "202611070002_veo_demographics.sql",
+      "sha256": "e2ae56698159a690a93cc4a55b486d8b29cc67ceeca6c6b2b443644dee594d97"
+    },
+    {
+      "name": "202611070003_veo_calendar_read_only_inputs.sql",
+      "sha256": "1fd598bcbc39cd55d6a1b938cb271a33e6b53bcf9a2d3622b2b1ed3d912fe34d"
+    },
+    {
+      "name": "202611070004_veo_employee_profiles.sql",
+      "sha256": "0033e1c124329f234465bfc580eb63831affa007d2b49e35052f151494ca0186"
+    },
+    {
+      "name": "202611070005_veo_employee_profile_query_bounds.sql",
+      "sha256": "65e19dc1deaa7ef90771f581260cbc82f32ffeb84b3293f295582635e30e23ea"
+    },
+    {
+      "name": "202611070006_veo_report_custom_plans.sql",
+      "sha256": "c3b60f143bb6850d45551e9107bed589471bfe0a3ba2aa1d746cd36c8961f8a6"
+    },
+    {
+      "name": "202611070007_veo_calendar_page_base.sql",
+      "sha256": "aa2efc03d0d06d8e5022dbc61dc20ab5682503e770e633a4d4355aa0d61c32de"
+    },
+    {
+      "name": "202611070008_veo_contact_profile_fields.sql",
+      "sha256": "63866376032f6e1dde6787d4b9c940b09bbaafc079bf3f44f0ea1aa8ba918c42"
+    },
+    {
+      "name": "202611070009_veo_profile_source_lookup.sql",
+      "sha256": "afda2b80b2daed8f8ca0b74a6d2a74ca225bdec9360f7ea98ad74bcbb90d1aca"
+    },
+    {
+      "name": "202611070010_veo_calendar_covering_reads.sql",
+      "sha256": "f2d8d4479830ab37bd8f9557205cac8089deafb4f956590611cabf0adca542f7"
+    },
+    {
+      "name": "202611070011_veo_calendar_scope_scalars.sql",
+      "sha256": "3b7c875c0b13db13c47c6c024200a4b95671b0f737c552e2730203f5453d9ec6"
+    },
+    {
+      "name": "202611070012_veo_receipt_holds.sql",
+      "sha256": "f42aa9c861a99bd88a33edf2badd269573fe7f031eacb30d8b6402aacfd69c17"
+    },
+    {
+      "name": "202611070013_veo_workflow_warnings.sql",
+      "sha256": "c9b6db453ac3532456da4bb18cc4c8c38e5d730984b02fd7522b98e7c685972c"
+    },
+    {
+      "name": "202611070014_veo_ad_supported_quotas.sql",
+      "sha256": "adc527314055da11ba86f61f129caf4c911affe207e1a0251ad5a1681fd49de9"
+    },
+    {
+      "name": "202611070015_veo_creative_inputs.sql",
+      "sha256": "351a6c1ccfb121ddc2659dce6101833ec5cee42c9849cd074f03b5e10a3d6260"
+    },
+    {
+      "name": "202611070016_veo_page_supply_allocation.sql",
+      "sha256": "dbf48eaf37d568047a85e62098d7b2c9a232f66c8fd46ec6bf1344f5738f0e15"
+    },
+    {
+      "name": "202611070017_veo_receipt_notes_and_commission.sql",
+      "sha256": "62bc0da955e3c03e606db02bc4624c2da0a50bafcbb27a3e7c318e204b317c88"
+    },
+    {
+      "name": "202611070018_veo_stage_closed_and_settlement.sql",
+      "sha256": "90ea2ea7a5633b49107c2d867d57ac249ea0e376352fd772bfabc157a294f9f4"
+    },
+    {
+      "name": "202611070019_veo_business_suite_deals.sql",
+      "sha256": "3e6693185d91a7ced4add856a47fabc4a64b9c94c9efbb5d611b8e60e1fe7c46"
+    },
+    {
+      "name": "202611070020_veo_receipt_deletion.sql",
+      "sha256": "03bfb87f0e09599f64846578cb4ace09faae03d926c9dd49cec0babdda53f300"
+    },
+    {
+      "name": "202611070021_veo_receipt_facebook_gate.sql",
+      "sha256": "576aee644970f18176202ef2a6bdc3f09620463185420de4ff7395b4cdd76554"
+    },
+    {
+      "name": "202611070022_veo_explicit_facebook_stage.sql",
+      "sha256": "fb5d271730298495e554b6878c6ce1cc887fece87555ccbe90e71e52a1af7f8c"
+    },
+    {
+      "name": "202611070023_veo_known_stage_conflicts.sql",
+      "sha256": "97947cd57df72f63162165d14c8717ba40a6525edab094f9926a934fc0a5f376"
+    },
+    {
+      "name": "202611070024_veo_telegram_warning_reports.sql",
+      "sha256": "0e13f1f976c8b921f7c390eab805951662557ffe20a70092d522bd9ad99d2adb"
+    },
+    {
+      "name": "202611080001_veo_client_intake.sql",
+      "sha256": "1f57eabb279c18d46ad56e8c60e73f6edac424c9b834968c336a6c9c3f480729"
+    },
+    {
+      "name": "202611080002_veo_client_intake_reads.sql",
+      "sha256": "f8e4f4fbb1e027b9a2b7d176629fcc7f867a67db4bb77b37cfb61d4bc5ef91ee"
+    },
+    {
+      "name": "202611080003_veo_telegram_groups.sql",
+      "sha256": "a6b62e091573500573d7188a9a2409b62459d145864feb2cddfd05bdb8b7a71d"
+    },
+    {
+      "name": "202611080004_veo_telegram_group_observations.sql",
+      "sha256": "6c1a78085712d47e757ea8e140915da9447e8fc24281583eebfed5c6a1e9364b"
+    },
+    {
+      "name": "202611080005_veo_telegram_group_reports.sql",
+      "sha256": "3cf1d1ac98d96bba8df43fa8a2fce838a7f8a2ff2042b055bff5b41fcf640364"
+    },
+    {
+      "name": "202611080006_veo_telegram_intake.sql",
+      "sha256": "acac6ff0d5138560e884f01bf64e995656bb14eca1f3fd300c97db5e6a9f9b81"
+    },
+    {
+      "name": "202611080007_veo_automatic_telegram_teams.sql",
+      "sha256": "b69e986262bdfddb773883f51e379ec4c7aebdabfa4e47fe8d33de88889c62a3"
+    },
+    {
+      "name": "202611080008_veo_automatic_editor_dispatch.sql",
+      "sha256": "9cde2e8b84ff22f4fdbff8f325751a429346f677521c4f7bef68e39cc6d8b6c3"
+    },
+    {
+      "name": "202611080009_veo_jev_interruption_reviews.sql",
+      "sha256": "89950cc5545d9d136f7d046ca1f6b408bbefcb0c5625a4c4a0a5bd274ed91825"
+    },
+    {
+      "name": "202611080010_veo_three_detail_assignment.sql",
+      "sha256": "a0416eb06f71ea0d1d763fa894c8306bce73dda7e9dafb591ce67ea477af390a"
+    },
+    {
+      "name": "202611080011_veo_source_reconciliation.sql",
+      "sha256": "8115e17f090a6a53693c2901734932b323f8a767237207acfa63c9b323e6f048"
+    },
+    {
+      "name": "202611080012_veo_jev_observation_mode.sql",
+      "sha256": "701fd04040a70c3fa8a98780dde6e1dcb169e5fb2b45a08d47502aab5ca4a078"
+    },
+    {
+      "name": "202611080013_veo_jev_policy_guard_repair.sql",
+      "sha256": "2de65e3d74fecc19368c90caa6b359e5700c26680bf24dc60a3454bbfcd9e0b7"
+    },
+    {
+      "name": "202611080014_veo_telegram_dm_pairing.sql",
+      "sha256": "6bc98e2cb5da0b20bc3199a24ebf091a59094f8ddd42343180949419acb7775b"
+    },
+    {
+      "name": "202611090001_veo_hierarchy_recursion_guards.sql",
+      "sha256": "a93f4bab8e89edaa6a33f7b9fbd8cb476dc53c68f1dff5ee7379de25c08db5a0"
+    },
+    {
+      "name": "202611090002_veo_compact_launch_archive.sql",
+      "sha256": "d2324a8c266cea8a80d9db2b8fe7f3c17982f73439fff03249fb814c5c2bf111"
+    },
+    {
+      "name": "202611090003_veo_contact_identity_sync.sql",
+      "sha256": "2fb3abdb7310557e061a66c54344ff16f8ecde20697dda50427e05923702f579"
+    },
+    {
+      "name": "202611090004_veo_recovered_account_login.sql",
+      "sha256": "9ea89cfeb91520bed69ac0801994b68f643e33b04f9dc25c89bae67a9ed7af29"
+    },
+    {
+      "name": "202611090005_veo_calendar_earnings.sql",
+      "sha256": "ef23a2825cd5971847dfd8e54672c3c7cfddcacf2f846c09fde7ccc25aa26de6"
+    },
+    {
+      "name": "202611090006_veo_background_job_leases.sql",
+      "sha256": "c08bb14d2f2323a82a5897a94b7e4cc96df78d302e72a2cd08120882aaea46d6"
+    },
+    {
+      "name": "202611090007_veo_retention_and_day_reads.sql",
+      "sha256": "342da546707c4e456d4828d07bd7656a9d0e1b240f62c45475991c8a355bce03"
+    },
+    {
+      "name": "202611100001_veo_owner_page_connections.sql",
+      "sha256": "f8c6e89ee86ffb4f5d306fd906edfa2771c2f2e5b0a953b1b1031c41e8d5c699"
+    },
+    {
+      "name": "202611100001_veo_storage_protection.sql",
+      "sha256": "68c00d332d34483aa561d350881eac5e06a9775795434ceb2b94feac2e723957"
+    },
+    {
+      "name": "202611100002_veo_telegram_relink.sql",
+      "sha256": "05b8e6e418b738000554c12c46e8e99b3098e7a66d3b4f1908b753ebce0e64ce"
+    },
+    {
+      "name": "202611100003_veo_distinct_order_paid_steps.sql",
+      "sha256": "6a03e7a471ba9eb5b6f522dd5b8d37e60cb9833886f7b3960c923cf0b9c7f78d"
+    },
+    {
+      "name": "202611110001_veo_staff_performance.sql",
+      "sha256": "cbf818d04ca0a10be14bdb328eb572b83306362bc39e36ed96bacc58eb80baa2"
+    },
+    {
+      "name": "202611110002_veo_ad_reporting_connections.sql",
+      "sha256": "3c4649dd3cef726a103824b2c4565166149caad2029d8b0c12084bc040396752"
+    },
+    {
+      "name": "202611110003_veo_telegram_sync_bootstrap.sql",
+      "sha256": "f862a32e54051e35d02ec95e6f7f8c8ca5cb5db633570a52a6676265ee3c4454"
+    },
+    {
+      "name": "202611110004_veo_autotag_page_recovery.sql",
+      "sha256": "687f891d90a5a80565b63a42ef9c9041041b9d3dd3b30f7d047640fa71827026"
+    },
+    {
+      "name": "202611110005_veo_account_access_and_supervisor_teams.sql",
+      "sha256": "be2d66fb85e345097e9c2999c24c44728683b415f0cb6f5fed7c7005c2e319d3"
+    },
+    {
+      "name": "202611110006_veo_direct_member_supervision.sql",
+      "sha256": "d3ae5d9f35119a6898dda4d2008d46ac18d3a1093757d781d303fedfa77e9183"
+    },
+    {
+      "name": "202611110007_veo_supervisor_conflict_response.sql",
+      "sha256": "d698adaa824e57beec70c24bc6b2239aed0afb8399471583f7a0836e88a9d744"
+    },
+    {
+      "name": "202611110008_veo_reviewed_deal_evidence.sql",
+      "sha256": "3c17661f83d56c3d4382cce74c9fd9d033ad947bfd6a017059ff9c0976ba1592"
+    },
+    {
+      "name": "202611110009_veo_reviewed_delivery_totals.sql",
+      "sha256": "ba4aeafaf8efa2e0b506d43100075a9082e86023135de1394020ae2448dbd6aa"
+    },
+    {
+      "name": "202611110010_veo_deal_review_attribution.sql",
+      "sha256": "fce00824153b33f3181936970e726923556e02e3395276043f5add87c654d8e9"
+    },
+    {
+      "name": "202611120001_veo_supervisor_receipt_submission.sql",
+      "sha256": "026f9ba7dd67f20dea2b89926d803fe463878aa8d7aaf680844a65090bda118e"
+    },
+    {
+      "name": "202611120002_veo_deal_evidence_slots.sql",
+      "sha256": "87407d427b9f628b85f393ef94195aee1487ef1f0893944de128b4152aaedf80"
+    },
+    {
+      "name": "202611120003_veo_hourly_ads_existing_cron.sql",
+      "sha256": "d0a6f9a6c4257912bb636bf567a6fa5a5221068346f08de9d5d4963b16d3594c"
+    },
+    {
+      "name": "202611120004_veo_saved_page_ad_access.sql",
+      "sha256": "081ebac84070e7df3dda1dba0306e23dd9415ac42eb3aaa164a97e9f1fc6e4c8"
+    },
+    {
+      "name": "202611130001_veo_optional_supervisor_auto_approval.sql",
+      "sha256": "9d98ee5ea357a90090e938fcc53b743ec27c793ee37093af96cba45f2b63d0de"
+    },
+    {
+      "name": "202611130002_veo_supervisor_receipt_deletion.sql",
+      "sha256": "cbcb469ac4f659bb3c590447e920a06d00e3413b2b6c24184e7c12a19b7832ae"
+    },
+    {
+      "name": "202611130003_veo_close_deal_price_correction.sql",
+      "sha256": "c473f58af1274f4091434925f444ea9a029ca66ed40503bc894226adf09e28fc"
+    },
+    {
+      "name": "202611130004_veo_team_receipt_auto_approval.sql",
+      "sha256": "9437d4e8ee505e05ff2c1d59a2abf04315de20d15d76be66339eed2bbe05ad4f"
+    },
+    {
+      "name": "202611130005_veo_calendar_coverage_enrollment.sql",
+      "sha256": "fc98afe24e89a5b8bec96bc1baef06343738094705822add9194b7a45d9ca8c3"
+    },
+    {
+      "name": "202611130006_veo_automatic_contact_collection.sql",
+      "sha256": "96dbc58c2dc0482dec4ee39363b3001cb09e69ea3ca8a2504fe988033e2582e5"
+    },
+    {
+      "name": "202611130007_veo_prioritize_inbound_conversations.sql",
+      "sha256": "b154ced1892500b14e346b3810f5ad1dfb7adae462eb87676ffb90734fe06db9"
+    },
+    {
+      "name": "202611130008_veo_deal_incentives.sql",
+      "sha256": "8ab5905c47740b8898d5a9c921e4d6e61a9b3b1be00d30a90dab896a6a7a2768"
+    },
+    {
+      "name": "202611130009_veo_flexible_spend_quotas.sql",
+      "sha256": "a855068fc7610c40aa2aafa8793374ece3d91ef47af59d35638648116399869a"
+    },
+    {
+      "name": "202611140001_veo_capacity_refresh.sql",
+      "sha256": "6f9f1de3e72ee7d7aea0689434a370893dfab97a89466c4667a7f30a9787c1ea"
+    },
+    {
+      "name": "202611140002_veo_calendar_planning_reuse.sql",
+      "sha256": "4627dfc3fc521baa92c7b087ebce851313ff5b1c8a4c7bdb06fa2786c77ee783"
+    },
+    {
+      "name": "202611140003_veo_first_inquiry_history.sql",
+      "sha256": "f8f42c620c42ecf9470d42fbc3cf9d30b68dbdcc46c5b313bb6050abbf720bde"
+    },
+    {
+      "name": "202611140004_veo_database_pressure_protection.sql",
+      "sha256": "ed3aa4fb790bb9daa4d051f718fa7408c1b17e59a4207667bac2869d25c52fda"
+    },
+    {
+      "name": "202611140005_veo_bound_live_worker_queries.sql",
+      "sha256": "bb77194a1454ca4eb9d52b1818bf223edc89f8dbb6aca09a4c9fda79645bccbb"
+    },
+    {
+      "name": "202611140006_chatbot_closed_sale_guard.sql",
+      "sha256": "fa8c7ef9085dd855335d4392445ba256c1577643c54f41424b823b938e0a5d32"
+    },
+    {
+      "name": "202611140007_veo_dispatch_bounded_batches.sql",
+      "sha256": "a91bc77991f81b38d2feb01c3cae27cc481b48405f48ee22a01438ca26d63b0a"
+    },
+    {
+      "name": "202611140008_veo_prioritize_ready_dispatch.sql",
+      "sha256": "945a299927fb1f2809107ddec83931bde25ebd99d4dfeefb1b391b287ddc7e9d"
+    },
+    {
+      "name": "202611140101_suno_legacy_compatibility.sql",
+      "sha256": "6de1615584be28436837820a54979e722ebc08d9a73a41527d8e91bb3fcc5409"
+    },
+    {
+      "name": "202611140102_suno_song_domain.sql",
+      "sha256": "ef5003cef6c200a1c2906a2e075e1e587079c07993c6dc679a93c12cba061a19"
+    },
+    {
+      "name": "202611140103_suno_runtime_compatibility.sql",
+      "sha256": "8af7f52248bcbf9eaad5b57f5c3e5e6de6b9df2af07039f24774aafc3bea48d1"
+    },
+    {
+      "name": "202611150001_veo_telegram_client_controls.sql",
+      "sha256": "16e37d4f111dda76acd4b19e4c39ee7ebcc663a3dc85c947b4505f6839eb9338"
+    },
+    {
+      "name": "202611150002_veo_telegram_command_controls.sql",
+      "sha256": "b4ea70a0d761e44940eec47acfe9d4200ea7b2b98e6d5a8dcd469ffe023d16fa"
+    },
+    {
+      "name": "202611150101_suno_song_work.sql",
+      "sha256": "9f5b562a1cc59595b0b2732ceed11b71ca2db3b81adabd550d31ca0584002a7d"
+    },
+    {
+      "name": "202611150102_suno_controls_and_retention.sql",
+      "sha256": "20bac80c18e35010772fe34ea5d204d6bcdfceeb6a6ed44a0d5fc35b80fadc8b"
+    },
+    {
+      "name": "202611150103_suno_atomic_takeover_recovery.sql",
+      "sha256": "457df8d0e73bf992aa78617c78249e6e7c78138f8e288b71833d88f6a6a24def"
+    },
+    {
+      "name": "202611150104_suno_tenant_launch.sql",
+      "sha256": "e91377cbfe5ff70d6c0c12a9ee93e22be6bfbcb206b20fe5e8d479adb18d59ed"
+    },
+    {
+      "name": "202611160001_veo_workspace_report_deadlines.sql",
+      "sha256": "450fe4aa16f1539aacadf9383a12be32349bb16ea30d4fa0ff8f420b2b230ef8"
+    },
+    {
+      "name": "202611160002_veo_dashboard_summary.sql",
+      "sha256": "768038e65c7dabfeaa0f4459581af2c22004bb7c6988fd1ad90ef670d487329a"
+    },
+    {
+      "name": "202611160003_veo_completed_project_warnings.sql",
+      "sha256": "e0fbc047c89763506c9bdcf03d739300c8aa2b93368539bb48578ccd967e52f2"
+    },
+    {
+      "name": "202611160004_veo_login_context.sql",
+      "sha256": "7e8f806d83784cc37549d1537c20464cd4b8a353a2ab60f843ab2c6693db444c"
+    },
+    {
+      "name": "202611160005_veo_stage_contact_audit.sql",
+      "sha256": "36e1657c68231ec4d872c1d37f5d51f206237fb5d15222651742a3665a4c33f2"
+    },
+    {
+      "name": "202611160006_veo_salary_snapshot_report.sql",
+      "sha256": "bc2eb50fd65df5396cdafbed7f17bf0e4c3a40f1c214ef532f10c00efbe36330"
+    },
+    {
+      "name": "202611160007_veo_bounded_database_work.sql",
+      "sha256": "1171459c03e979a73038ecec219f740623562e1a0f7b08cce5da8851679af7dc"
+    },
+    {
+      "name": "202611160008_veo_quota_run_budget.sql",
+      "sha256": "2f83beff244ada1975ddd5d0c2f2cd112e7dd8a88669ef6904277c146636cbd1"
+    },
+    {
+      "name": "202611160105_suno_jaucian_brief_controls.sql",
+      "sha256": "cd72cbc4c66dd43f6347603dc4b247400d654315d9504c03beab5d45f2382dce"
+    },
+    {
+      "name": "202611170001_veo_manager_salary_immunity.sql",
+      "sha256": "c4b2486da3bfd281e3069fbb98c60ab30be1fd667dad98e8f19bbb1fa6d0b110"
+    },
+    {
+      "name": "202611170002_veo_preserve_staff_receipt_review.sql",
+      "sha256": "01feebf70c58b4d7d26f9ad243d82ed792c821e93a99b74b4e686619e6c620c7"
+    },
+    {
+      "name": "202611170003_veo_async_staff_receipt_approval.sql",
+      "sha256": "0db4f1b47f982038c2e2acbc53744e356a9c4035380cbb405ae1681e26360eea"
+    },
+    {
+      "name": "202611170004_veo_member_discipline.sql",
+      "sha256": "54361da70a0eac71a127b11bfed3dc607983fceb01a3d358b6e7bf595bd177fd"
+    },
+    {
+      "name": "202611180001_suno_retained_chatbot_controls.sql",
+      "sha256": "0eab8ca2ab2ada1759bd2c4862d003c4221cc92d2eef413b119d4acfba689d6d"
+    },
+    {
+      "name": "202611180002_suno_retained_workspace_enrollment.sql",
+      "sha256": "40c870ed8793a598e83f079bc1559e002244ae0ecaecb0aa59dae63b9ef5c72e"
+    },
+    {
+      "name": "202611180003_suno_retained_event_observation.sql",
+      "sha256": "14420aff2a2a83093d5f64d3f31621a86f777fe883f24426964bbf7ab43ae8a6"
+    },
+    {
+      "name": "202611180004_suno_earnings_policy_confirmation.sql",
+      "sha256": "021b75f644531f91334ec8d560ffe7e891d58ced3f7c3eeda7f586831e7c5172"
+    }
+  ],
+  "applied": [
+    "202610060000_suno_legacy_tracking_compatibility.sql",
+    "202610070001_chatbot_trial_history_reset.sql",
+    "202610130001_dashboard_query_indexes.sql",
+    "202610140001_chatbot_page_safeguards.sql",
+    "202610150001_chatbot_continuation_reviews.sql",
+    "202610170001_chatbot_human_takeover_and_prices.sql",
+    "202610170001_commercial_video_nightly_handoff.sql",
+    "202610170002_chatbot_form_delivery.sql",
+    "202610170002_explicit_chatbot_reset.sql",
+    "202610170003_chatbot_inbound_recovery.sql",
+    "202610170004_chatbot_recovery_enrollment.sql",
+    "202610180001_chatbot_message_deliveries.sql",
+    "202610180001_chatbot_reply_inbound_timestamp.sql",
+    "202610210001_nightly_review_requires_no_agreement.sql",
+    "202610210002_interactive_eight_field_intake.sql",
+    "202610220001_chatbot_first_day_timing.sql",
+    "202610220002_chatbot_pricing_experiments.sql",
+    "202610220003_chatbot_pricing_day_sequence.sql",
+    "202610220004_chatbot_pricing_best_time_sequence.sql",
+    "202610270001_ad_lead_quality.sql",
+    "202610270002_contact_bot_projections.sql",
+    "202610280001_fast_ad_contact_drilldown.sql",
+    "202610280002_ad_inventory_visibility.sql",
+    "202610280003_preserve_same_message_ad_origin.sql",
+    "202610290001_conversion_performance.sql",
+    "202610290002_fast_conversion_reports.sql",
+    "202610300001_guided_sales_intake.sql",
+    "202610300002_chatbot_sales_assistant.sql",
+    "202611020001_chatbot_gpt6_luna.sql",
+    "202611020002_messenger_stage_history.sql",
+    "202611020003_stage_history_repair_index.sql",
+    "202611020004_contact_profiles.sql",
+    "202611020005_ad_calendar.sql",
+    "202611020006_calendar_outcome_sources.sql",
+    "202611020007_calendar_report_performance.sql",
+    "202611020008_historical_repair_no_ai.sql",
+    "202611020009_calendar_historical_conversions.sql",
+    "202611030001_chatbot_pricing_control.sql",
+    "202611030001_page_automation_ownership.sql",
+    "202611040001_calendar_all_historical_conversions.sql",
+    "202611040002_automated_meta_ads_sync.sql",
+    "202611050001_order_created_paid_conversion.sql",
+    "202611050002_contact_conversation_archives.sql",
+    "202611050003_calendar_cohort_conversation_metrics.sql",
+    "202611050004_preserve_order_created_paid_history.sql",
+    "202611050005_contextual_payment_cohort_metrics.sql",
+    "202611050006_local_only_raw_conversations.sql",
+    "202611050007_scope_stage_events_to_contact.sql",
+    "202611050008_date_only_payment_cohorts.sql",
+    "202611050009_calendar_archive_freshness.sql",
+    "202611050010_veo_workspace.sql",
+    "202611050011_veo_workspace_workers.sql",
+    "202611050012_veo_workspace_hardening.sql",
+    "202611050013_veo_refund_and_submission_recovery.sql",
+    "202611050014_veo_salary_reconciliation_queue.sql",
+    "202611050015_veo_review_corrections.sql",
+    "202611050016_veo_contacts_and_telegram_profile.sql",
+    "202611050017_veo_team_capacity.sql",
+    "202611050018_veo_current_team_planning.sql",
+    "202611050019_veo_conversation_event_leases.sql",
+    "202611050020_veo_staff_and_delivery.sql",
+    "202611050021_veo_performance_finance.sql",
+    "202611050022_veo_page_capacity_budget.sql",
+    "202611050023_veo_telegram_workforce.sql",
+    "202611050024_veo_shift_reports.sql",
+    "202611050025_veo_current_telegram_group.sql",
+    "202611050026_veo_calendar_message_metadata.sql",
+    "202611050027_veo_calendar_analytics.sql",
+    "202611050028_veo_distinct_client_release.sql",
+    "202611070001_veo_ad_spend_coverage.sql",
+    "202611070002_veo_demographics.sql",
+    "202611070003_veo_calendar_read_only_inputs.sql",
+    "202611070004_veo_employee_profiles.sql",
+    "202611070005_veo_employee_profile_query_bounds.sql",
+    "202611070006_veo_report_custom_plans.sql",
+    "202611070007_veo_calendar_page_base.sql",
+    "202611070008_veo_contact_profile_fields.sql",
+    "202611070009_veo_profile_source_lookup.sql",
+    "202611070010_veo_calendar_covering_reads.sql",
+    "202611070011_veo_calendar_scope_scalars.sql",
+    "202611070012_veo_receipt_holds.sql",
+    "202611070013_veo_workflow_warnings.sql",
+    "202611070014_veo_ad_supported_quotas.sql",
+    "202611070015_veo_creative_inputs.sql",
+    "202611070016_veo_page_supply_allocation.sql",
+    "202611070017_veo_receipt_notes_and_commission.sql",
+    "202611070018_veo_stage_closed_and_settlement.sql",
+    "202611070019_veo_business_suite_deals.sql",
+    "202611070020_veo_receipt_deletion.sql",
+    "202611070021_veo_receipt_facebook_gate.sql",
+    "202611070022_veo_explicit_facebook_stage.sql",
+    "202611070023_veo_known_stage_conflicts.sql",
+    "202611070024_veo_telegram_warning_reports.sql",
+    "202611080001_veo_client_intake.sql",
+    "202611080002_veo_client_intake_reads.sql",
+    "202611080003_veo_telegram_groups.sql",
+    "202611080004_veo_telegram_group_observations.sql",
+    "202611080005_veo_telegram_group_reports.sql",
+    "202611080006_veo_telegram_intake.sql",
+    "202611080007_veo_automatic_telegram_teams.sql",
+    "202611080008_veo_automatic_editor_dispatch.sql",
+    "202611080009_veo_jev_interruption_reviews.sql",
+    "202611080010_veo_three_detail_assignment.sql",
+    "202611080011_veo_source_reconciliation.sql",
+    "202611080012_veo_jev_observation_mode.sql",
+    "202611080013_veo_jev_policy_guard_repair.sql",
+    "202611080014_veo_telegram_dm_pairing.sql",
+    "202611090001_veo_hierarchy_recursion_guards.sql",
+    "202611090002_veo_compact_launch_archive.sql",
+    "202611090003_veo_contact_identity_sync.sql",
+    "202611090004_veo_recovered_account_login.sql",
+    "202611090005_veo_calendar_earnings.sql",
+    "202611090006_veo_background_job_leases.sql",
+    "202611090007_veo_retention_and_day_reads.sql",
+    "202611100001_veo_owner_page_connections.sql",
+    "202611100001_veo_storage_protection.sql",
+    "202611100002_veo_telegram_relink.sql",
+    "202611100003_veo_distinct_order_paid_steps.sql",
+    "202611110001_veo_staff_performance.sql",
+    "202611110002_veo_ad_reporting_connections.sql",
+    "202611110003_veo_telegram_sync_bootstrap.sql",
+    "202611110004_veo_autotag_page_recovery.sql",
+    "202611110005_veo_account_access_and_supervisor_teams.sql",
+    "202611110006_veo_direct_member_supervision.sql",
+    "202611110007_veo_supervisor_conflict_response.sql",
+    "202611110008_veo_reviewed_deal_evidence.sql",
+    "202611110009_veo_reviewed_delivery_totals.sql",
+    "202611110010_veo_deal_review_attribution.sql",
+    "202611120001_veo_supervisor_receipt_submission.sql",
+    "202611120002_veo_deal_evidence_slots.sql",
+    "202611120003_veo_hourly_ads_existing_cron.sql",
+    "202611120004_veo_saved_page_ad_access.sql",
+    "202611130001_veo_optional_supervisor_auto_approval.sql",
+    "202611130002_veo_supervisor_receipt_deletion.sql",
+    "202611130003_veo_close_deal_price_correction.sql",
+    "202611130004_veo_team_receipt_auto_approval.sql",
+    "202611130005_veo_calendar_coverage_enrollment.sql",
+    "202611130006_veo_automatic_contact_collection.sql",
+    "202611130007_veo_prioritize_inbound_conversations.sql",
+    "202611130008_veo_deal_incentives.sql",
+    "202611130009_veo_flexible_spend_quotas.sql",
+    "202611140001_veo_capacity_refresh.sql",
+    "202611140002_veo_calendar_planning_reuse.sql",
+    "202611140003_veo_first_inquiry_history.sql",
+    "202611140004_veo_database_pressure_protection.sql",
+    "202611140005_veo_bound_live_worker_queries.sql",
+    "202611140006_chatbot_closed_sale_guard.sql",
+    "202611140007_veo_dispatch_bounded_batches.sql",
+    "202611140008_veo_prioritize_ready_dispatch.sql",
+    "202611140101_suno_legacy_compatibility.sql",
+    "202611140102_suno_song_domain.sql",
+    "202611140103_suno_runtime_compatibility.sql",
+    "202611150001_veo_telegram_client_controls.sql",
+    "202611150002_veo_telegram_command_controls.sql",
+    "202611150101_suno_song_work.sql",
+    "202611150102_suno_controls_and_retention.sql",
+    "202611150103_suno_atomic_takeover_recovery.sql",
+    "202611150104_suno_tenant_launch.sql",
+    "202611160001_veo_workspace_report_deadlines.sql",
+    "202611160002_veo_dashboard_summary.sql",
+    "202611160003_veo_completed_project_warnings.sql",
+    "202611160004_veo_login_context.sql",
+    "202611160005_veo_stage_contact_audit.sql",
+    "202611160006_veo_salary_snapshot_report.sql",
+    "202611160007_veo_bounded_database_work.sql",
+    "202611160008_veo_quota_run_budget.sql",
+    "202611160105_suno_jaucian_brief_controls.sql",
+    "202611170001_veo_manager_salary_immunity.sql",
+    "202611170002_veo_preserve_staff_receipt_review.sql",
+    "202611170003_veo_async_staff_receipt_approval.sql",
+    "202611170004_veo_member_discipline.sql",
+    "202611180001_suno_retained_chatbot_controls.sql",
+    "202611180002_suno_retained_workspace_enrollment.sql",
+    "202611180003_suno_retained_event_observation.sql",
+    "202611180004_suno_earnings_policy_confirmation.sql"
+  ],
+  "runtime": {
+    "source_project": "cxgynadprukyeuqbchbs",
+    "aliases": {
+      "capture_database_health": "suno_workspace_capture_database_health",
+      "mirror_campaign_delivery_failure": "suno_workspace_mirror_campaign_delivery_failure",
+      "record_contact_interaction_from_view": "suno_workspace_record_contact_interaction_from_view",
+      "run_database_maintenance": "suno_workspace_run_database_maintenance",
+      "acquire_page_sync_lease": "suno_workspace_acquire_page_sync_lease",
+      "cancel_campaign_delivery": "suno_workspace_cancel_campaign_delivery",
+      "claim_campaign_recipients": "suno_workspace_claim_campaign_recipients",
+      "claim_conversation_export_job": "suno_workspace_claim_conversation_export_job",
+      "cleanup_terminal_campaign_recipients": "suno_workspace_cleanup_terminal_campaign_recipients",
+      "create_default_page_tags": "suno_workspace_create_default_page_tags",
+      "create_filtered_tracked_bulk_campaign": "suno_workspace_create_filtered_tracked_bulk_campaign",
+      "finish_campaign_recipient": "suno_workspace_finish_campaign_recipient",
+      "finish_campaign_recipient_batch": "suno_workspace_finish_campaign_recipient_batch",
+      "finish_chatbot_message": "suno_workspace_finish_chatbot_message",
+      "finish_loop_campaign_recipient": "suno_workspace_finish_loop_campaign_recipient",
+      "get_campaign_delivery_progress": "suno_workspace_get_campaign_delivery_progress",
+      "get_chatbot_activity_analytics": "suno_workspace_get_chatbot_activity_analytics",
+      "get_chatbot_contact_analytics": "suno_workspace_get_chatbot_contact_analytics",
+      "get_chatbot_contact_metrics": "suno_workspace_get_chatbot_contact_metrics",
+      "get_contact_pipeline_counts": "suno_workspace_get_contact_pipeline_counts",
+      "get_database_health": "suno_workspace_get_database_health",
+      "match_chatbot_knowledge": "suno_workspace_match_chatbot_knowledge",
+      "materialize_dynamic_campaign_audience": "suno_workspace_materialize_dynamic_campaign_audience",
+      "pause_campaign_delivery": "suno_workspace_pause_campaign_delivery",
+      "preserve_contact_last_inbound_at": "suno_workspace_preserve_contact_last_inbound_at",
+      "record_chatbot_conversation_quote": "suno_workspace_record_chatbot_conversation_quote",
+      "record_chatbot_form_sent": "suno_workspace_record_chatbot_form_sent",
+      "record_chatbot_human_takeover": "suno_workspace_record_chatbot_human_takeover",
+      "release_page_sync_lease": "suno_workspace_release_page_sync_lease",
+      "reserve_chatbot_message": "suno_workspace_reserve_chatbot_message",
+      "reset_chatbot_form_delivery": "suno_workspace_reset_chatbot_form_delivery",
+      "update_updated_at_column": "suno_workspace_update_updated_at_column",
+      "contact_interactions": "suno_workspace_contact_interactions"
+    },
+    "original_functions": [
+      {
+        "schema": "app_private",
+        "name": "capture_database_health",
+        "arguments": "",
+        "sha256": "b772cd29db365b0033ce89450ba0d8e451d151c378be86841139451dcf4325a1"
+      },
+      {
+        "schema": "app_private",
+        "name": "mirror_campaign_delivery_failure",
+        "arguments": "",
+        "sha256": "f8e174eba3246978dc2b69ede6dd68cfcfea3a44a4d559c6381ac57b37316722"
+      },
+      {
+        "schema": "app_private",
+        "name": "record_contact_interaction_from_view",
+        "arguments": "",
+        "sha256": "ac9134d3b4e12af7bdc125bb33205bc082d65859056b50e15443c2aca79f265f"
+      },
+      {
+        "schema": "app_private",
+        "name": "run_database_maintenance",
+        "arguments": "",
+        "sha256": "61cdabb8d50f315afac7c1b25bdbf97ea833e284f781513a15721827857151ea"
+      },
+      {
+        "schema": "public",
+        "name": "acquire_page_sync_lease",
+        "arguments": "p_page_id uuid, p_owner text, p_lease_seconds integer",
+        "sha256": "e0986ba6f2a9abd92298dcf490b441fd7e14b0519996234617f4ca94f4907290"
+      },
+      {
+        "schema": "public",
+        "name": "cancel_campaign_delivery",
+        "arguments": "p_campaign_id uuid",
+        "sha256": "a37d04237c5ee4f0aafca2b52220ecd7c40e86a938ea81bac927a177e106af2d"
+      },
+      {
+        "schema": "public",
+        "name": "claim_campaign_recipients",
+        "arguments": "p_campaign_id uuid, p_batch_size integer, p_due_at timestamp with time zone, p_include_unscheduled boolean, p_lease interval",
+        "sha256": "618625c317a06fea621a7329eee1c7937398cdaf291768957d298cc5845e9e22"
+      },
+      {
+        "schema": "public",
+        "name": "claim_conversation_export_job",
+        "arguments": "p_job_id uuid",
+        "sha256": "bc8d6a48e3814122ca863cf6d324296cdcc38bbf8b5501e36e8ea2e8263090b1"
+      },
+      {
+        "schema": "public",
+        "name": "cleanup_terminal_campaign_recipients",
+        "arguments": "retention interval, batch_size integer",
+        "sha256": "316372ae9a4ba18bd3c83e193142d8ec44e53ccc4f5183ec170c3ff97efb43ef"
+      },
+      {
+        "schema": "public",
+        "name": "create_default_page_tags",
+        "arguments": "",
+        "sha256": "7d5449ed2606fdec1a7241686da66f6158f6870536460f96184d3d2b4ad14402"
+      },
+      {
+        "schema": "public",
+        "name": "create_filtered_tracked_bulk_campaign",
+        "arguments": "p_page_id uuid, p_created_by uuid, p_name text, p_message_text text, p_template_name text, p_template_language text, p_search text, p_include_tag_ids uuid[], p_exclude_tag_ids uuid[], p_excluded_contact_ids uuid[], p_date_from date, p_date_to date, p_date_filter_mode text, p_slice_offset integer, p_slice_limit integer",
+        "sha256": "1d0adb08ab327fd96a3d63d7d2d270d50632cdab2c5b4f525db68edfd7eadf5c"
+      },
+      {
+        "schema": "public",
+        "name": "finish_campaign_recipient",
+        "arguments": "p_campaign_id uuid, p_contact_id uuid, p_claim_token uuid, p_success boolean, p_error_message text",
+        "sha256": "8e11131fef43f7313d1a56a5ebaca3e35971fcbc6dcb9128e9839c30f8232c6b"
+      },
+      {
+        "schema": "public",
+        "name": "finish_campaign_recipient_batch",
+        "arguments": "p_campaign_id uuid, p_claim_token uuid, p_results jsonb",
+        "sha256": "fd9a1874c47b257146a028afad3ba12884b39e7438eaf999c17205ebb9b8c766"
+      },
+      {
+        "schema": "public",
+        "name": "finish_chatbot_message",
+        "arguments": "p_delivery_id uuid, p_message_id text",
+        "sha256": "8a7306ccab9837e33dafac3b6d233b8283092b47a13d21469d4774e8785049ea"
+      },
+      {
+        "schema": "public",
+        "name": "finish_loop_campaign_recipient",
+        "arguments": "p_campaign_id uuid, p_contact_id uuid, p_claim_token uuid, p_success boolean, p_next_scheduled_at timestamp with time zone, p_error_message text",
+        "sha256": "37ce7f9de387f73e371d41e5828567b351bf1225d2b3db146abcf4ab7d2801f8"
+      },
+      {
+        "schema": "public",
+        "name": "get_campaign_delivery_progress",
+        "arguments": "p_campaign_id uuid",
+        "sha256": "5a9169750d46afa95bf8c479d5040d3084110e7d20f35a45cd7435c08cb1be26"
+      },
+      {
+        "schema": "public",
+        "name": "get_chatbot_activity_analytics",
+        "arguments": "p_page_id uuid, p_from timestamp with time zone, p_to timestamp with time zone",
+        "sha256": "b98b1231f2f839b708c2900b59c42afd843098346bacc010eb1f47322ccde038"
+      },
+      {
+        "schema": "public",
+        "name": "get_chatbot_contact_analytics",
+        "arguments": "p_page_id uuid, p_from timestamp with time zone, p_to timestamp with time zone",
+        "sha256": "65cfb0b7b95fbd2523b6900371c7cb3008a96a11c47b2ecd0e524dca65eb62a0"
+      },
+      {
+        "schema": "public",
+        "name": "get_chatbot_contact_metrics",
+        "arguments": "p_page_id uuid, p_from timestamp with time zone, p_to timestamp with time zone",
+        "sha256": "24e6743a422c019c033cbd56b9b959d8a006594c83f260c2f990e48b1306e93e"
+      },
+      {
+        "schema": "public",
+        "name": "get_contact_pipeline_counts",
+        "arguments": "p_page_id uuid",
+        "sha256": "79134d4446e30a41cf4c3d5cf0cd02eb410fe4844c424dfe68440fbcf4aeaa90"
+      },
+      {
+        "schema": "public",
+        "name": "get_database_health",
+        "arguments": "",
+        "sha256": "9dca040c904d3e513392d8c7f3acd8bc4850c7111b1252e25aab47814de8b232"
+      },
+      {
+        "schema": "public",
+        "name": "match_chatbot_knowledge",
+        "arguments": "p_page_id uuid, p_query_embedding vector, p_match_threshold double precision, p_match_count integer",
+        "sha256": "0141048708553c33967426fea36ad5f90633281df650ef2db24e0eb9d705f1b2"
+      },
+      {
+        "schema": "public",
+        "name": "materialize_dynamic_campaign_audience",
+        "arguments": "p_campaign_id uuid",
+        "sha256": "2124446bef37ab30d26e4a3655eaa30c0be73409a8a9d63c730d8d7258516c7a"
+      },
+      {
+        "schema": "public",
+        "name": "pause_campaign_delivery",
+        "arguments": "p_campaign_id uuid",
+        "sha256": "14692e557b4684022042feda2f8729ec43f8d880a20dcc7c9163f41315516072"
+      },
+      {
+        "schema": "public",
+        "name": "preserve_contact_last_inbound_at",
+        "arguments": "",
+        "sha256": "20b19a1ec5b6b80a48564dc5016baf31225f0d5d819e20e3a9e65254bee387bf"
+      },
+      {
+        "schema": "public",
+        "name": "record_chatbot_conversation_quote",
+        "arguments": "p_page_id uuid, p_contact_id uuid, p_quote text, p_quoted_at timestamp with time zone",
+        "sha256": "0933df6e8d0800b98b4196d6e84ad0ef4959308f32b0e82d33a851a4cb677d46"
+      },
+      {
+        "schema": "public",
+        "name": "record_chatbot_form_sent",
+        "arguments": "p_page_id uuid, p_contact_id uuid, p_sent_at timestamp with time zone, p_history_start_at timestamp with time zone",
+        "sha256": "991c2b7cb39adbe1d22c94b207f47cdd7681c9c7408b8e6f56d8ffefb9dd4679"
+      },
+      {
+        "schema": "public",
+        "name": "record_chatbot_human_takeover",
+        "arguments": "p_page_id uuid, p_contact_id uuid, p_message_id text, p_taken_over_at timestamp with time zone, p_resume_at timestamp with time zone, p_price_quote text",
+        "sha256": "8eaacf1f2da94c70172fd15dde02c21688db58ceb2abf3dc7f0e858481d2d94c"
+      },
+      {
+        "schema": "public",
+        "name": "release_page_sync_lease",
+        "arguments": "p_page_id uuid, p_owner text",
+        "sha256": "2c27171263a4ffc7cd1121ca4a3ec22604dbb560f092bf2637a1c7db97d387f5"
+      },
+      {
+        "schema": "public",
+        "name": "reserve_chatbot_message",
+        "arguments": "p_page_id uuid, p_contact_id uuid, p_message_text text, p_normalized_text text, p_source_key text, p_history_start_at timestamp with time zone, p_allow_repeat boolean",
+        "sha256": "cd48a6a2e9a82aff0f4a3c3edc005c52c2c480db6846fef4dfcfe282ae2ff2b6"
+      },
+      {
+        "schema": "public",
+        "name": "reset_chatbot_form_delivery",
+        "arguments": "",
+        "sha256": "30646c08bf36e4a03ccf15b963d65a04bbb02aa2e8d8663a3226e6a654722665"
+      },
+      {
+        "schema": "public",
+        "name": "update_updated_at_column",
+        "arguments": "",
+        "sha256": "16901be7eea983fff29c38398c83972af336ce4588f072b585470de7f9fdc846"
+      }
+    ],
+    "preserved_triggers": [
+      "public.users.update_users_updated_at",
+      "public.pages.update_pages_updated_at",
+      "public.contacts.update_contacts_updated_at",
+      "public.tags.update_tags_updated_at",
+      "public.campaigns.update_campaigns_updated_at",
+      "public.workflow_automations.update_workflow_automations_updated_at",
+      "public.workflow_automation_states.update_workflow_automation_states_updated_at",
+      "public.conversation_export_jobs.update_conversation_export_jobs_updated_at",
+      "public.contacts.preserve_contact_last_inbound_at",
+      "public.contact_interactions.record_contact_interaction",
+      "public.campaign_recipients.mirror_campaign_delivery_failure",
+      "public.pages.create_default_page_tags_on_insert",
+      "public.chatbot_configs.update_chatbot_configs_updated_at",
+      "public.chatbot_knowledge_documents.update_chatbot_knowledge_documents_updated_at",
+      "public.chatbot_contact_states.update_chatbot_contact_states_updated_at",
+      "public.chatbot_media_assets.update_chatbot_media_assets_updated_at",
+      "public.chatbot_follow_up_jobs.update_chatbot_follow_up_jobs_updated_at",
+      "public.chatbot_drive_folders.update_chatbot_drive_folders_updated_at",
+      "public.chatbot_drive_files.update_chatbot_drive_files_updated_at",
+      "public.chatbot_contact_states.chatbot_reset_form_delivery"
+    ],
+    "existing_columns": 443
+  },
+  "upgrade_fingerprint": "f36774710f12fbde34ccaa07608c7c9c363d6a938a0d9c0f31c4df2ac897262e",
+  "retained_value_restoration": [],
+  "source_table_fingerprints": {
+    "before": {
+      "business_users": {
+        "rows": "0",
+        "fingerprint": "d41d8cd98f00b204e9800998ecf8427e"
+      },
+      "businesses": {
+        "rows": "0",
+        "fingerprint": "d41d8cd98f00b204e9800998ecf8427e"
+      },
+      "campaign_delivery_failures": {
+        "rows": "0",
+        "fingerprint": "d41d8cd98f00b204e9800998ecf8427e"
+      },
+      "campaign_recipients": {
+        "rows": "0",
+        "fingerprint": "d41d8cd98f00b204e9800998ecf8427e"
+      },
+      "campaigns": {
+        "rows": "0",
+        "fingerprint": "d41d8cd98f00b204e9800998ecf8427e"
+      },
+      "chatbot_configs": {
+        "rows": "1",
+        "fingerprint": "08483f9714e41644b7d176a0728cd3eb"
+      },
+      "chatbot_contact_states": {
+        "rows": "1",
+        "fingerprint": "ff707504a8ddc93528948a8108bdac29"
+      },
+      "chatbot_drive_files": {
+        "rows": "0",
+        "fingerprint": "d41d8cd98f00b204e9800998ecf8427e"
+      },
+      "chatbot_drive_folders": {
+        "rows": "0",
+        "fingerprint": "d41d8cd98f00b204e9800998ecf8427e"
+      },
+      "chatbot_follow_up_jobs": {
+        "rows": "1",
+        "fingerprint": "d214daea469a1003aff9c5f083479970"
+      },
+      "chatbot_interruption_events": {
+        "rows": "0",
+        "fingerprint": "d41d8cd98f00b204e9800998ecf8427e"
+      },
+      "chatbot_knowledge_chunks": {
+        "rows": "0",
+        "fingerprint": "d41d8cd98f00b204e9800998ecf8427e"
+      },
+      "chatbot_knowledge_documents": {
+        "rows": "0",
+        "fingerprint": "d41d8cd98f00b204e9800998ecf8427e"
+      },
+      "chatbot_media_assets": {
+        "rows": "0",
+        "fingerprint": "d41d8cd98f00b204e9800998ecf8427e"
+      },
+      "chatbot_message_deliveries": {
+        "rows": "1",
+        "fingerprint": "dc3ba6b8b1a37c4b2ea28892c8522a53"
+      },
+      "chatbot_reply_events": {
+        "rows": "0",
+        "fingerprint": "d41d8cd98f00b204e9800998ecf8427e"
+      },
+      "contact_tags": {
+        "rows": "0",
+        "fingerprint": "d41d8cd98f00b204e9800998ecf8427e"
+      },
+      "contacts": {
+        "rows": "1",
+        "fingerprint": "71b9d39ea263cb5fbe7457dc2c5687c3"
+      },
+      "conversation_export_jobs": {
+        "rows": "0",
+        "fingerprint": "d41d8cd98f00b204e9800998ecf8427e"
+      },
+      "outbound_message_events": {
+        "rows": "0",
+        "fingerprint": "d41d8cd98f00b204e9800998ecf8427e"
+      },
+      "page_activity_history": {
+        "rows": "0",
+        "fingerprint": "d41d8cd98f00b204e9800998ecf8427e"
+      },
+      "page_sync_leases": {
+        "rows": "0",
+        "fingerprint": "d41d8cd98f00b204e9800998ecf8427e"
+      },
+      "pages": {
+        "rows": "1",
+        "fingerprint": "0442b80e08731634d885c359d0e0860f"
+      },
+      "tag_shares": {
+        "rows": "0",
+        "fingerprint": "d41d8cd98f00b204e9800998ecf8427e"
+      },
+      "tags": {
+        "rows": "5",
+        "fingerprint": "c1ffa4a85615a0a929b796cb98e8860e"
+      },
+      "user_pages": {
+        "rows": "1",
+        "fingerprint": "43a5509907389c5abca3d1e543782f6a"
+      },
+      "users": {
+        "rows": "1",
+        "fingerprint": "806bdf59fb6f8d96044177f6128d11ff"
+      },
+      "welcome_messages": {
+        "rows": "0",
+        "fingerprint": "d41d8cd98f00b204e9800998ecf8427e"
+      },
+      "workflow_automation_states": {
+        "rows": "0",
+        "fingerprint": "d41d8cd98f00b204e9800998ecf8427e"
+      },
+      "workflow_automations": {
+        "rows": "0",
+        "fingerprint": "d41d8cd98f00b204e9800998ecf8427e"
+      }
+    },
+    "after": {
+      "business_users": {
+        "rows": "0",
+        "fingerprint": "d41d8cd98f00b204e9800998ecf8427e"
+      },
+      "businesses": {
+        "rows": "0",
+        "fingerprint": "d41d8cd98f00b204e9800998ecf8427e"
+      },
+      "campaign_delivery_failures": {
+        "rows": "0",
+        "fingerprint": "d41d8cd98f00b204e9800998ecf8427e"
+      },
+      "campaign_recipients": {
+        "rows": "0",
+        "fingerprint": "d41d8cd98f00b204e9800998ecf8427e"
+      },
+      "campaigns": {
+        "rows": "0",
+        "fingerprint": "d41d8cd98f00b204e9800998ecf8427e"
+      },
+      "chatbot_configs": {
+        "rows": "1",
+        "fingerprint": "08483f9714e41644b7d176a0728cd3eb"
+      },
+      "chatbot_contact_states": {
+        "rows": "1",
+        "fingerprint": "ff707504a8ddc93528948a8108bdac29"
+      },
+      "chatbot_drive_files": {
+        "rows": "0",
+        "fingerprint": "d41d8cd98f00b204e9800998ecf8427e"
+      },
+      "chatbot_drive_folders": {
+        "rows": "0",
+        "fingerprint": "d41d8cd98f00b204e9800998ecf8427e"
+      },
+      "chatbot_follow_up_jobs": {
+        "rows": "1",
+        "fingerprint": "d214daea469a1003aff9c5f083479970"
+      },
+      "chatbot_interruption_events": {
+        "rows": "0",
+        "fingerprint": "d41d8cd98f00b204e9800998ecf8427e"
+      },
+      "chatbot_knowledge_chunks": {
+        "rows": "0",
+        "fingerprint": "d41d8cd98f00b204e9800998ecf8427e"
+      },
+      "chatbot_knowledge_documents": {
+        "rows": "0",
+        "fingerprint": "d41d8cd98f00b204e9800998ecf8427e"
+      },
+      "chatbot_media_assets": {
+        "rows": "0",
+        "fingerprint": "d41d8cd98f00b204e9800998ecf8427e"
+      },
+      "chatbot_message_deliveries": {
+        "rows": "1",
+        "fingerprint": "dc3ba6b8b1a37c4b2ea28892c8522a53"
+      },
+      "chatbot_reply_events": {
+        "rows": "0",
+        "fingerprint": "d41d8cd98f00b204e9800998ecf8427e"
+      },
+      "contact_tags": {
+        "rows": "0",
+        "fingerprint": "d41d8cd98f00b204e9800998ecf8427e"
+      },
+      "contacts": {
+        "rows": "1",
+        "fingerprint": "71b9d39ea263cb5fbe7457dc2c5687c3"
+      },
+      "conversation_export_jobs": {
+        "rows": "0",
+        "fingerprint": "d41d8cd98f00b204e9800998ecf8427e"
+      },
+      "outbound_message_events": {
+        "rows": "0",
+        "fingerprint": "d41d8cd98f00b204e9800998ecf8427e"
+      },
+      "page_activity_history": {
+        "rows": "0",
+        "fingerprint": "d41d8cd98f00b204e9800998ecf8427e"
+      },
+      "page_sync_leases": {
+        "rows": "0",
+        "fingerprint": "d41d8cd98f00b204e9800998ecf8427e"
+      },
+      "pages": {
+        "rows": "1",
+        "fingerprint": "0442b80e08731634d885c359d0e0860f"
+      },
+      "tag_shares": {
+        "rows": "0",
+        "fingerprint": "d41d8cd98f00b204e9800998ecf8427e"
+      },
+      "tags": {
+        "rows": "5",
+        "fingerprint": "c1ffa4a85615a0a929b796cb98e8860e"
+      },
+      "user_pages": {
+        "rows": "1",
+        "fingerprint": "43a5509907389c5abca3d1e543782f6a"
+      },
+      "users": {
+        "rows": "1",
+        "fingerprint": "806bdf59fb6f8d96044177f6128d11ff"
+      },
+      "welcome_messages": {
+        "rows": "0",
+        "fingerprint": "d41d8cd98f00b204e9800998ecf8427e"
+      },
+      "workflow_automation_states": {
+        "rows": "0",
+        "fingerprint": "d41d8cd98f00b204e9800998ecf8427e"
+      },
+      "workflow_automations": {
+        "rows": "0",
+        "fingerprint": "d41d8cd98f00b204e9800998ecf8427e"
+      }
+    }
+  },
+  "fixture_tag_changes": [],
+  "retained_data": {
+    "tables": 30,
+    "rows": 13,
+    "changed": []
+  },
+  "functions_preserved": 32,
+  "columns_preserved": 443,
+  "additional_legacy_triggers": [
+    {
+      "table_name": "chatbot_configs",
+      "name": "chatbot_commercial_policy",
+      "function_name": "enforce_chatbot_commercial_policy",
+      "definition": "CREATE TRIGGER chatbot_commercial_policy BEFORE INSERT OR UPDATE ON public.chatbot_configs FOR EACH ROW EXECUTE FUNCTION enforce_chatbot_commercial_policy()"
+    },
+    {
+      "table_name": "chatbot_configs",
+      "name": "chatbot_continuation_activation",
+      "function_name": "set_chatbot_continuation_activation",
+      "definition": "CREATE TRIGGER chatbot_continuation_activation BEFORE INSERT OR UPDATE ON public.chatbot_configs FOR EACH ROW EXECUTE FUNCTION set_chatbot_continuation_activation()"
+    },
+    {
+      "table_name": "chatbot_configs",
+      "name": "chatbot_recovery_enrollment",
+      "function_name": "sync_chatbot_inbound_recovery",
+      "definition": "CREATE TRIGGER chatbot_recovery_enrollment AFTER INSERT OR UPDATE OF enabled ON public.chatbot_configs FOR EACH ROW EXECUTE FUNCTION sync_chatbot_inbound_recovery()"
+    },
+    {
+      "table_name": "chatbot_contact_states",
+      "name": "chatbot_cancel_jobs_after_pause",
+      "function_name": "cancel_chatbot_jobs_on_pause",
+      "definition": "CREATE TRIGGER chatbot_cancel_jobs_after_pause AFTER INSERT OR UPDATE ON public.chatbot_contact_states FOR EACH ROW EXECUTE FUNCTION cancel_chatbot_jobs_on_pause()"
+    },
+    {
+      "table_name": "chatbot_contact_states",
+      "name": "chatbot_ownership",
+      "function_name": "enforce_chatbot_ownership",
+      "definition": "CREATE TRIGGER chatbot_ownership BEFORE INSERT OR UPDATE ON public.chatbot_contact_states FOR EACH ROW EXECUTE FUNCTION enforce_chatbot_ownership()"
+    },
+    {
+      "table_name": "chatbot_contact_states",
+      "name": "suno_chatbot_reset_compatibility",
+      "function_name": "suno_chatbot_reset_compatibility",
+      "definition": "CREATE TRIGGER suno_chatbot_reset_compatibility BEFORE UPDATE OF messenger_history_reset_at ON public.chatbot_contact_states FOR EACH ROW EXECUTE FUNCTION suno_chatbot_reset_compatibility()"
+    },
+    {
+      "table_name": "chatbot_contact_states",
+      "name": "suno_preserve_disabled_contact_hold",
+      "function_name": "suno_preserve_disabled_contact_hold",
+      "definition": "CREATE TRIGGER suno_preserve_disabled_contact_hold BEFORE INSERT OR UPDATE ON public.chatbot_contact_states FOR EACH ROW EXECUTE FUNCTION suno_preserve_disabled_contact_hold()"
+    },
+    {
+      "table_name": "contact_tags",
+      "name": "chatbot_pricing_tag_outcome",
+      "function_name": "chatbot_pricing_tag_outcome_trigger",
+      "definition": "CREATE TRIGGER chatbot_pricing_tag_outcome AFTER INSERT ON public.contact_tags FOR EACH ROW EXECUTE FUNCTION chatbot_pricing_tag_outcome_trigger()"
+    },
+    {
+      "table_name": "contacts",
+      "name": "capture_contact_stage_history_tag",
+      "function_name": "capture_contact_stage_history_tag",
+      "definition": "CREATE TRIGGER capture_contact_stage_history_tag AFTER INSERT OR UPDATE OF pipeline_stage, pipeline_stage_source, messenger_stage_label ON public.contacts FOR EACH ROW EXECUTE FUNCTION capture_contact_stage_history_tag()"
+    },
+    {
+      "table_name": "contacts",
+      "name": "chatbot_pricing_pipeline_outcome",
+      "function_name": "chatbot_pricing_pipeline_outcome_trigger",
+      "definition": "CREATE TRIGGER chatbot_pricing_pipeline_outcome AFTER UPDATE OF pipeline_stage ON public.contacts FOR EACH ROW EXECUTE FUNCTION chatbot_pricing_pipeline_outcome_trigger()"
+    },
+    {
+      "table_name": "contacts",
+      "name": "chatbot_stop_after_contact_control",
+      "function_name": "stop_contact_automation_after_control",
+      "definition": "CREATE TRIGGER chatbot_stop_after_contact_control AFTER UPDATE OF pipeline_stage, chatbot_enabled ON public.contacts FOR EACH ROW EXECUTE FUNCTION stop_contact_automation_after_control()"
+    },
+    {
+      "table_name": "contacts",
+      "name": "dirty_contact_conversion_cache",
+      "function_name": "dirty_contact_conversion_cache",
+      "definition": "CREATE TRIGGER dirty_contact_conversion_cache AFTER UPDATE OF last_inbound_at, pipeline_stage, pipeline_stage_source ON public.contacts FOR EACH ROW EXECUTE FUNCTION dirty_contact_conversion_cache()"
+    },
+    {
+      "table_name": "contacts",
+      "name": "record_ad_lead_stage_event",
+      "function_name": "record_ad_lead_stage_event",
+      "definition": "CREATE TRIGGER record_ad_lead_stage_event AFTER INSERT OR UPDATE OF pipeline_stage, pipeline_stage_source ON public.contacts FOR EACH ROW EXECUTE FUNCTION record_ad_lead_stage_event()"
+    },
+    {
+      "table_name": "contacts",
+      "name": "suno_apply_contact_permission_to_retained_bot",
+      "function_name": "suno_apply_contact_permission_to_retained_bot",
+      "definition": "CREATE TRIGGER suno_apply_contact_permission_to_retained_bot AFTER UPDATE OF chatbot_enabled ON public.contacts FOR EACH ROW EXECUTE FUNCTION suno_apply_contact_permission_to_retained_bot()"
+    },
+    {
+      "table_name": "contacts",
+      "name": "veo_contact_source_changed",
+      "function_name": "veo_queue_contact_source",
+      "definition": "CREATE TRIGGER veo_contact_source_changed AFTER INSERT OR UPDATE OF last_inbound_at, pipeline_stage ON public.contacts FOR EACH ROW EXECUTE FUNCTION veo_queue_contact_source()"
+    },
+    {
+      "table_name": "contacts",
+      "name": "veo_preserve_contact_name",
+      "function_name": "veo_preserve_contact_name",
+      "definition": "CREATE TRIGGER veo_preserve_contact_name BEFORE UPDATE OF name ON public.contacts FOR EACH ROW EXECUTE FUNCTION veo_preserve_contact_name()"
+    },
+    {
+      "table_name": "contacts",
+      "name": "veo_queue_inquiry_history",
+      "function_name": "veo_queue_inquiry_history",
+      "definition": "CREATE TRIGGER veo_queue_inquiry_history AFTER INSERT ON public.contacts FOR EACH ROW EXECUTE FUNCTION veo_queue_inquiry_history()"
+    },
+    {
+      "table_name": "contacts",
+      "name": "veo_refresh_intake_contact",
+      "function_name": "veo_refresh_intake_contact",
+      "definition": "CREATE TRIGGER veo_refresh_intake_contact AFTER INSERT OR UPDATE OF page_id, name, psid, pipeline_stage, last_interaction_at ON public.contacts FOR EACH ROW EXECUTE FUNCTION veo_refresh_intake_contact()"
+    },
+    {
+      "table_name": "contacts",
+      "name": "veo_salary_eligibility_changed",
+      "function_name": "veo_salary_eligibility_changed",
+      "definition": "CREATE TRIGGER veo_salary_eligibility_changed AFTER UPDATE OF pipeline_stage ON public.contacts FOR EACH ROW EXECUTE FUNCTION veo_salary_eligibility_changed()"
+    },
+    {
+      "table_name": "outbound_message_events",
+      "name": "veo_calendar_outbound_inserted",
+      "function_name": "veo_calendar_outbound_inserted",
+      "definition": "CREATE TRIGGER veo_calendar_outbound_inserted AFTER INSERT ON public.outbound_message_events FOR EACH ROW EXECUTE FUNCTION veo_calendar_outbound_inserted()"
+    },
+    {
+      "table_name": "pages",
+      "name": "veo_calendar_enroll_message_coverage",
+      "function_name": "veo_calendar_enroll_message_coverage",
+      "definition": "CREATE TRIGGER veo_calendar_enroll_message_coverage AFTER INSERT OR UPDATE OF veo_enabled, veo_tenant_id ON public.pages FOR EACH ROW EXECUTE FUNCTION veo_calendar_enroll_message_coverage()"
+    }
+  ],
+  "missing_reference_fields": [],
+  "anon_definer_functions": [],
+  "retained_bot_controls": {
+    "off_reaches_original_hold": true,
+    "later_manual_changes_do_not_bypass_off": true,
+    "re_enable_restores_prior_control": true,
+    "answers_and_quotes_preserved": true,
+    "savepoint_rolled_back": true
+  },
+  "workspace_enrollment": {
+    "retained_owner_scope": true,
+    "page_count": 1,
+    "retained_contact_count": 1,
+    "legacy_rows_and_identity_unchanged": true
+  },
+  "financial_policy_guard": {
+    "unconfirmed_blocked": true,
+    "owner_confirmation_verified_offline": true,
+    "production_policy_adopted": false
+  },
+  "retained_observation": {
+    "retry_deduplication": true,
+    "no_second_reply_queued": true,
+    "legacy_data_unchanged": true
+  }
+}
