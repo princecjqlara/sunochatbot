@@ -13,6 +13,19 @@ it('saves a team-wide policy independently of the per-submission switch',async()
  const sent=fetcher.mock.calls.find(([,o])=>o?.method==='POST');expect(JSON.parse(sent![1].body)).toEqual({action:'auto_approval',enabled:true});
  expect(text(view.toJSON())).toContain('Team auto-approval is ON');
 });
+it('recovers failed client details without losing entered amounts or automatically submitting',async()=>{
+ let reads=0;
+ const fetcher=vi.fn(async(url:string)=>url.includes('/api/workspace?contact_id=client')?(++reads===1?Response.json({error:'Temporarily unavailable'},{status:503}):Response.json({contact:{id:'client',page_id:'page',name:'Client'},orders:[],closed_deals:[]})):Response.json({items:[],total:0}));
+ vi.stubGlobal('fetch',fetcher);
+ await act(async()=>{view=create(createElement(Inbox,{scope:{user_id:'worker',role:'member'},accounts:[{id:'worker',name:'Worker',role:'member'}],initialContactId:'client'}));});
+ const price=()=>view.root.findAllByType('label').find(l=>text(l).startsWith('Total deal price'))!.findByType('input');
+ await act(async()=>price().props.onChange({target:{value:'1200'}}));
+ const retry=view.root.findAllByType('button').find(b=>text(b)==='Retry client details')!;expect(retry).toBeTruthy();
+ await act(async()=>retry.props.onClick());
+ expect(reads).toBe(2);expect(price().props.value).toBe('1200');expect(text(view.toJSON())).toContain('Client');
+ expect(view.root.findAllByType('button').some(b=>text(b)==='Retry client details')).toBe(false);
+ expect(fetcher.mock.calls.every(([,options]:any)=>!options?.method)).toBe(true);
+});
 it('clearly identifies committed receipts waiting for scheduled automatic approval',async()=>{
  const review={id:'review',client_name:'Client',seller_name:'Worker',page_name:'Page',receipt_kind:'closed',status:'pending',auto_approval_pending:true,total_price_minor:100000,closed_amount_minor:30000,currency:'PHP',occurred_at:'2026-11-17T04:00:00Z'};
  vi.stubGlobal('fetch',vi.fn(async()=>Response.json({items:[review],total:1})));
@@ -92,6 +105,15 @@ it('checks the direct Done Deal amount before uploading photos and allows correc
  expect(input('Done Deal amount').props.value).toBe('700');
  await act(async()=>view.root.findByType('form').props.onSubmit({preventDefault(){},currentTarget:{reset(){}}}));
  expect(writes).toBe(0);expect(text(view.toJSON())).toContain('PHP 1200.00');
+});
+it('explains delivered photo removal while keeping approved receipt details available',async()=>{
+ const review={id:'review',client_name:'Client',page_name:'Page',seller_name:'Worker',receipt_kind:'done',status:'approved',delivery_status:'delivered',total_price_minor:100000,received_now_minor:70000,currency:'PHP',occurred_at:'2026-11-18',photos:['stage','payment','order'].map(slot=>({slot,available:false}))};
+ vi.stubGlobal('fetch',vi.fn(async(url:string)=>Response.json(url.includes('review_id=')?{review}:{items:[review],total:1})));
+ await act(async()=>{view=create(createElement(Inbox,{scope:{user_id:'worker',role:'member'},accounts:[],compact:true}));});
+ await act(async()=>view.root.findAllByType('button').find(b=>text(b)==='View evidence')!.props.onClick());
+ expect(text(view.toJSON())).toContain('Photo removed from SUNO after Telegram delivery. View the photo in Telegram.');
+ expect(text(view.toJSON())).not.toContain('Ask for a new submission');expect(text(view.toJSON())).toContain('approved');
+ expect(view.root.findAllByType('img')).toHaveLength(0);
 });
 it('requires checking every photo before an independent supervisor can approve',async()=>{
  const review={id:'review',client_name:'Client',page_name:'Page',seller_name:'Worker',receipt_kind:'closed',status:'pending',can_review:true,total_price_minor:100000,closed_amount_minor:30000,currency:'PHP',photos:['stage','payment','order'].map(slot=>({slot,available:true,photo_url:'https://example.test/'+slot}))};

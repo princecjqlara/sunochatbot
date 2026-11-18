@@ -1,0 +1,90 @@
+{
+  "base": "8e253b22ea7494524d96a8267e466c5e8151d717",
+  "current_veo_commit": "36f9bc83cfbc337534d5f24e470cfaa62a1bd631",
+  "merged": [
+    "src/app/api/cron/workspace/route.test.ts",
+    "src/app/api/workspace/route.test.ts",
+    "src/app/api/workspace/route.ts",
+    "src/app/dashboard/layout.test.ts",
+    "src/components/VeoDealEvidenceInbox.test.ts",
+    "src/components/VeoDealEvidenceInbox.tsx",
+    "src/lib/__tests__/veo-deal-review-sql.test.ts",
+    "src/lib/__tests__/veo-reviewed-delivery.test.ts",
+    "src/lib/veo-reviewed-delivery.ts",
+    "src/middleware.ts"
+  ],
+  "added": [
+    "scripts/test-receipt-cleanup.mjs",
+    "src/app/api/cron/receipt-photos/route.test.ts",
+    "src/app/api/cron/receipt-photos/route.ts",
+    "src/lib/__tests__/background-capacity-sql.test.ts",
+    "src/lib/__tests__/temporary-background-pause.test.ts",
+    "src/lib/__tests__/veo-delivered-photo-cleanup.test.ts",
+    "src/lib/veo-delivered-photo-cleanup.ts",
+    "supabase/migrations/202611180001_veo_shared_background_capacity.sql",
+    "tsconfig.check.json"
+  ],
+  "reviewed_separately": [
+    "docs/approved-receipt-photo-retention.md",
+    "docs/member-receipt-recovery-2026-11-18.md",
+    "docs/workspace-outage-2026-11-18.md",
+    "package.json",
+    "vercel.json"
+  ],
+  "previous_integration": {
+    "base": "817b9b06e5a57bbf94f459fa0d85227cfe9a84d0",
+    "current_veo_commit": "8e253b22ea7494524d96a8267e466c5e8151d717",
+    "merged": [
+      "src/app/api/workspace/deal-reviews/upload/route.ts",
+      "src/app/api/workspace/warnings/route.ts",
+      "src/components/VeoDealEvidenceInbox.test.ts",
+      "src/components/VeoDealEvidenceInbox.tsx",
+      "src/components/VeoStaffWarnings.tsx",
+      "src/lib/__tests__/supabase-errors.test.ts",
+      "src/lib/__tests__/veo-storage-health.test.ts",
+      "src/lib/__tests__/veo-workspace-auth.test.ts",
+      "src/lib/__tests__/workspace-session-jwt.test.ts",
+      "src/lib/get-session.ts",
+      "src/lib/supabase-errors.ts",
+      "src/lib/veo-storage-health.ts",
+      "src/lib/veo-workspace.ts",
+      "src/middleware.ts"
+    ],
+    "added": [
+      "src/app/api/workspace/deal-reviews/upload/route.test.ts",
+      "src/app/api/workspace/warnings/route.test.ts",
+      "src/components/VeoDisciplineControls.test.ts",
+      "src/components/VeoDisciplineControls.tsx",
+      "src/lib/veo-discipline.ts",
+      "supabase/migrations/202611170002_veo_preserve_staff_receipt_review.sql",
+      "supabase/migrations/202611170003_veo_async_staff_receipt_approval.sql",
+      "supabase/migrations/202611170004_veo_member_discipline.sql"
+    ],
+    "conflicts": [
+      "src/app/dashboard/layout.test.ts",
+      "src/app/dashboard/layout.tsx",
+      "src/lib/__tests__/veo-deal-review-sql.test.ts",
+      "src/lib/__tests__/veo-login.test.ts",
+      "src/lib/auth.ts",
+      "src/lib/veo-sign-in-errors.ts"
+    ]
+  },
+  "conflicts_resolved": [
+    "src/app/api/cron/workspace/route.ts",
+    "src/app/dashboard/layout.tsx"
+  ],
+  "preserved_suno_features": [
+    "Original 234-file chatbot runtime and settings",
+    "Owner financial-policy confirmation",
+    "Existing Telegram topic and song routing",
+    "Suno Owner login aliases and Facebook sign-in",
+    "Full regression release gate",
+    "Existing Vercel cron ownership"
+  ],
+  "adaptations": [
+    "Workspace pause excludes retained chatbot workers",
+    "Suno outage and receipt labels",
+    "SDK retry test verifies that failed eligibility reads never delete files",
+    "Source-only TypeScript entrypoint retains Suno aliases"
+  ]
+}

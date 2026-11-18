@@ -1,13 +1,35 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { NextRequest } from 'next/server';
-const m = vi.hoisted(() => ({ rpc: vi.fn(), verifyMapping: vi.fn(), jaucianRead: vi.fn(), directory: vi.fn() }));
+const m = vi.hoisted(() => ({ rpc: vi.fn(), from: vi.fn(), verifyMapping: vi.fn(), jaucianRead: vi.fn(), directory: vi.fn() }));
 vi.mock('@/lib/supabase', () => ({ getSupabaseAdmin: () => m }));
 vi.mock('@/lib/get-session', () => ({ getSessionFromRequest: async () => ({ user: { id: 'owner' } }) }));
 vi.mock('@/lib/veo-jaucian', () => ({ verifyWorkerMapping: m.verifyMapping, jaucianRead: m.jaucianRead }));
 vi.mock('@/lib/veo-account-directory', () => ({ loadVeoAccountDirectory: m.directory }));
 import { GET, POST } from './route';
 import { philippineDate } from '@/lib/veo-workspace';
-afterEach(() => { vi.clearAllMocks(); });
+afterEach(() => { vi.clearAllMocks();m.from.mockReset(); });
+
+const clientId='00000000-0000-4000-8000-000000000001',pageId='00000000-0000-4000-8000-000000000002';
+function contactReads(failure?: string, foreignPage=false) {
+    m.rpc.mockImplementation(async name=>({data:name==='veo_access_context'?{user_id:'owner',role:'member',launch_at:new Date(Date.now()-86400000).toISOString(),page_ids:[pageId]}:name==='veo_profile_detail_access'?{branch_worker_ids:['owner']}:{payments:[]}}));
+    m.from.mockImplementation(table=>{
+        const result=table===failure?{error:{code:'57014',message:'Query deadline'}}:{data:table==='contacts'?{id:clientId,page_id:foreignPage?'other':pageId,name:'Client'}:table==='veo_contact_details'?{}:[]};
+        const q:any={select:()=>q,eq:()=>q,in:()=>q,is:()=>q,order:()=>q,maybeSingle:async()=>result,then:(resolve:any,reject:any)=>Promise.resolve(result).then(resolve,reject)};
+        return q;
+    });
+}
+it('reports a temporary client read as retryable and permits a fresh authorized reload',async()=>{
+    const request=()=>new NextRequest('https://veo.test/api/workspace?contact_id='+clientId);
+    contactReads('contacts');const failed=await GET(request());expect(failed.status).toBe(503);expect(failed.headers.get('Retry-After')).toBe('30');
+    contactReads();const recovered=await GET(request());expect(recovered.status).toBe(200);expect(await recovered.json()).toMatchObject({contact:{id:clientId},orders:[],closed_deals:[]});
+});
+it('does not mislabel a temporary order-history failure as invalid form input',async()=>{
+    contactReads('veo_order_facts');expect((await GET(new NextRequest('https://veo.test/api/workspace?contact_id='+clientId))).status).toBe(503);
+});
+it('continues denying a client outside the current permitted Pages',async()=>{
+    contactReads(undefined,true);expect((await GET(new NextRequest('https://veo.test/api/workspace?contact_id='+clientId))).status).toBe(403);
+    expect(m.rpc.mock.calls.some(([name])=>name==='veo_profile_detail_access')).toBe(false);
+});
 describe('workspace work-date boundaries', () => {
     it('finishes the dashboard calculation before starting the competing capacity report', async () => {
         let finish!: (value: any) => void;

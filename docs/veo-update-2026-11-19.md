@@ -1,0 +1,15 @@
+# Veo frontend and backend update
+
+The reference Veo application and its live deployment are at `36f9bc83cfbc337534d5f24e470cfaa62a1bd631`. Suno previously included `8e253b22ea7494524d96a8267e466c5e8151d717`. The comparison covers six newer commits and 26 changed files. The upstream Telegram manager remains at `fc78db9`; all 82 Python modules are present in Suno, with the Suno-specific destination, namespace and topic adaptations retained.
+
+The frontend update adds explicit retries for failed receipt client-details reads without losing entered amounts or selected photos. Stale responses cannot replace a newly selected client. Receipt history explains when temporary photos have been removed after confirmed Telegram delivery. During database outages, a reconnect screen retains the signed identity and rechecks permissions.
+
+The backend returns retryable errors for transient client and financial-history failures while continuing to deny revoked Page access. A delivered receipt retry succeeds without resending it after photo cleanup. Confirmed Telegram deliveries are checkpointed before removing their private evidence bundle. An independent authenticated photo-cleanup job retries interrupted removal without replaying a receipt or sale. Pending, failed and unacknowledged deliveries keep their evidence under the existing expiry policy. Orders, payments, commissions and audit records are retained.
+
+The database update adds one private nonblocking admission helper to six heavy workspace functions. A rollback preflight verifies exact business-data preservation, unchanged function ownership, grants, settings and accounting logic, and all 32 original chatbot functions. A fresh encrypted backup is integrity-verified before applying it. Separate PostgreSQL clients verify that a competing transaction receives `55P03` and admission resumes after rollback releases the lock. Interactive authorization and receipt intake do not acquire this lock.
+
+The optional workspace pause expires automatically. Suno's retained Messenger reply, follow-up, campaign, export and sync workers continue under their existing authentication during this workspace pause. The original chatbot implementation and settings remain protected by the 234-file provenance gate. Suno financial-policy confirmation, topic routes, Owner identity, saved Page grants and the complete regression build gate remain in place. No Veo outage flag, credential, staff identity or business record is copied into Suno.
+
+Read-only live schema comparison found all 1,502 current Veo fields present among Suno's 1,547 public interface fields. Suno has no anonymously executable security-definer worker functions and no invalid public indexes. Detailed integration and database preservation results are recorded in `verification`.
+
+The historical Veo outage/member-audit documents describe another deployment's operational evidence and are not copied as Suno verification. New package scripts and the receipt cron are merged into Suno's deployment configuration; the full Suno regression gate is retained.

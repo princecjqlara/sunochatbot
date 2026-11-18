@@ -1,0 +1,30 @@
+{
+  "veo_source": "36f9bc83cfbc337534d5f24e470cfaa62a1bd631",
+  "veo_production_deployment": "dpl_H8c3h2Yxg6twjBoDLVujRLKAQyY4",
+  "prior_veo_integration": "8e253b22ea7494524d96a8267e466c5e8151d717",
+  "upstream_commits": 6,
+  "upstream_changed_files": 26,
+  "telegram_reference": "fc78db9",
+  "telegram_reference_modules": 82,
+  "telegram_modules_missing": [],
+  "schema_comparison_read_only": true,
+  "veo_public_fields": 1502,
+  "suno_public_fields": 1547,
+  "missing_current_veo_fields": [],
+  "suno_anonymous_definer_functions": 0,
+  "suno_invalid_indexes": 0,
+  "focused_tests_passed": 140,
+  "focused_tests_failed": 0,
+  "backup": {
+    "id": "fb4eb2b3-1701-46c2-81f0-57a27525fa43",
+    "encrypted": true,
+    "integrity_verified": true,
+    "tables": 148,
+    "rows": 129378
+  },
+  "backend_migration_applied": true,
+  "retained_chatbot_source_files_verified": 234,
+  "veo_customer_or_staff_data_copied": false,
+  "financial_policy_adopted": false,
+  "browser_visual_verification": "unavailable"
+}

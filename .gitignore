@@ -23,6 +23,11 @@
 !/verification/evidence-storage.json
 !/verification/facebook-subscription-upgrade.json
 !/verification/suno-topic-audit.json
+!/verification/background-capacity-preflight.json
+!/verification/background-capacity-apply.json
+!/verification/background-capacity-verify-contention.json
+!/verification/veo-update-audit-20261119.json
+!/verification/veo-upstream-integration.json
 !/verification/workspace-feature-configuration.json
 !/verification/actual-production-project.json
 /.pnp

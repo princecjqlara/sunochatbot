@@ -36,6 +36,16 @@ export async function middleware(request: NextRequest) {
             return NextResponse.json({ error: 'Database recovery is in progress. Please retry after maintenance.', code: 'DATABASE_RECOVERY', retryable: true }, { status: 503, headers });
         }
     }
+    const backgroundResumeAt = Date.parse(process.env.VEO_BACKGROUND_PAUSED_UNTIL || '');
+    const retainedWorker = process.env.SUNO_RETAINED_RUNTIME_ENABLED === 'true' && [
+        '/api/cron/follow-up-automations', '/api/cron/campaign-scheduled', '/api/cron/campaign-loop',
+        '/api/cron/exports', '/api/cron/messaging-auto-tag', '/api/cron/sync'
+    ].includes(path);
+    if (path.startsWith('/api/cron/') && !retainedWorker && path !== '/api/cron/receipt-photos' && Number.isFinite(backgroundResumeAt) && backgroundResumeAt > Date.now()) {
+        if (!process.env.CRON_SECRET || request.headers.get('authorization') !== `Bearer ${process.env.CRON_SECRET}`) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+        return NextResponse.json({ ok: false, skipped: true, reason: 'temporary_background_pause', resumes_at: new Date(backgroundResumeAt).toISOString() },
+            { status: 503, headers: { 'Cache-Control': 'no-store', 'Retry-After': String(Math.min(60, Math.max(1, Math.ceil((backgroundResumeAt - Date.now()) / 1000)))) } });
+    }
     if (process.env.VEO_WORKSPACE_ENABLED !== 'true') return NextResponse.next();
     if (path === '/api/sales-form') return NextResponse.next(); // The route requires an expiring, contact-scoped capability.
     if (/^\/api\/chatbot-media\/[a-f0-9-]{36}$/i.test(path) && request.nextUrl.searchParams.has('token')) return NextResponse.next(); // Route verifies a short-lived, asset-bound signature.

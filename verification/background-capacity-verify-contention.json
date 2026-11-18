@@ -1,0 +1,16 @@
+{
+  "passed": true,
+  "mode": "verify-contention",
+  "migration": "202611180001_veo_shared_background_capacity.sql",
+  "sha256": "bb58b64d168f63aa432b263921cb7d8f110c99e96d3934b14029d5cfdf10b7b1",
+  "sql_fingerprint": "0c939bc7b60eeeef4473301750ef60effd0309726eeb168bbf2631602cc0f7a7",
+  "backup_id": "fb4eb2b3-1701-46c2-81f0-57a27525fa43",
+  "project": "cxgynadprukyeuqbchbs",
+  "started_at": "2026-11-18T16:47:49.655Z",
+  "committed": false,
+  "competing_connection_rejected": true,
+  "rejection_ms": 62,
+  "admission_resumes_after_rollback": true,
+  "business_records_written": 0,
+  "finished_at": "2026-11-18T16:47:55.153Z"
+}

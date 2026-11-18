@@ -8,7 +8,7 @@ The original Suno chatbot is retained under `src/legacy-runtime`. Its settings s
 
 The database upgrade retains existing business records and installs all 1,502 fields in the audited current Veo reference. It does not import Veo business records or invent Suno staff, transactions or Telegram history. Existing Owner identity and all 13 saved Page grants are preserved. Twelve Page tokens passed provider ownership verification; one requires reauthorization.
 
-New financial activity requires the Owner to confirm the displayed earnings rules. The separate Danny Telegram backend still requires activation and verified staff/group-to-Page configuration. These operational prerequisites are distinct from source and schema installation.
+New financial activity requires the Owner to confirm the displayed earnings rules. Danny is active for Trabawho? and Suno makata; client assignment still requires verified staff and group-to-Page configuration. These operational prerequisites are distinct from source and schema installation.
 
 ## Development
 

@@ -1,0 +1,29 @@
+{
+  "passed": true,
+  "mode": "preflight",
+  "migration": "202611180001_veo_shared_background_capacity.sql",
+  "sha256": "bb58b64d168f63aa432b263921cb7d8f110c99e96d3934b14029d5cfdf10b7b1",
+  "sql_fingerprint": "0c939bc7b60eeeef4473301750ef60effd0309726eeb168bbf2631602cc0f7a7",
+  "backup_id": "fb4eb2b3-1701-46c2-81f0-57a27525fa43",
+  "project": "cxgynadprukyeuqbchbs",
+  "started_at": "2026-11-18T16:43:57.806Z",
+  "committed": false,
+  "functions_fingerprint": "e7a59e60f0cc7a2da14f46776182c02fee716934b3435d9ced2c78ee7872bea8",
+  "business_data_preserved": {
+    "tables": 138,
+    "rows": 123082,
+    "changed": []
+  },
+  "retained_chatbot_functions_preserved": 32,
+  "patched_functions": [
+    "veo_auto_approve_pending_team_reviews",
+    "veo_automatic_intake_tick",
+    "veo_maintenance",
+    "veo_operations_maintenance",
+    "veo_refresh_all_discipline",
+    "veo_refresh_worker_quota"
+  ],
+  "existing_function_properties_preserved": true,
+  "helper_service_only": true,
+  "finished_at": "2026-11-18T16:44:29.049Z"
+}

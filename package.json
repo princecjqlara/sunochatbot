@@ -2,8 +2,12 @@
   "name": "suno-system",
   "version": "0.1.0",
   "private": true,
-  "engines": { "node": "22.x" },
-  "overrides": { "postcss": "$postcss" },
+  "engines": {
+    "node": "22.x"
+  },
+  "overrides": {
+    "postcss": "$postcss"
+  },
   "scripts": {
     "dev": "next dev -H 127.0.0.1 -p 3100",
     "dev:ngrok": "next dev -H 0.0.0.0",
@@ -12,7 +16,8 @@
     "lint": "eslint \"src/**/*.{ts,tsx}\"",
     "test": "vitest run",
     "test:release": "node scripts/verify-retained-chatbot.mjs && node scripts/run-release-tests.mjs",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit --incremental false -p tsconfig.check.json",
+    "test:receipt-cleanup": "node scripts/test-receipt-cleanup.mjs"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.39.0",

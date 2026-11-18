@@ -1,10 +1,14 @@
 // Schema metadata only. Never reads customer records or changes the live database.
 import fs from 'node:fs';
+import path from 'node:path';
 import pg from 'pg';
 import {createRequire} from 'node:module';
 import {assertProjectCredentials} from './lib/database-migration-safety.mjs';
 createRequire(import.meta.url)('@next/env').loadEnvConfig(process.cwd(),false,{info(){},error(){}});
 const project='cxgynadprukyeuqbchbs';
+const destination=process.argv.find(arg=>arg.startsWith('--output='))?.slice('--output='.length)||'.private/suno-schema.json';
+const privateRoot=path.resolve('.private')+path.sep;
+if(!path.resolve(destination).startsWith(privateRoot))throw Error('Schema snapshots must stay in the private workspace directory');
 assertProjectCredentials(process.env,project);
 const db = new pg.Client({connectionString:process.env.DATABASE_POOLER_URL_5432||process.env.DATABASE_URL,ssl:{rejectUnauthorized:false},connectionTimeoutMillis:15000,query_timeout:20000});
 db.on('error',()=>{});
@@ -27,7 +31,7 @@ try {
   workspace_files:(await read("SELECT to_regclass('app_private.suno_workspace_migration_files') IS NOT NULL AS present"))[0].present
     ?await read('SELECT filename,sha256 FROM app_private.suno_workspace_migration_files ORDER BY filename'):[]};
  await db.query('ROLLBACK');
- fs.mkdirSync('.private',{recursive:true}); fs.writeFileSync('.private/suno-schema.json',JSON.stringify(snapshot,null,2)+'\n');
- console.log(JSON.stringify({saved:'.private/suno-schema.json',read_only:true,customer_rows:0,tables:snapshot.tables.length,columns:snapshot.columns.length,functions:snapshot.functions.length,views:snapshot.views.length}));
+ fs.mkdirSync(path.dirname(destination),{recursive:true}); fs.writeFileSync(destination,JSON.stringify(snapshot,null,2)+'\n');
+ console.log(JSON.stringify({saved:destination,read_only:true,customer_rows:0,tables:snapshot.tables.length,columns:snapshot.columns.length,functions:snapshot.functions.length,views:snapshot.views.length}));
 } catch(error) { console.error('Suno schema snapshot failed ('+(error.code||'metadata_unavailable')+'). No changes applied.');process.exitCode=1; }
 finally {await db.end().catch(()=>{});}
