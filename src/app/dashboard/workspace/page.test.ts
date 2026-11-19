@@ -17,6 +17,7 @@ async function render(role='member',params=''){
  m.fetch.mockImplementation(async(url:string)=>{const q=new URL(url,'https://suno.example');
   if(q.pathname==='/api/pages')return Response.json({pages:[{id:'page-2',name:'Suno Page'}]});
   if(q.pathname==='/api/workspace/sales')return Response.json(sales(role));
+  if(q.pathname==='/api/workspace/song-work')return Response.json({scope:scope(role),items:[],total:0});
   if(q.pathname==='/api/workspace/contacts'){const search=q.searchParams.get('search')||'';return Response.json({items:!search||'searchable client'.includes(search)?[{id:'client',page_id:'page-2',page_name:'Suno Page',name:'Searchable Client',psid:'123',pipeline_stage:'new'}]:[],total:1});}
   if(q.pathname==='/api/workspace/new-clients')return Response.json(q.searchParams.has('context')?{scope:scope(role)}:{items:[],roster:[],readiness:{ready:false},total:0});
   if(q.pathname==='/api/workspace/telegram-groups')return Response.json({scope:scope(role),groups:[],teams:[],accounts:[],memberships:[],can_manage:role!=='member'});
@@ -44,6 +45,10 @@ it('gives the Owner direct sales and staff earnings without quota or receipt-rev
 it('loads Suno earnings without fetching client-search or inherited salary endpoints',async()=>{
  await render('member','view=salary');expect(JSON.stringify(view.toJSON())).toContain('Staff earnings');
  expect(m.fetch.mock.calls.some(([u])=>u.startsWith('/api/workspace/contacts?'))).toBe(false);expect(m.fetch.mock.calls.some(([u])=>u.startsWith('/api/workspace/operations'))).toBe(false);
+});
+it('routes Song work to current song assignments without financial or legacy receipt reads',async()=>{
+ await render('member','view=songs');expect(JSON.stringify(view.toJSON())).toContain('Song work & revisions');expect(m.fetch.mock.calls.some(([u])=>u.startsWith('/api/workspace/song-work?'))).toBe(true);
+ expect(m.fetch.mock.calls.some(([u])=>u.startsWith('/api/workspace/sales?')||u.startsWith('/api/workspace/receipts'))).toBe(false);
 });
 it('debounces client search without repeating the sales totals request',async()=>{
  await render();const before=m.fetch.mock.calls.filter(([u])=>u.startsWith('/api/workspace/sales?')).length;

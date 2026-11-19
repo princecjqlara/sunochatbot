@@ -14,3 +14,10 @@ it('renders direct Suno rates and actual contact search results without Closed/D
  const rendered=JSON.stringify(root!.toJSON());expect(rendered).toContain('20');expect(rendered).toContain('50');expect(rendered).toContain('A real saved client');expect(rendered).toContain('Add a revision fee');expect(rendered).not.toMatch(/Closed Deal|Done Deal|35%|40%/);
  act(()=>root!.unmount());
 });
+it('loads the complete authorized branch for the assigned Makata selector instead of the personal profile directory',async()=>{
+ const report={policy:{confirmed:true},totals:[],daily:[],staff:[],sales:[],sale_count:0};
+ const fetch=vi.fn(async(url:string)=>({ok:true,json:async()=>url.startsWith('/api/pages')?{pages:[]}:url.includes('/context?')?{accounts:url.includes('view=sales')?[{id:'owner',name:'Owner',active:true,page_ids:['page']},{id:'worker',name:'Branch Makata',active:true,page_ids:['page']}]:[{id:'owner',name:'Owner',active:true}]}:url.includes('/contacts?')?{items:[],total:0}:report}));vi.stubGlobal('fetch',fetch);
+ let root:TestRenderer.ReactTestRenderer;await act(async()=>{root=TestRenderer.create(React.createElement(SunoSalesWorkspace,{view:'sales'}));});
+ const selector=root!.root.findByProps({name:'payee_id'});expect(selector.findAllByType('option').some(o=>o.props.value==='worker')).toBe(true);
+ expect(fetch.mock.calls.some(([url])=>url.includes('context?view=profile'))).toBe(false);act(()=>root!.unmount());
+});

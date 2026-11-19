@@ -67,7 +67,7 @@ async function postHandoff(request: NextRequest, db: HandoffDb) {
                 !['list','sent','revision','render'].includes(body.action) || !uuid(body.data?.request_id) || (['sent','revision'].includes(body.action) && !uuid(body.data?.order_id))) return NextResponse.json({error:'Invalid song work context'},{status:400});
             const result=await db.rpc('suno_telegram_song_work',{p_tenant:body.tenant_id,p_telegram:body.telegram_user_id,p_chat:body.chat_id,p_action:body.action,
                 p_data:{request_id:body.data.request_id,...(['sent','revision'].includes(body.action)?{order_id:body.data.order_id}:{})}});
-            if(result.error)return NextResponse.json({error:result.error.code==='42501'?'Song assignment or Page access changed':'Song work is temporarily unavailable'},{status:result.error.code==='42501'?403:503});
+            if(result.error)return NextResponse.json({error:result.error.code==='42501'?'Song assignment or Page access changed':['23505','40001'].includes(result.error.code)?'Song request changed. Refresh the song controls.':result.error.code==='22023'?'Invalid song work request':'Song work is temporarily unavailable'},{status:result.error.code==='42501'?403:['23505','40001'].includes(result.error.code)?409:result.error.code==='22023'?400:503});
             return NextResponse.json({ok:true,tenant_id:body.tenant_id,...result.data},{headers:{'Cache-Control':'no-store'}});
         }
         if (body.resource === 'intake') {

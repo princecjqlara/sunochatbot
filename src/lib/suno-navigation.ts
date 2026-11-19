@@ -4,6 +4,7 @@ export function dashboardNavigation(role?:string){
  const groups=inheritedNavigation(role).map(g=>({...g,items:g.items.filter(i=>!['deals','receipts','salary','capacity','calendar','budget','performance','rankings'].includes(new URL(i.href,'https://suno.invalid').searchParams.get('view')||''))}));
  const sales=groups.find(g=>g.name==='Sales')!;
  const area=(view:string,label:string):NavigationItem=>({href:'/dashboard/workspace?view='+view,label,icon:'chart'});
+ groups.find(g=>g.name==='Work')!.items.push(area('songs','Song work & revisions'));
  sales.items.unshift(area('sales','Sales & payments'),area('salary','Earnings'));
  let reports=groups.find(g=>g.name==='Reports');
  if(!reports){reports={name:'Reports',items:[]};groups.push(reports);}

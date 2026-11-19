@@ -6,6 +6,12 @@ vi.mock('@/lib/supabase', () => ({ getSupabaseAdmin: (signal: AbortSignal) => { 
 vi.mock('@/lib/veo-jaucian', () => ({ connectedVeoTenant: m.connected, veoDirectory: m.directory, jaucianRead: m.identity }));
 import { GET, POST } from './route';
 afterEach(() => { vi.clearAllMocks(); vi.unstubAllEnvs(); vi.useRealTimers(); });
+it.each([['42501',403],['23505',409],['40001',409],['22023',400],['PGRST202',503]])('keeps Suno song %s separate from retryable integration outages',async(code,status)=>{
+ vi.stubEnv('VEO_JAUCIAN_SECRET','test-key');vi.stubEnv('VEO_APPROVED_TELEGRAM_CHAT_IDS','-100123');m.connected.mockResolvedValue(true);
+ m.rpc.mockResolvedValue({error:{code,message:'Private diagnostic'}});
+ const response=await POST(new NextRequest('https://suno.test/api/workspace/handoff',{method:'POST',headers:{Authorization:'Bearer test-key'},body:JSON.stringify({resource:'song_work',tenant_id:'00000000-0000-4000-8000-000000000001',telegram_user_id:42,chat_id:-100123,action:'sent',data:{request_id:'00000000-0000-4000-8000-000000000002',order_id:'00000000-0000-4000-8000-000000000003'}})}));
+ expect(response.status).toBe(status);expect(JSON.stringify(await response.json())).not.toContain('Private diagnostic');
+});
 describe('temporary photo access for Jaucian', () => {
     it('provides all three reviewed evidence photos as temporary links without exposing object paths', async () => {
         vi.stubEnv('VEO_JAUCIAN_SECRET','test-key');

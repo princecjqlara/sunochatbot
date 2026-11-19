@@ -28,6 +28,7 @@ const VeoTelegramGroups = dynamic(() => import('@/components/VeoTelegramGroups')
 const VeoClientDrawer = dynamic(() => import('@/components/VeoClientDrawer'), { loading: PanelLoading });
 const VeoStorageHealth = dynamic(() => import('@/components/VeoStorageHealth'), { loading: PanelLoading });
 const SunoSalesWorkspace = dynamic(() => import('@/components/SunoSalesWorkspace'), { loading: PanelLoading });
+const SunoSongWork = dynamic(() => import('@/components/SunoSongWork'), { loading: PanelLoading });
 
 const field = 'border border-slate-300 rounded px-3 py-2 bg-white text-slate-900 w-full';
 const button = 'rounded bg-slate-900 px-4 py-2 text-white disabled:opacity-40';
@@ -40,6 +41,7 @@ export default function WorkspacePage() {
 }
 function SunoWorkspaceRouter() {
     const params=useSearchParams(),view=params.get('view')||'dashboard';
+    if(view==='songs')return <SunoSongWork />;
     return ['dashboard','clients','sales','deals','closed','done','receipts','salary','earnings','calendar','performance','rankings','capacity','budget'].includes(view)
         ? <SunoSalesWorkspace view={view} /> : <Workspace />;
 }

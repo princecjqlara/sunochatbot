@@ -16,7 +16,7 @@ beforeAll(async()=>{
  await db.exec(`CREATE ROLE anon;CREATE ROLE authenticated;CREATE ROLE service_role;CREATE SCHEMA extensions;CREATE SCHEMA cron;CREATE TABLE cron.job(jobid bigint GENERATED ALWAYS AS IDENTITY,jobname text,schedule text,command text);CREATE FUNCTION cron.schedule(text,text,text) RETURNS bigint LANGUAGE sql AS 'INSERT INTO cron.job(jobname,schedule,command) VALUES($1,$2,$3) RETURNING jobid';CREATE FUNCTION cron.unschedule(bigint) RETURNS boolean LANGUAGE sql AS 'DELETE FROM cron.job WHERE jobid=$1 RETURNING true';`);
  // Keep the inherited protocol reference independent of Suno's business policy.
  // A separate integration below applies the Suno adapter to this full schema.
- for(const m of schemaMigrationPlan().filter(m=>m.name!=='202611200101_suno_direct_sales.sql'))await db.exec(m.sql.replace(/CREATE EXTENSION IF NOT EXISTS pg_cron WITH SCHEMA pg_catalog;/g,'-- stub'));
+ for(const m of schemaMigrationPlan().filter(m=>!['202611200101_suno_direct_sales.sql','202611200102_suno_sales_song_work.sql'].includes(m.name)))await db.exec(m.sql.replace(/CREATE EXTENSION IF NOT EXISTS pg_cron WITH SCHEMA pg_catalog;/g,'-- stub'));
  await db.query("INSERT INTO users(id,email,name,password_hash) VALUES($1,'owner@example.com','Owner','test')",[owner]);
  await db.query("INSERT INTO pages(id,fb_page_id,name,access_token) VALUES($1,'111','Test Page','test')",[page]);await db.query('INSERT INTO user_pages(user_id,page_id) VALUES($1,$2)',[owner,page]);
  await db.exec('BEGIN');tenant=await rpc('veo_launch',[owner,[page]]);
@@ -27,7 +27,7 @@ beforeAll(async()=>{
 afterAll(async()=>{await db?.close();});beforeEach(async()=>{await db.exec('BEGIN');});afterEach(async()=>{await db.exec('ROLLBACK');});
 it('integrates direct Suno sales and 20/50/20 earnings with real workspace authorization and blocks inherited financial writes',async()=>{
  const sql=readFileSync('supabase/migrations/202611200101_suno_direct_sales.sql','utf8').replace(/^BEGIN;\s*$/m,'').replace(/^COMMIT;\s*$/m,'');
- await db.exec(sql);await db.exec('CREATE TABLE IF NOT EXISTS app_private.suno_retained_runtime_installation(id integer)');
+ await db.exec(sql);await db.exec(readFileSync('supabase/migrations/202611200102_suno_sales_song_work.sql','utf8').replace(/^BEGIN;\s*$/m,'').replace(/^COMMIT;\s*$/m,''));await db.exec('CREATE TABLE IF NOT EXISTS app_private.suno_retained_runtime_installation(id integer)');
  await rpc('suno_confirm_earnings_policy',[owner,'suno_direct_sales_v1']);
  const sale=await rpc('suno_sale_action',[member,'sale',JSON.stringify({request_id:id(seq++),page_id:page,contact_id:client,payee_id:member,description:'Suno song',currency:'PHP',amount_minor:50000})]);
  const common={sale_id:sale.sale_id,confirmed:true,occurred_at:new Date().toISOString()};
@@ -41,6 +41,10 @@ it('integrates direct Suno sales and 20/50/20 earnings with real workspace autho
  expect((await rpc('suno_sales_report',[other,day,day,null,null,0])).sale_count).toBe(0);
  await expect(rpc('veo_action',[member,'payment','{}'])).rejects.toThrow(/Suno uses direct Sales/);
  expect((await rpc('veo_refresh_discipline',[manager,member])).reason).toBe('suno_direct_sales_has_no_deal_quotas');
+ expect((await rpc('suno_song_work_report',[member,page,sale.sale_id,'all',0])).items[0]).toMatchObject({status:'working',assignee_id:member});
+ await rpc('suno_song_work_action',[member,JSON.stringify({request_id:id(seq++),sale_id:sale.sale_id,expected_version:1,status:'sent',reason:'Reported song sent to customer'}),'web']);
+ expect((await rpc('suno_song_work_report',[member,page,sale.sale_id,'all',0])).items[0].status).toBe('sent');
+ expect((await rpc('veo_salary',[member,day])).totals[0].commission_minor).toBe(19000);
 });
 it('coordinates saved Page advertising discovery hourly and keeps source credentials service-only',async()=>{
  expect((await db.query<any>('SELECT veo_page_ads_discovery_candidates() owner')).rows.map(r=>r.owner)).toEqual([owner]);
