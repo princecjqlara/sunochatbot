@@ -1,4 +1,4 @@
-import { dashboardNavigation } from './veo-navigation';
+import { dashboardNavigation } from './suno-navigation';
 
 export function workspacePreviewTarget(value: string | null) {
     const allowed = dashboardNavigation('owner').some(group => group.items.some(item => item.href === value));

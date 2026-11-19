@@ -6,12 +6,12 @@ vi.mock('next/link', () => ({ default: ({ children, ...props }: any) => createEl
 import Details from './VeoContactDetails';
 let view: ReactTestRenderer;
 afterEach(async () => { if (view) await act(async () => view.unmount()); vi.unstubAllGlobals(); });
-const fixture = (name: string) => ({ details: { fields: { Business: name } }, orders: [], payments: [], lifetime_value: {}, coverage: 'Recorded since launch' });
+const fixture = (name: string) => ({ totals:[], details: { fields: { Business: name } }, orders: [], payments: [], lifetime_value: {}, coverage: 'Recorded since launch' });
 it('routes order and settlement shortcuts to the working receipts flow for the current client', async () => {
     vi.stubGlobal('fetch', vi.fn(async () => Response.json(fixture('Cafe'))));
     await act(async () => { view = create(createElement(Details, { contactId: 'client', pageId: 'page', name: 'Client' })); });
     const links = view.root.findAllByType('a').map(link => link.props.href);
-    expect(links).toContain('/dashboard/workspace?view=receipts&contact_id=client'); expect(links).toContain('/dashboard/workspace?view=receipts&receipt_kind=done&contact_id=client');
+    expect(links).toContain('/dashboard/workspace?view=sales&contact_id=client'); expect(links.some(link=>/receipt_kind=|view=receipts/.test(link))).toBe(false);
     expect(links.some(link => link.includes('view=dashboard') || link.includes('view=clients'))).toBe(false);
 });
 it('clears the previous contact’s editable fields until the current details are loaded', async () => {

@@ -5,6 +5,7 @@ import { pg_trgm } from '@electric-sql/pglite/contrib/pg_trgm';
 import { vector } from '@electric-sql/pglite-pgvector';
 import { schemaMigrationPlan } from '../../../scripts/lib/database-migration-safety.mjs';
 import { hashSync } from 'bcryptjs';
+import {readFileSync} from 'node:fs';
 const stored='veo-sha256:'+hashSync('fixture',4);
 const id=(n:number)=>`00000000-0000-4000-8000-${String(n).padStart(12,'0')}`;
 const owner=id(1),page=id(2),leader=id(3),manager=id(4),member=id(5),other=id(6),client=id(7),clientB=id(8);
@@ -13,7 +14,9 @@ const rpc=async(name:string,args:any[])=>{await db.exec('SAVEPOINT operation');t
 beforeAll(async()=>{
  db=await PGlite.create({extensions:{'uuid-ossp':uuid_ossp,pg_trgm,vector}});
  await db.exec(`CREATE ROLE anon;CREATE ROLE authenticated;CREATE ROLE service_role;CREATE SCHEMA extensions;CREATE SCHEMA cron;CREATE TABLE cron.job(jobid bigint GENERATED ALWAYS AS IDENTITY,jobname text,schedule text,command text);CREATE FUNCTION cron.schedule(text,text,text) RETURNS bigint LANGUAGE sql AS 'INSERT INTO cron.job(jobname,schedule,command) VALUES($1,$2,$3) RETURNING jobid';CREATE FUNCTION cron.unschedule(bigint) RETURNS boolean LANGUAGE sql AS 'DELETE FROM cron.job WHERE jobid=$1 RETURNING true';`);
- for(const m of schemaMigrationPlan())await db.exec(m.sql.replace(/CREATE EXTENSION IF NOT EXISTS pg_cron WITH SCHEMA pg_catalog;/g,'-- stub'));
+ // Keep the inherited protocol reference independent of Suno's business policy.
+ // A separate integration below applies the Suno adapter to this full schema.
+ for(const m of schemaMigrationPlan().filter(m=>m.name!=='202611200101_suno_direct_sales.sql'))await db.exec(m.sql.replace(/CREATE EXTENSION IF NOT EXISTS pg_cron WITH SCHEMA pg_catalog;/g,'-- stub'));
  await db.query("INSERT INTO users(id,email,name,password_hash) VALUES($1,'owner@example.com','Owner','test')",[owner]);
  await db.query("INSERT INTO pages(id,fb_page_id,name,access_token) VALUES($1,'111','Test Page','test')",[page]);await db.query('INSERT INTO user_pages(user_id,page_id) VALUES($1,$2)',[owner,page]);
  await db.exec('BEGIN');tenant=await rpc('veo_launch',[owner,[page]]);
@@ -22,6 +25,23 @@ beforeAll(async()=>{
  await db.query("INSERT INTO contacts(id,page_id,psid,name) VALUES($1,$3,'a','Client A'),($2,$3,'b','Client B')",[client,clientB,page]);await db.exec('COMMIT');
 },60000);
 afterAll(async()=>{await db?.close();});beforeEach(async()=>{await db.exec('BEGIN');});afterEach(async()=>{await db.exec('ROLLBACK');});
+it('integrates direct Suno sales and 20/50/20 earnings with real workspace authorization and blocks inherited financial writes',async()=>{
+ const sql=readFileSync('supabase/migrations/202611200101_suno_direct_sales.sql','utf8').replace(/^BEGIN;\s*$/m,'').replace(/^COMMIT;\s*$/m,'');
+ await db.exec(sql);await db.exec('CREATE TABLE IF NOT EXISTS app_private.suno_retained_runtime_installation(id integer)');
+ await rpc('suno_confirm_earnings_policy',[owner,'suno_direct_sales_v1']);
+ const sale=await rpc('suno_sale_action',[member,'sale',JSON.stringify({request_id:id(seq++),page_id:page,contact_id:client,payee_id:member,description:'Suno song',currency:'PHP',amount_minor:50000})]);
+ const common={sale_id:sale.sale_id,confirmed:true,occurred_at:new Date().toISOString()};
+ const song=await rpc('suno_sale_action',[member,'payment',JSON.stringify({...common,request_id:id(seq++),kind:'song',charge_id:sale.charge_id,amount_minor:50000,reference:'SONG-RECEIPT'})]);expect(song.commission_minor).toBe(10000);
+ const tip=await rpc('suno_sale_action',[member,'payment',JSON.stringify({...common,request_id:id(seq++),kind:'tip',charge_id:null,amount_minor:10000,reference:'TIP-RECEIPT'})]);expect(tip.commission_minor).toBe(5000);
+ const fee=await rpc('suno_sale_action',[member,'revision_fee',JSON.stringify({sale_id:sale.sale_id,request_id:id(seq++),amount_minor:20000,description:'Revision fee'})]);
+ const revision=await rpc('suno_sale_action',[member,'payment',JSON.stringify({...common,request_id:id(seq++),kind:'revision',charge_id:fee.charge_id,amount_minor:20000,reference:'REVISION-RECEIPT'})]);expect(revision.commission_minor).toBe(4000);
+ const day=(await db.query<any>('SELECT veo_today()::text d')).rows[0].d;
+ expect((await rpc('veo_salary',[member,day])).totals[0].commission_minor).toBe(19000);
+ const report=await rpc('suno_sales_report',[owner,day,day,null,null,0]);expect(report.totals[0]).toMatchObject({net_received_minor:80000,commission_minor:19000,company_share_minor:61000});
+ expect((await rpc('suno_sales_report',[other,day,day,null,null,0])).sale_count).toBe(0);
+ await expect(rpc('veo_action',[member,'payment','{}'])).rejects.toThrow(/Suno uses direct Sales/);
+ expect((await rpc('veo_refresh_discipline',[manager,member])).reason).toBe('suno_direct_sales_has_no_deal_quotas');
+});
 it('coordinates saved Page advertising discovery hourly and keeps source credentials service-only',async()=>{
  expect((await db.query<any>('SELECT veo_page_ads_discovery_candidates() owner')).rows.map(r=>r.owner)).toEqual([owner]);
  await expect(rpc('veo_claim_page_ads_discovery',[manager])).rejects.toThrow('Owner access');expect(await rpc('veo_claim_page_ads_discovery',[owner])).toBe(true);expect(await rpc('veo_claim_page_ads_discovery',[owner])).toBe(false);

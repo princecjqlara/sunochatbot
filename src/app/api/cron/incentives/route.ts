@@ -9,7 +9,7 @@ export async function GET(r: NextRequest) {
     if (process.env.VEO_WORKSPACE_ENABLED !== 'true') return NextResponse.json({ skipped: true });
     try {
         const db = getSupabaseAdmin();
-        if (!await sunoFinancialWorkersReady(db)) return NextResponse.json({skipped:true,reason:'financial_policy_pending'});
+        if (!await sunoFinancialWorkersReady(db)) return NextResponse.json({skipped:true,reason:process.env.SUNO_RETAINED_RUNTIME_ENABLED==='true'?'suno_direct_sales':'financial_policy_pending'});
         return NextResponse.json(await queueIncentiveNotices(db));
     }
     catch { return NextResponse.json({ error: 'Incentive queue will retry' }, { status: 503 }); }

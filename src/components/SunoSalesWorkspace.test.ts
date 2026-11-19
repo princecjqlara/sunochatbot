@@ -2,6 +2,7 @@ import React from 'react';
 import TestRenderer,{act} from 'react-test-renderer';
 import {afterEach,expect,it,vi} from 'vitest';
 vi.mock('next/navigation',()=>({useSearchParams:()=>new URLSearchParams()}));
+vi.mock('next/link',()=>({default:(props:any)=>React.createElement('a',{href:props.href},props.children)}));
 import SunoSalesWorkspace from './SunoSalesWorkspace';
 afterEach(()=>vi.unstubAllGlobals());
 it('renders direct Suno rates and actual contact search results without Closed/Done controls',async()=>{

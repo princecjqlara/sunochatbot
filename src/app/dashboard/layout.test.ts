@@ -51,11 +51,11 @@ it('gives CJ the calendar, ads performance and capacity links while keeping thos
     let view: any; await act(async () => { view = create(createElement(Layout, null, 'Workspace')); });
     try {
         const links = () => view.root.findAllByType('a').map((a: any) => a.props.href);
-        expect(links()).toContain('/dashboard/ad-calendar'); expect(links()).toContain('/dashboard/ad-quality');
-        expect(links()).toContain('/dashboard/workspace?view=capacity');
+        expect(links()).toContain('/dashboard/workspace?view=calendar'); expect(links()).toContain('/dashboard/ad-quality');
+        expect(links()).not.toContain('/dashboard/workspace?view=capacity');
         m.session.mockReturnValue({ status: 'authenticated', data: { user: { id: 'user', role: 'member', telegramProfileConfirmed: true } } });
         await act(async () => { view.update(createElement(Layout, null, 'Workspace')); });
-        expect(links()).not.toContain('/dashboard/ad-calendar'); expect(links()).not.toContain('/dashboard/ad-quality'); expect(links()).toContain('/dashboard/workspace?view=capacity');
+        expect(links()).not.toContain('/dashboard/ad-calendar'); expect(links()).not.toContain('/dashboard/ad-quality'); expect(links()).not.toContain('/dashboard/workspace?view=capacity');
     } finally { await act(async () => view.unmount()); }
 });
 
@@ -93,8 +93,8 @@ it('finds permitted tools across collapsed groups and restores all destinations 
     try {
         const destinations = () => view.root.findAllByType('a').filter((a: any) => a.props.href.startsWith('/dashboard')).map((a: any) => a.props.href);
         const before = destinations();
-        await act(async () => view.root.findByProps({ 'aria-label': 'Find a page' }).props.onChange({ target: { value: 'receipts' } }));
-        expect(destinations()).toEqual(['/dashboard/workspace', '/dashboard/workspace?view=receipts']);
+        await act(async () => view.root.findByProps({ 'aria-label': 'Find a page' }).props.onChange({ target: { value: 'payments' } }));
+        expect(destinations()).toEqual(['/dashboard/workspace', '/dashboard/workspace?view=sales']);
         expect(view.root.findAllByType('details').every((d: any) => d.props.open)).toBe(true);
         await act(async () => view.root.findByProps({ 'aria-label': 'Find a page' }).props.onChange({ target: { value: 'ads performance' } }));
         expect(destinations()).not.toContain('/dashboard/ad-quality');

@@ -7,7 +7,7 @@ it('shows every operational route and groups shared receipt destinations into a 
  const html=renderToStaticMarkup(createElement(TelegramTopicRoutes,{chatId:-1002894511895,
   topics:{general:1,announcements:16,active:7581,clients:7673,receipts:4,close:4,done:4,songs:7692}}));
  expect(html.match(/<a /g)).toHaveLength(6);
- expect(html).toContain('Receipts / Closed Deals / Done Deals');
+ expect(html).toContain('Receipts / Sales');
  expect(html).toContain('https://t.me/c/2894511895/7692');
  expect(html).toContain('Active tomorrow');
 });

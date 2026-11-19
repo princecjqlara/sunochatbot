@@ -44,7 +44,7 @@ it('distinguishes Closed and Done confirmations from availability polls in the d
     ] } }))));
     let view: any;
     await act(async () => { view = create(createElement(Integration, { submit: vi.fn(), busy: false })); });
-    try { const text = flatten(view.toJSON()); expect(text).toContain('Closed Deal confirmation'); expect(text).toContain('Done Deal confirmation'); expect(text).toContain('Active-tomorrow poll 2026-11-08'); }
+    try { const text = flatten(view.toJSON()); expect(text).toContain('Retained receipt confirmation'); expect(text).not.toContain('Closed Deal'); expect(text).not.toContain('Done Deal'); expect(text).toContain('Active-tomorrow poll 2026-11-08'); }
     finally { await act(async () => view.unmount()); }
 });
 it('shows disabled retained accounts and pending or missing sync separately from a working server connection', async () => {

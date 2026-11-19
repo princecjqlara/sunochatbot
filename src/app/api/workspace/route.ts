@@ -62,6 +62,7 @@ export async function GET(request: NextRequest) {
         if ((page && !uuid(page)) || !Number.isSafeInteger(offset) || offset < 0 || offset > 10000000 || search.length > 200 ||
             !['dashboard', 'clients', 'closed', 'done', 'salary', 'accounts', 'sync'].includes(view)) throw new Error('Invalid order filters');
         const includeOrders = ['closed', 'done'].includes(view);
+        if (process.env.SUNO_RETAINED_RUNTIME_ENABLED === 'true' && ['closed','done','salary'].includes(view)) return NextResponse.json({error:'Use Suno Sales & payments or Earnings for current financial records.',code:'SUNO_DIRECT_SALES'}, {status:410});
         if (view === 'sync') {
             const health = await readVeoRpc(db, 'veo_collection_status', { p_actor: scope.user_id });
             if (health.error) throw Object.assign(Error('Collection health is temporarily unavailable'), { status: 503 });

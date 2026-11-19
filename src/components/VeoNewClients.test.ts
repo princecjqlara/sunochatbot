@@ -84,7 +84,7 @@ it('sends a handover offer and keeps the current worker shown until the recipien
     expect(writes).toEqual([{ action: 'offer', contact_id: 'client', user_id: 'next', reason: 'Next shift takes over', request_id: expect.any(String) }]);
     expect(text(view.toJSON())).toContain('Assigned to: Current Worker');
     expect(text(view.toJSON())).toContain('Offered to Next Worker');
-    expect(text(view.toJSON())).toContain('does not create a Closed Deal, Done Deal or commission');
+    expect(text(view.toJSON())).toContain('does not record a sale, payment or commission');
 });
 
 it('polls without replacing visible clients or flashing readiness and keeps last data on temporary failure',async()=>{

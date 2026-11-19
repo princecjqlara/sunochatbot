@@ -11,7 +11,7 @@ export async function GET(r: NextRequest) {
     if (process.env.VEO_WORKSPACE_ENABLED !== 'true') return NextResponse.json({ skipped: true });
     const db = getSupabaseAdmin();
     try {
-        if (!await sunoFinancialWorkersReady(db)) return NextResponse.json({skipped:true,reason:'financial_policy_pending'});
+        if (!await sunoFinancialWorkersReady(db)) return NextResponse.json({skipped:true,reason:process.env.SUNO_RETAINED_RUNTIME_ENABLED==='true'?'suno_direct_sales':'financial_policy_pending'});
     } catch { return NextResponse.json({error:'Earnings settings will retry'}, {status:503}); }
     try { await requireStorageForOptionalWork(db); }
     catch { return NextResponse.json({ skipped: true, reason: 'database_pressure', retryable: true }, { status: 503, headers: { 'Retry-After': '60' } }); }

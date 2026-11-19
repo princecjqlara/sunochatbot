@@ -61,7 +61,7 @@ export async function middleware(request: NextRequest) {
     const token = await getToken({ req: request });
     if (!token?.id) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     if (token.facebookId || token.accessToken) return NextResponse.json({ error: 'Facebook sign-in has been removed. Sign in with email and password.' }, { status: 401 });
-    if (process.env.SUNO_RETAINED_RUNTIME_ENABLED === 'true' && /^\/api\/workspace\/(?:receipts|deal-reviews|incentives|quota-policy|calendar|budget)(?:\/|$)/.test(path)) {
+    if (process.env.SUNO_RETAINED_RUNTIME_ENABLED === 'true' && /^\/api\/workspace\/(?:receipts|deal-reviews|incentives|quota-policy|calendar|budget|operations)(?:\/|$)/.test(path)) {
         return NextResponse.json({error:'Suno uses direct Sales, revision fees and tips. Open Sales & payments or Earnings.',code:'SUNO_DIRECT_SALES',href:'/dashboard/workspace?view=sales'}, {status:410,headers:{'Cache-Control':'no-store'}});
     }
     // Workspace routes verify this signed identity and current database scope

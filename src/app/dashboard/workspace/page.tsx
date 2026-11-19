@@ -40,7 +40,7 @@ export default function WorkspacePage() {
 }
 function SunoWorkspaceRouter() {
     const params=useSearchParams(),view=params.get('view')||'dashboard';
-    return ['dashboard','sales','deals','closed','done','receipts','salary','earnings','calendar','performance','rankings','capacity','budget'].includes(view)
+    return ['dashboard','clients','sales','deals','closed','done','receipts','salary','earnings','calendar','performance','rankings','capacity','budget'].includes(view)
         ? <SunoSalesWorkspace view={view} /> : <Workspace />;
 }
 function Workspace() {

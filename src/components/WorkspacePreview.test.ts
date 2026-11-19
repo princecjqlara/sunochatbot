@@ -8,7 +8,7 @@ vi.mock('next/link', () => ({ default: ({ href, children, prefetch, ...props }: 
 import WorkspacePreview from './WorkspacePreview';
 import WorkspacePreviewPage from '@/app/ui-preview/page';
 import HomePage from '@/app/page';
-import { dashboardNavigation } from '@/lib/veo-navigation';
+import { dashboardNavigation } from '@/lib/suno-navigation';
 const text = (node: any): string => typeof node === 'string' || typeof node === 'number' ? String(node) : node.children.map(text).join('');
 
 beforeEach(() => { m.params = new URLSearchParams(); vi.stubEnv('SUNO_DEPLOYMENT_STAGE', ''); });
@@ -48,7 +48,7 @@ it('searches sample clients locally and keeps the contact breadcrumb and navigat
 it('falls back to the sample dashboard for unrecognized or malformed destinations', async () => {
     m.params = new URLSearchParams({ page: 'http://[' });
     let view: any; await act(async () => { view = create(createElement(WorkspacePreview)); });
-    try { expect(view.root.findByType('h1').children.join('')).toBe('Teams dashboard'); }
+    try { expect(view.root.findByType('h1').children.join('')).toBe('Suno dashboard'); }
     finally { await act(async () => view.unmount()); }
 });
 
