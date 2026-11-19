@@ -5,7 +5,7 @@ import { calendarHeat, calendarRange, phtDay, shiftCalendarMonth } from '@/lib/a
 import AdCreativePreview from '@/components/AdCreativePreview';
 import { requestDeadline } from '@/lib/request-deadline';
 import { useSession } from 'next-auth/react';
-import VeoWorkCalendar from '@/components/VeoWorkCalendar';
+import SunoSalesWorkspace from '@/components/SunoSalesWorkspace';
 import { useHourlyReportRefresh } from '@/lib/use-hourly-report-refresh';
 
 const number = (value: number | null | undefined) => value == null ? 'Not available' : new Intl.NumberFormat('en-PH', { maximumFractionDigits: 2 }).format(value);
@@ -90,7 +90,7 @@ export default function AdCalendar() {
   return()=>controller.abort();
  },[role]);
  if(status==='loading')return <p className="p-6" role="status">Loading calendar access…</p>;
- if(role&&['owner','team_leader'].includes(role))return <main className="max-w-7xl mx-auto p-4 md:p-6">{accessError&&<p role="alert">{accessError}</p>}<VeoWorkCalendar scope={{role}} pages={pages}/></main>;
+ if(role&&['owner','team_leader'].includes(role))return <main className="max-w-7xl mx-auto p-4 md:p-6">{accessError&&<p role="alert">{accessError}</p>}<SunoSalesWorkspace view="calendar"/></main>;
  if(role)return <p className="p-6" role="alert">Calendar access requires Owner or Team Leader.</p>;
  return <LegacyAdCalendar/>;
 }

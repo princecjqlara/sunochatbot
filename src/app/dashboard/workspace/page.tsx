@@ -27,6 +27,7 @@ const VeoNewClients = dynamic(() => import('@/components/VeoNewClients'), { load
 const VeoTelegramGroups = dynamic(() => import('@/components/VeoTelegramGroups'), { loading: PanelLoading });
 const VeoClientDrawer = dynamic(() => import('@/components/VeoClientDrawer'), { loading: PanelLoading });
 const VeoStorageHealth = dynamic(() => import('@/components/VeoStorageHealth'), { loading: PanelLoading });
+const SunoSalesWorkspace = dynamic(() => import('@/components/SunoSalesWorkspace'), { loading: PanelLoading });
 
 const field = 'border border-slate-300 rounded px-3 py-2 bg-white text-slate-900 w-full';
 const button = 'rounded bg-slate-900 px-4 py-2 text-white disabled:opacity-40';
@@ -35,7 +36,12 @@ const money = (n: number, c: string) => new Intl.NumberFormat('en-PH', { style: 
 const label = (v: string) => v.replaceAll('_', ' ').replace(/\b\w/g, m => m.toUpperCase());
 
 export default function WorkspacePage() {
-    return <Suspense fallback={<p className="p-8">Loading SUNO…</p>}><Workspace /></Suspense>;
+    return <Suspense fallback={<p className="p-8">Loading SUNO…</p>}><SunoWorkspaceRouter /></Suspense>;
+}
+function SunoWorkspaceRouter() {
+    const params=useSearchParams(),view=params.get('view')||'dashboard';
+    return ['dashboard','sales','deals','closed','done','receipts','salary','earnings','calendar','performance','rankings','capacity','budget'].includes(view)
+        ? <SunoSalesWorkspace view={view} /> : <Workspace />;
 }
 function Workspace() {
     const params = useSearchParams(), router = useRouter(), requestedView = params.get('view') || 'dashboard';
@@ -148,10 +154,10 @@ function Workspace() {
     const chosenContact = availableContacts.find(c => c.id === contact);
     const tomorrowTotal = data.tomorrow.filter((w: any) => w.active === true).reduce((n: number, w: any) => n + w.target, 0);
     const supervisor = data.scope.role !== 'member';
-    const navViews = executive ? ['dashboard', 'new_clients', 'telegram', 'performance', 'rankings', 'salary', 'receipts', 'warnings', 'capacity', 'calendar', 'budget', 'accounts', 'sync', 'profile'] : ['dashboard', 'new_clients', 'telegram', 'clients', 'deals', 'salary', 'receipts', 'warnings', 'capacity', ...(supervisor ? ['performance', 'rankings', 'accounts'] : []), 'sync', 'profile'];
+    const navViews = ['dashboard', 'new_clients', 'telegram', 'clients', 'sales', 'salary', 'warnings', 'calendar', ...(supervisor ? ['performance', 'accounts'] : []), 'sync', 'profile'];
     const viewGroups = [
         { name: 'Work', views: navViews.filter(v => ['dashboard', 'new_clients', 'clients'].includes(v)) },
-        { name: 'Sales', views: navViews.filter(v => ['deals', 'salary', 'receipts'].includes(v)) },
+        { name: 'Sales', views: navViews.filter(v => ['sales', 'salary'].includes(v)) },
         { name: 'Team', views: navViews.filter(v => ['telegram', 'warnings', 'capacity', 'accounts'].includes(v)) },
         { name: 'Reports & Planning', views: navViews.filter(v => ['performance', 'rankings', 'calendar', 'budget'].includes(v)) },
         { name: 'More', views: navViews.filter(v => ['sync', 'profile'].includes(v)) }
@@ -159,7 +165,7 @@ function Workspace() {
     const formData = (e: React.FormEvent<HTMLFormElement>) => { e.preventDefault(); return Object.fromEntries(new FormData(e.currentTarget)); };
     return <div className="dashboard-page">
         <header><p className="text-xs uppercase tracking-widest">CJ Lara / SUNO / {label(data.scope.role)}</p><h1 className="text-3xl font-bold mt-2">{executive && activeView === 'dashboard' ? 'Teams dashboard' : activeView === 'clients' ? 'Clients' : activeView === 'deals' ? 'Deals' : activeView === 'profile' ? 'My profile' : label(activeView)}</h1><p className="mt-2 text-sm text-slate-600">Launch: {new Date(data.scope.launch_at).toLocaleString('en-PH', { timeZone: 'Asia/Manila' })} PHT. All work dates use Philippine time.</p></header>
-        <details key={'area:' + activeView} className="rounded-xl border border-slate-200 bg-white"><summary className="cursor-pointer px-4 py-3 text-sm font-semibold">Switch workspace area</summary><nav aria-label="Workspace areas" className="grid gap-4 border-t border-slate-100 p-4 sm:grid-cols-2 lg:grid-cols-5">{viewGroups.map(group => <div key={group.name}><p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">{group.name}</p>{group.views.map(v => <Link prefetch={false} aria-current={activeView === v ? 'page' : undefined} className={`block rounded px-3 py-2 text-sm ${activeView === v ? 'bg-slate-900 text-white' : 'hover:bg-slate-100'}`} key={v} href={`/dashboard/workspace?view=${v}`}>{executive && v === 'dashboard' ? 'Teams dashboard' : v === 'capacity' ? 'Capacity & Quotas' : v === 'accounts' ? 'Accounts & Teams' : v === 'profile' ? 'My profile' : label(v)}</Link>)}</div>)}</nav></details>
+        <details key={'area:' + activeView} className="rounded-xl border border-slate-200 bg-white"><summary className="cursor-pointer px-4 py-3 text-sm font-semibold">Switch workspace area</summary><nav aria-label="Workspace areas" className="grid gap-4 border-t border-slate-100 p-4 sm:grid-cols-2 lg:grid-cols-5">{viewGroups.map(group => <div key={group.name}><p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">{group.name}</p>{group.views.map(v => <Link prefetch={false} aria-current={activeView === v ? 'page' : undefined} className={`block rounded px-3 py-2 text-sm ${activeView === v ? 'bg-slate-900 text-white' : 'hover:bg-slate-100'}`} key={v} href={`/dashboard/workspace?view=${v}`}>{executive && v === 'dashboard' ? 'Teams dashboard' : v === 'capacity' ? 'Capacity & Quotas' : v === 'accounts' ? 'Accounts & Teams' : v === 'profile' ? 'My profile' : v === 'sales' ? 'Sales & payments' : v === 'salary' ? 'Earnings' : v === 'calendar' ? 'Sales calendar' : label(v)}</Link>)}</div>)}</nav></details>
         {!executive && ['dashboard'].includes(activeView) && <div className="grid gap-3 md:grid-cols-3"><label>Page<select className={field} value={page} onChange={e => { setPage(e.target.value); setOffset(0); setContactOffset(0); setContact(''); setPicked(null); setOrder(''); }}><option value="">All assigned pages</option>{pages.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}</select></label><label>Client search<input className={field} value={query} maxLength={200} onChange={e => { setQuery(e.target.value); setOffset(0); setContactOffset(0); setOrder(''); }} placeholder={activeView === 'deals' ? 'Search client, seller or order' : 'Search client name, ID or saved details'} /></label><label>Philippine work date<input type="date" className={field} value={day} max={today()} onChange={e => { setDay(e.target.value); setOffset(0); }} /></label></div>}
         {(activeView === 'capacity' || (executive && activeView === 'dashboard')) && <label className="block max-w-xs">Philippine work date<input type="date" className={field} value={day} max={today()} onChange={e => setDay(e.target.value)} /></label>}
         {!executive && activeView === 'deals' && <label className="block max-w-xs font-semibold">Deal type<select className={field} value={dealStatus} onChange={e => { setOffset(0); setOrder(''); router.replace(`/dashboard/workspace?view=deals&status=${e.target.value}`); }}><option value="closed">Closed Deals</option><option value="done">Done Deals</option></select></label>}

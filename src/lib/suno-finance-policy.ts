@@ -10,6 +10,6 @@ export async function requireSunoFinancialPolicy(actor: string, db = getSupabase
     if (process.env.SUNO_RETAINED_RUNTIME_ENABLED !== 'true') return;
     const result = await db.rpc('suno_require_earnings_policy', {p_actor: actor});
     if (result.error) throw Object.assign(Error(result.error.code === '22023'
-        ? 'The Owner must confirm earnings settings before saving financial records.'
+        ? 'Use Suno Sales & payments to record song sales, tips and revision fees.'
         : 'Earnings settings could not be verified. Retry shortly.'), {status: result.error.code === '22023' ? 409 : 503});
 }

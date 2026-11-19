@@ -87,6 +87,7 @@ export async function POST(request: NextRequest) {
         const scope = await actor(request), db = getSupabaseAdmin();
         if (request.headers.get('content-type')?.includes('multipart/form-data')) throw new Error('Submit through Receipts after checking the Facebook requirements');
         const body = await request.json(), action = body.action;
+        if (process.env.SUNO_RETAINED_RUNTIME_ENABLED === 'true' && ['order','payment','import_business_order','submission','incentive','tip','price','void_payment'].includes(action)) return NextResponse.json({error:'Use Suno Sales & payments for song sales, revision fees and tips.',code:'SUNO_DIRECT_SALES'}, {status:409});
         if (action === 'member_supervisor') {
             if (!['owner', 'team_leader'].includes(scope.role)) return NextResponse.json({ error: 'Owner or Team Leader access required' }, { status: 403 });
             if (![body.user_id, body.parent_id, body.expected_parent_id].every(uuid)) throw new Error('Choose the member and current and new supervisors');

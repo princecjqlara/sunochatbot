@@ -1,7 +1,7 @@
 'use client';
 import { usePathname, useSearchParams } from 'next/navigation';
 import { ChevronRight } from 'lucide-react';
-import { dashboardLocation } from '@/lib/veo-navigation';
+import { dashboardLocation } from '@/lib/suno-navigation';
 import { workspacePreviewTarget } from '@/lib/workspace-preview';
 
 export default function VeoDashboardBreadcrumb({ role, preview = false }: { role?: string; preview?: boolean }) {

@@ -3,7 +3,7 @@ import Link from 'next/link';
 import { usePathname, useSearchParams } from 'next/navigation';
 import { useMemo, useState } from 'react';
 import { LayoutDashboard, Users, Tag, BarChart3, Settings, User, History, Bot, MessageSquare, FileText, Download, GitBranch, Search, ChevronRight, X } from 'lucide-react';
-import { activeDashboardItem, dashboardNavigation } from '@/lib/veo-navigation';
+import { activeDashboardItem, dashboardNavigation } from '@/lib/suno-navigation';
 import { workspacePreviewHref, workspacePreviewTarget } from '@/lib/workspace-preview';
 const icons = { home: LayoutDashboard, people: Users, tag: Tag, chart: BarChart3, settings: Settings, user: User, history: History, bot: Bot, message: MessageSquare, file: FileText, download: Download, pipeline: GitBranch };
 export default function VeoDashboardNavigation({ role, onNavigate, preview = false }: { role?: string; onNavigate?: () => void; preview?: boolean }) {

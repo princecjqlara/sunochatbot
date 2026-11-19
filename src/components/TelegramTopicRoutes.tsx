@@ -1,6 +1,6 @@
 const labels: Record<string,string> = {
  general:'General',announcements:'Announcements',active:'Active tomorrow',clients:'Clients',
- receipts:'Receipts',close:'Closed Deals',done:'Done Deals',songs:'Songs',
+ receipts:'Receipts',close:'Sales',done:'Sales',songs:'Songs',
 };
 
 export default function TelegramTopicRoutes({chatId,topics}:{chatId:number|string;topics?:Record<string,unknown>}) {
@@ -15,7 +15,7 @@ export default function TelegramTopicRoutes({chatId,topics}:{chatId:number|strin
  const chat=String(Math.abs(Number(chatId))).slice(3);
  return <div className="space-y-1 text-sm" aria-label="Topic routes"><p className="font-medium">Topics</p>
   <ul className="flex flex-wrap gap-x-4 gap-y-1">{[...destinations].map(([id,names])=><li key={id}>
-   <a className="underline" href={`https://t.me/c/${chat}/${id}`} target="_blank" rel="noreferrer">{names.join(' / ')}</a>
+   <a className="underline" href={`https://t.me/c/${chat}/${id}`} target="_blank" rel="noreferrer">{[...new Set(names)].join(' / ')}</a>
   </li>)}</ul>
  </div>;
 }
