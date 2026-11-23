@@ -8,6 +8,7 @@ import VeoDeferredSection from '@/components/VeoDeferredSection';
 import VeoPageState from '@/components/VeoPageState';
 import { createSearchSchedule } from '@/lib/search-schedule';
 import { startAdaptivePolling } from '@/lib/adaptive-polling';
+import {sunoReportViews} from '@/lib/suno-report-views';
 const PanelLoading = () => <VeoPageState title="Opening section" />;
 const VeoWorkspaceContacts = dynamic(() => import('@/components/VeoWorkspaceContacts'), { loading: PanelLoading });
 const VeoTeamsDashboard = dynamic(() => import('@/components/VeoTeamsDashboard'), { loading: PanelLoading });
@@ -29,6 +30,7 @@ const VeoClientDrawer = dynamic(() => import('@/components/VeoClientDrawer'), { 
 const VeoStorageHealth = dynamic(() => import('@/components/VeoStorageHealth'), { loading: PanelLoading });
 const SunoSalesWorkspace = dynamic(() => import('@/components/SunoSalesWorkspace'), { loading: PanelLoading });
 const SunoSongWork = dynamic(() => import('@/components/SunoSongWork'), { loading: PanelLoading });
+const SunoOperationsReport = dynamic(() => import('@/components/SunoOperationsReport'), { loading: PanelLoading });
 
 const field = 'border border-slate-300 rounded px-3 py-2 bg-white text-slate-900 w-full';
 const button = 'rounded bg-slate-900 px-4 py-2 text-white disabled:opacity-40';
@@ -42,7 +44,8 @@ export default function WorkspacePage() {
 function SunoWorkspaceRouter() {
     const params=useSearchParams(),view=params.get('view')||'dashboard';
     if(view==='songs')return <SunoSongWork />;
-    return ['dashboard','clients','sales','deals','closed','done','receipts','salary','earnings','calendar','performance','rankings','capacity','budget'].includes(view)
+    if(sunoReportViews.includes(view))return <SunoOperationsReport view={view} />;
+    return ['clients','sales','deals','closed','done','receipts','salary','earnings'].includes(view)
         ? <SunoSalesWorkspace view={view} /> : <Workspace />;
 }
 function Workspace() {
@@ -156,7 +159,7 @@ function Workspace() {
     const chosenContact = availableContacts.find(c => c.id === contact);
     const tomorrowTotal = data.tomorrow.filter((w: any) => w.active === true).reduce((n: number, w: any) => n + w.target, 0);
     const supervisor = data.scope.role !== 'member';
-    const navViews = ['dashboard', 'new_clients', 'telegram', 'clients', 'sales', 'salary', 'warnings', 'calendar', ...(supervisor ? ['performance', 'accounts'] : []), 'sync', 'profile'];
+    const navViews = ['dashboard', 'new_clients', 'telegram', 'clients', 'sales', 'salary', 'capacity', 'warnings', 'calendar', ...(executive ? ['budget'] : []), ...(supervisor ? ['performance', 'rankings', 'accounts'] : []), 'sync', 'profile'];
     const viewGroups = [
         { name: 'Work', views: navViews.filter(v => ['dashboard', 'new_clients', 'clients'].includes(v)) },
         { name: 'Sales', views: navViews.filter(v => ['sales', 'salary'].includes(v)) },

@@ -10,7 +10,8 @@ it('rejects unmatched charges, unverified receipts and invalid money and dates',
  for(const body of [{kind:'song'},{kind:'tip',charge_id:id},{kind:'tip',confirmed:false},{kind:'tip',amount:'1.001'},{kind:'tip',amount:'-1'}])expect(()=>sunoSalesAction({action:'payment',request_id:id,sale_id:id,amount:'1',confirmed:true,reference:'BANK-123',occurred_at:'2026-11-20T01:00:00+08:00',...body})).toThrow();
  expect(sunoSalesDate('2026-02-30')).toBe(false);expect(sunoSalesDate('2026-02-28')).toBe(true);
 });
-it.each(['owner','team_leader','manager','member'])('provides direct Suno Sales without inherited deal or quota menus for %s',role=>{
+it.each(['owner','team_leader','manager','member'])('provides direct Suno Sales and operational capacity without Veo pay gates for %s',role=>{
  const items=dashboardNavigation(role).flatMap(g=>g.items);expect(items.some(i=>i.label==='Sales & payments')).toBe(true);expect(items.some(i=>i.label==='Earnings')).toBe(true);
- expect(items.map(i=>i.label).join(' ')).not.toMatch(/Closed|Done|Deals|quotas|35%|40%/i);
+ expect(items.some(i=>i.label==='Capacity & quotas')).toBe(true);
+ expect(items.map(i=>i.label).join(' ')).not.toMatch(/Closed|Done|Deals|35%|40%/i);
 });

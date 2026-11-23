@@ -17,7 +17,7 @@ export default function SunoSalesWorkspace({view='sales'}:{view?:string}){
  const [search,setSearch]=useState(''),[contacts,setContacts]=useState<WorkspaceContact[]>([]),[contactTotal,setContactTotal]=useState(0),[contactOffset,setContactOffset]=useState(0),[finding,setFinding]=useState(false);
  const [formSale,setFormSale]=useState(''),[formAction,setFormAction]=useState('payment'),[paymentTarget,setPaymentTarget]=useState(''),[refundTarget,setRefundTarget]=useState(''),[notice,setNotice]=useState('');
  const requests=useRef(new Map<string,string>()),contactId=params.get('contact_id')||'';
- const earnings=['salary','earnings','performance','rankings'].includes(view),calendar=['calendar','budget','capacity'].includes(view),heading=earnings?'Earnings':calendar?'Sales calendar':view==='dashboard'?'Suno dashboard':'Sales';
+ const earnings=['salary','earnings'].includes(view),calendar=false,heading=earnings?'Earnings':'Sales';
  useEffect(()=>{const c=new AbortController();Promise.all([
   fetch('/api/pages',{signal:c.signal}).then(async r=>{const b=await r.json();if(!r.ok)throw Error(b.error||'Pages are unavailable');return b.pages||[];}),
   fetch('/api/workspace/context?view=sales&accounts=1',{signal:c.signal}).then(async r=>{const b=await r.json();if(!r.ok)throw Error(b.error||'Staff are unavailable');return b.accounts||[];})

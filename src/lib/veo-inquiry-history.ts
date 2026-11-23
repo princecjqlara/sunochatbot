@@ -1,5 +1,5 @@
 import { getSupabaseAdmin } from './supabase';
-import { requireStorageForOptionalWork } from './veo-storage-health';
+import { requireStorageForBulkImport } from './veo-storage-health';
 
 export function inquiryHistoryCursor(value: string | null | undefined) {
     if (!value) return null;
@@ -31,7 +31,7 @@ async function graph(url: URL, token: string) {
 
 /** Metadata only: no customer text, model calls, or outbound messages. */
 export async function recoverFirstInquiries(db: any = getSupabaseAdmin(), limit = 5) {
-    await requireStorageForOptionalWork(db);
+    await requireStorageForBulkImport(db);
     const claims = await db.rpc('veo_claim_inquiry_history', { p_limit: limit });
     if (claims.error || !Array.isArray(claims.data)) throw Error('Inquiry history queue unavailable');
     let checked = 0, changed = 0, pending = 0, failed = 0;

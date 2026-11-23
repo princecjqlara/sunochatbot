@@ -32,6 +32,20 @@ export async function requireStorageForOptionalWork(db: any) {
     return result.data;
 }
 
+/** Historical imports can grow faster than normal maintenance can reclaim
+ * space. Reserve the warning-to-critical margin for live work and receipts.
+ * Upkeep and financial calculations retain their existing pressure checks.
+ */
+export async function requireStorageForBulkImport(db: any) {
+    const state = await requireStorageForOptionalWork(db);
+    if (!Number.isSafeInteger(state.database_bytes) || state.database_bytes <= 0 || state.database_bytes >= 350_000_000) {
+        throw Object.assign(Error('Historical imports are paused to reserve storage for live clients and receipts. Check Collection health or increase database capacity.'), {
+            status: 503, code: 'STORAGE_ATTENTION'
+        });
+    }
+    return state;
+}
+
 /** Small, expiring receipt photos are required sales evidence. CPU pressure,
  * stale monitoring and delayed bulk maintenance must not disable staff intake.
  * Retain the existing critical storage limit and fail an unavailable read.

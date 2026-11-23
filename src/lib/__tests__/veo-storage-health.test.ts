@@ -1,5 +1,5 @@
 import { afterEach, expect, it, vi } from 'vitest';
-import { parseStorageMetrics, readStorageMetrics, requireStorageForOptionalWork, requireStorageForReceipt } from '../veo-storage-health';
+import { parseStorageMetrics, readStorageMetrics, requireStorageForOptionalWork, requireStorageForReceipt, requireStorageForBulkImport } from '../veo-storage-health';
 const metrics = 'node_filesystem_size_bytes{mountpoint="/",device="root"} 1000\nnode_filesystem_avail_bytes{device="root",mountpoint="/"} 1\nnode_filesystem_size_bytes{device="data",mountpoint="/data"} 2e9\nnode_filesystem_avail_bytes{mountpoint="/data",device="data"} 1.5e9\npg_wal_size_mb{service_type="postgresql"} 64';
 afterEach(() => { vi.unstubAllGlobals();vi.unstubAllEnvs(); });
 it('uses the actual data disk, including reserved space, rather than database size or the OS volume', () => {
@@ -35,4 +35,13 @@ it('still stops receipt uploads at the critical storage threshold or with unavai
         { data: { status: 'healthy', database_bytes: 400000000 } }]) {
         await expect(requireStorageForReceipt({ rpc: async () => result })).rejects.toMatchObject({ code: 'STORAGE_ATTENTION', status: 503 });
     }
+});
+it('reserves warning-level storage for live work while keeping receipt intake available',async()=>{
+ const state={status:'warning',database_bytes:350000000,optional_work_paused:false},db={rpc:async()=>({data:state})};
+ await expect(requireStorageForBulkImport(db)).rejects.toMatchObject({code:'STORAGE_ATTENTION'});
+ expect(await requireStorageForReceipt(db)).toEqual(state);expect(await requireStorageForOptionalWork(db)).toEqual(state);
+ expect(await requireStorageForBulkImport({rpc:async()=>({data:{...state,database_bytes:349999999}})})).toMatchObject({database_bytes:349999999});
+});
+it('rejects unavailable and invalid bulk capacity measurements',async()=>{
+ for(const database_bytes of [undefined,null,0,-1,1.5,NaN,Infinity])await expect(requireStorageForBulkImport({rpc:async()=>({data:{optional_work_paused:false,database_bytes}})})).rejects.toMatchObject({code:'STORAGE_ATTENTION'});
 });

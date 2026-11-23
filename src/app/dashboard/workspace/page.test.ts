@@ -12,11 +12,12 @@ const context=(role='member')=>({scope:scope(role),accounts:[{id:'worker',name:'
 const sales=(role='member')=>({scope:scope(role),policy:{confirmed:true,song_rate:20,tip_rate:50,revision_rate:20},sales:[],totals:[],daily:[],staff:[],sale_count:0});
 beforeEach(async()=>{await Promise.all(m.imports);vi.clearAllMocks();vi.useFakeTimers();vi.stubGlobal('fetch',m.fetch);});
 afterEach(async()=>{if(view)await act(async()=>view.unmount());vi.useRealTimers();vi.unstubAllGlobals();});
-async function render(role='member',params=''){
+async function render(role='member',params='view=sales'){
  m.params=new URLSearchParams(params);
  m.fetch.mockImplementation(async(url:string)=>{const q=new URL(url,'https://suno.example');
   if(q.pathname==='/api/pages')return Response.json({pages:[{id:'page-2',name:'Suno Page'}]});
   if(q.pathname==='/api/workspace/sales')return Response.json(sales(role));
+  if(q.pathname==='/api/workspace/reports')return Response.json({version:1,scope:scope(role),from:'2026-11-20',to:'2026-11-24',launch_date:'2026-11-05',work_date:'2026-11-24',as_of:'2026-11-24T00:00:00Z',coverage:{source:'Recorded Suno sales'},money:[],daily:[],staff:[],pages:[],plans:[],budgets:[],spend:[],capacity:{},period:{},backlog:{working:0,revisions:0,oldest:[]}});
   if(q.pathname==='/api/workspace/song-work')return Response.json({scope:scope(role),items:[],total:0});
   if(q.pathname==='/api/workspace/contacts'){const search=q.searchParams.get('search')||'';return Response.json({items:!search||'searchable client'.includes(search)?[{id:'client',page_id:'page-2',page_name:'Suno Page',name:'Searchable Client',psid:'123',pipeline_stage:'new'}]:[],total:1});}
   if(q.pathname==='/api/workspace/new-clients')return Response.json(q.searchParams.has('context')?{scope:scope(role)}:{items:[],roster:[],readiness:{ready:false},total:0});
@@ -38,9 +39,14 @@ it.each(['clients','deals','closed','done','receipts'])('opens the Suno Sales fl
  await render('member','view='+alias);const text=JSON.stringify(view.toJSON());expect(text).toContain('New song sale');expect(text).toContain('Add a revision fee');expect(text).not.toMatch(/Closed Deal|Done Deal|35%|40%/);
  expect(m.fetch.mock.calls.some(([u])=>u.startsWith('/api/workspace/sales?'))).toBe(true);expect(m.fetch.mock.calls.some(([u])=>/\/api\/workspace\/(receipts|deal-reviews)/.test(u))).toBe(false);
 });
-it('gives the Owner direct sales and staff earnings without quota or receipt-review report requests',async()=>{
- await render('owner');const text=JSON.stringify(view.toJSON());expect(text).toContain('Suno dashboard');expect(text).toContain('Staff earnings');expect(text).not.toMatch(/Closed Deal|Done Deal|quota|35%|40%/i);
- expect(m.fetch.mock.calls.some(([u])=>/\/api\/workspace\/(operations|calendar|budget)/.test(u))).toBe(false);
+it('opens the Owner dashboard using direct Suno reports without inherited receipt-review requests',async()=>{
+ await render('owner','');const text=JSON.stringify(view.toJSON());expect(text).toContain('Suno dashboard');expect(text).toContain('Current production backlog');expect(text).not.toMatch(/Closed Deal|Done Deal|35%|40%/i);
+ expect(m.fetch.mock.calls.some(([u])=>u.startsWith('/api/workspace/reports?'))).toBe(true);
+ expect(m.fetch.mock.calls.some(([u])=>/\/api\/workspace\/(operations|deal-reviews|sales)/.test(u))).toBe(false);
+});
+it.each(['capacity','budget','calendar','performance','rankings'])('routes %s to its own operational report instead of Sales',async area=>{
+ await render('owner','view='+area);expect(m.fetch.mock.calls.some(([u])=>u.startsWith('/api/workspace/reports?'))).toBe(true);
+ expect(m.fetch.mock.calls.some(([u])=>u.startsWith('/api/workspace/sales?'))).toBe(false);
 });
 it('loads Suno earnings without fetching client-search or inherited salary endpoints',async()=>{
  await render('member','view=salary');expect(JSON.stringify(view.toJSON())).toContain('Staff earnings');
