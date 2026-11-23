@@ -57,7 +57,7 @@ async function processWorkspace(request: NextRequest) {
         let sourceRetry = optionalWorkPaused, budgetRetry = optionalWorkPaused;
         if (!optionalWorkPaused) {
             if (process.env.SUNO_RETAINED_RUNTIME_ENABLED !== 'true') try { await processJevInterruptionReviews({ limit: 1, timeBudgetMs: 20000 }); } catch { /* The retained runtime owns its human reviews. */ }
-            try { await processVeoSourceJobs(2, 25000); } catch { sourceRetry = true; }
+            try { const sources = await processVeoSourceJobs(2, 25000);sourceRetry = (sources?.retried || 0) > 0; } catch { sourceRetry = true; }
             if (financialReady) try { await refreshPageBudgets(); } catch { budgetRetry = true; }
         }
         // The independent workspace-events worker continues live collection.

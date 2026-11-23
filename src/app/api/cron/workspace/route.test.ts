@@ -14,11 +14,12 @@ import { GET } from './route';
 beforeEach(() => { m.guard.mockReset().mockResolvedValue({ optional_work_paused: false });m.photoCleanup.mockReset().mockResolvedValue({ removed: 3 }); });
 afterEach(() => { vi.unstubAllEnvs();vi.unstubAllGlobals(); vi.clearAllMocks(); });
 describe('private photo cleanup during unrelated worker failures', () => {
-    it('reports failed Suno source collection without enabling inherited financial maintenance', async () => {
+    it.each(['exception','job_retry'])('reports failed Suno source collection (%s) without enabling inherited financial maintenance', async failure => {
         vi.stubEnv('VEO_WORKSPACE_ENABLED','true');vi.stubEnv('SUNO_RETAINED_RUNTIME_ENABLED','true');vi.stubEnv('CRON_SECRET','cron');
         m.from.mockImplementation(()=>{const q:any={select:()=>q,is:()=>q,or:()=>q,lte:()=>q,limit:async()=>({data:[]})};return q;});
         m.rpc.mockImplementation(async name=>({data:name==='suno_financial_workers_ready'?false:true}));
-        m.sync.mockResolvedValue({checked:0});m.events.mockResolvedValue(0);m.sourceJobs.mockRejectedValueOnce(Error('Source temporarily unavailable'));
+        m.sync.mockResolvedValue({checked:0});m.events.mockResolvedValue(0);
+        if(failure==='exception')m.sourceJobs.mockRejectedValueOnce(Error('Source temporarily unavailable'));else m.sourceJobs.mockResolvedValueOnce({claimed:1,completed:1,retried:1});
         const r=await GET(new NextRequest('https://suno.test/api/cron/workspace',{headers:{Authorization:'Bearer cron'}}));
         expect(r.status).toBe(503);expect(await r.json()).toMatchObject({ok:false,source_retry:true,financial_workflow:'suno_direct_sales',submissions:0});
         expect(m.rpc.mock.calls.map(([name])=>name)).not.toContain('veo_claim_submissions');expect(m.rpc.mock.calls.map(([name])=>name)).not.toContain('veo_maintenance');

@@ -23,9 +23,15 @@ export async function processVeoSourceJobs(limit = 2, timeBudgetMs = 25000) {
             if (observed.error) throw Error('Could not save Facebook order observations');
             const messages = scan.messages.filter((m: { created_time?: string }) => Date.parse(m.created_time || '') >= Date.parse(tenant.data.launch_at) && Date.parse(m.created_time || '') <= Date.now());
             const stages = await syncMessengerStageHistory(db, { pageId: job.page_id, contactId: job.contact_id, facebookPageId: page.data.fb_page_id, messages });
-            const reconciled = await db.rpc('veo_reconcile_contact_order', { p_actor: tenant.data.owner_id, p_contact: job.contact_id });
-            if (reconciled.error) throw Error('Could not reconcile observed client order');
-            scan = { complete: scan.complete, next_cursor: scan.next_cursor, stages_saved: stages.events, orders_seen: scan.orders.length, coverage: scan.coverage };
+            // A Facebook order notice is source evidence, not a Suno sale or a
+            // verified payment. Only the explicit Suno Sales ledger owns money.
+            const suno = process.env.SUNO_RETAINED_RUNTIME_ENABLED === 'true';
+            if (!suno) {
+                const reconciled = await db.rpc('veo_reconcile_contact_order', { p_actor: tenant.data.owner_id, p_contact: job.contact_id });
+                if (reconciled.error) throw Error('Could not reconcile observed client order');
+            }
+            scan = { complete: scan.complete, next_cursor: scan.next_cursor, stages_saved: stages.events, orders_seen: scan.orders.length, coverage: scan.coverage,
+                ...(suno ? { financial_reconciliation: 'suno_sales_only' } : {}) };
         } catch (error: any) {
             scan = { complete: false, error: error.message || 'Facebook source refresh failed' };
             retried++;
