@@ -5,7 +5,7 @@ import { calendarHeat, calendarRange, phtDay, shiftCalendarMonth } from '@/lib/a
 import AdCreativePreview from '@/components/AdCreativePreview';
 import { requestDeadline } from '@/lib/request-deadline';
 import { useSession } from 'next-auth/react';
-import SunoSalesWorkspace from '@/components/SunoSalesWorkspace';
+import SunoInquiryCalendar from '@/components/SunoInquiryCalendar';
 import { useHourlyReportRefresh } from '@/lib/use-hourly-report-refresh';
 
 const number = (value: number | null | undefined) => value == null ? 'Not available' : new Intl.NumberFormat('en-PH', { maximumFractionDigits: 2 }).format(value);
@@ -81,16 +81,9 @@ const definitionLabels: Record<string, string> = { attribution: 'Inquiry source 
 
 export default function AdCalendar() {
  const {data:session,status}=useSession();
- const [pages,setPages]=useState<any[]>([]),[accessError,setAccessError]=useState('');
  const role=session?.user.role;
- useEffect(()=>{
-  if(!role||!['owner','team_leader'].includes(role))return;
-  const controller=new AbortController();
-  fetch('/api/pages',{signal:controller.signal}).then(async r=>{const b=await r.json();if(!r.ok)throw new Error(b.error||'Page access unavailable');setPages(b.pages||[]);}).catch(e=>{if(e.name!=='AbortError')setAccessError(e.message);});
-  return()=>controller.abort();
- },[role]);
  if(status==='loading')return <p className="p-6" role="status">Loading calendar access…</p>;
- if(role&&['owner','team_leader'].includes(role))return <main className="max-w-7xl mx-auto p-4 md:p-6">{accessError&&<p role="alert">{accessError}</p>}<SunoSalesWorkspace view="calendar"/></main>;
+ if(role&&['owner','team_leader'].includes(role))return <SunoInquiryCalendar/>;
  if(role)return <p className="p-6" role="alert">Calendar access requires Owner or Team Leader.</p>;
  return <LegacyAdCalendar/>;
 }

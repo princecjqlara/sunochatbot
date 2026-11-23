@@ -26,3 +26,24 @@ it('reports pressure or missing resource measurements despite healthy disk space
         expect((await GET(request())).status).toBe(503);
     }
 });
+it('recovers stale retention on the normal Suno health schedule without touching financial maintenance',async()=>{
+ vi.stubEnv('SUNO_RETAINED_RUNTIME_ENABLED','true');
+ m.rpc.mockResolvedValueOnce({data:{status:'healthy',maintenance_healthy:false,resource_metrics_fresh:true,resource_pressure:false}})
+  .mockResolvedValueOnce({data:{completed_event_payloads_cleared:0}})
+  .mockResolvedValueOnce({data:{status:'healthy',maintenance_healthy:true,resource_metrics_fresh:true,resource_pressure:false}});
+ expect((await GET(request())).status).toBe(200);expect(m.rpc.mock.calls.map(([name])=>name)).toEqual(['veo_record_storage_metrics','veo_storage_maintenance','veo_storage_status']);
+});
+it.each(['busy','failure','transport'])('keeps cleanup %s visible instead of unlocking bulk imports',async failure=>{
+ vi.stubEnv('SUNO_RETAINED_RUNTIME_ENABLED','true');
+ m.rpc.mockResolvedValueOnce({data:{status:'healthy',maintenance_healthy:false,resource_metrics_fresh:true,resource_pressure:false}});
+ if(failure==='transport')m.rpc.mockRejectedValueOnce(Error('Offline'));else m.rpc.mockResolvedValueOnce(failure==='busy'?{data:{skipped:true}}:{error:{code:'55P03'}});
+ const r=await GET(request());expect(r.status).toBe(503);expect(await r.json()).toMatchObject({maintenance_retry:true,maintenance_healthy:false});
+ expect(m.rpc.mock.calls.map(([name])=>name)).not.toContain('veo_storage_status');
+});
+it('keeps the existing five-minute retention cadence before a healthy checkpoint becomes stale',async()=>{
+ vi.stubEnv('SUNO_RETAINED_RUNTIME_ENABLED','true');
+ m.rpc.mockResolvedValueOnce({data:{status:'healthy',maintenance_healthy:true,maintenance_at:new Date(Date.now()-6*60000).toISOString(),resource_metrics_fresh:true,resource_pressure:false}})
+  .mockResolvedValueOnce({data:{completed_event_payloads_cleared:0}})
+  .mockResolvedValueOnce({data:{status:'healthy',maintenance_healthy:true,resource_metrics_fresh:true,resource_pressure:false}});
+ expect((await GET(request())).status).toBe(200);expect(m.rpc.mock.calls.map(([name])=>name)).toContain('veo_storage_maintenance');
+});

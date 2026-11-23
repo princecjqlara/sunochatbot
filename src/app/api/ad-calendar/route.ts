@@ -7,8 +7,10 @@ import { profileAdFields } from '@/lib/contact-profile-sources';
 import { CalendarReportError, loadCalendarReport } from '@/lib/ad-calendar-report';
 import { loadCalendarCoverage } from '@/lib/ad-calendar-coverage';
 import { DatabaseReadTimeout, requestDeadline } from '@/lib/request-deadline';
+import {sunoInquiryCalendar} from '@/lib/suno-inquiry-calendar';
 export const dynamic = 'force-dynamic';
 export const maxDuration = 120;
+const calendarPayload=(data:any)=>process.env.SUNO_RETAINED_RUNTIME_ENABLED==='true'?sunoInquiryCalendar(data):data;
 
 export async function GET(request: NextRequest) {
  const session = await getSessionFromRequest(request);
@@ -44,7 +46,7 @@ export async function GET(request: NextRequest) {
    if (result.error) throw Error('Could not load this inquiry cohort');
    return NextResponse.json(result.data, { headers: { 'Cache-Control': 'no-store' } });
   }
-  if (!ids.length) return NextResponse.json({ ...buildAdCalendar({ month, groups: [], spend: [], inventory: [], adId, selectedDay: q.get('day') || undefined }), coverage: await loadCalendarCoverage(db, []), pages: [] }, { headers: { 'Cache-Control': 'no-store' } });
+  if (!ids.length) return NextResponse.json(calendarPayload({ ...buildAdCalendar({ month, groups: [], spend: [], inventory: [], adId, selectedDay: q.get('day') || undefined }), coverage: await loadCalendarCoverage(db, []), pages: [] }), { headers: { 'Cache-Control': 'no-store' } });
   const pages = await requestDeadline(signal => db.from('pages').select('id,name,fb_page_id,messaging_auto_tag_checked_at,messaging_auto_tag_last_error').in('id', memberships).abortSignal(signal), 10000);
   if (pages.error) throw Error('Could not load authorized Pages');
   async function inventory() {
@@ -72,7 +74,7 @@ export async function GET(request: NextRequest) {
    loadCalendarReport(db, { pageIds: ids, from: range.from, to: range.to, adId }), inventory(), spend(), loadCalendarCoverage(db, ids)
   ]);
   const result = buildAdCalendar({ month, groups: cohort.groups, spend: daily, inventory: ads, adId, selectedDay: q.get('day') || undefined });
-  return NextResponse.json({ ...result, outcome_as_of: cohort.as_of || result.generated_at, coverage, pages: pages.data || [] }, { headers: { 'Cache-Control': 'no-store' } });
+  return NextResponse.json(calendarPayload({ ...result, outcome_as_of: cohort.as_of || result.generated_at, coverage, pages: pages.data || [] }), { headers: { 'Cache-Control': 'no-store' } });
  } catch (error) {
   if (error instanceof DatabaseReadTimeout) return NextResponse.json({ error: error.message, code: error.code, retryable: true }, { status: 503, headers: { 'Cache-Control': 'no-store' } });
   if (error instanceof CalendarReportError) {

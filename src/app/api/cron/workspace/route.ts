@@ -63,7 +63,11 @@ async function processWorkspace(request: NextRequest) {
         // The independent workspace-events worker continues live collection.
         // Avoid a second bulk drain while the database is recovering.
         const processed = optionalWorkPaused ? 0 : await processWorkspaceEvents(processFacebookWebhook, request.nextUrl.origin, Math.max(0, 210000 - (Date.now() - startedAt)));
-        if (!financialReady) return NextResponse.json({ok:true,processed,integration,financial_policy_pending:process.env.SUNO_RETAINED_RUNTIME_ENABLED!=='true',financial_workflow:process.env.SUNO_RETAINED_RUNTIME_ENABLED==='true'?'suno_direct_sales':'pending',submissions:0,optional_work_paused:optionalWorkPaused});
+        if (!financialReady) {
+            const retry = disciplineRetry || intakeRetry || maintenanceRetry || sourceRetry;
+            return NextResponse.json({ok:!retry,processed,integration,financial_policy_pending:process.env.SUNO_RETAINED_RUNTIME_ENABLED!=='true',financial_workflow:process.env.SUNO_RETAINED_RUNTIME_ENABLED==='true'?'suno_direct_sales':'pending',submissions:0,optional_work_paused:optionalWorkPaused,
+                discipline_retry:disciplineRetry,intake_retry:intakeRetry,maintenance_retry:maintenanceRetry,source_retry:sourceRetry,event_collection_deferred:optionalWorkPaused}, {status:retry?503:200});
+        }
         let autoApprovalRetry = false;
         try { const autoApproved = await db.rpc('veo_auto_approve_pending_team_reviews', { p_limit: 20 });autoApprovalRetry = !!autoApproved.error; }
         catch { autoApprovalRetry = true; }
