@@ -45,17 +45,17 @@ it('shows only suspension details and sign-out while withholding the workspace a
         expect(view.root.findByType('button').children).toContain('Sign out');
     } finally { await act(async () => view.unmount()); }
 });
-it('gives CJ the calendar, ads performance and capacity links while keeping those financial reports off worker navigation', async () => {
+it('exposes operational capacity while restricting executive advertising reports on worker navigation', async () => {
     vi.stubGlobal('fetch', vi.fn(async () => new Response(JSON.stringify({ pages: [] }))));
     m.session.mockReturnValue({ status: 'authenticated', data: { user: { id: 'user', role: 'owner', telegramProfileConfirmed: true } } });
     let view: any; await act(async () => { view = create(createElement(Layout, null, 'Workspace')); });
     try {
         const links = () => view.root.findAllByType('a').map((a: any) => a.props.href);
         expect(links()).toContain('/dashboard/workspace?view=calendar'); expect(links()).toContain('/dashboard/ad-quality');
-        expect(links()).not.toContain('/dashboard/workspace?view=capacity');
+        expect(links()).toContain('/dashboard/workspace?view=capacity');expect(links()).toContain('/dashboard/insights');
         m.session.mockReturnValue({ status: 'authenticated', data: { user: { id: 'user', role: 'member', telegramProfileConfirmed: true } } });
         await act(async () => { view.update(createElement(Layout, null, 'Workspace')); });
-        expect(links()).not.toContain('/dashboard/ad-calendar'); expect(links()).not.toContain('/dashboard/ad-quality'); expect(links()).not.toContain('/dashboard/workspace?view=capacity');
+        expect(links()).not.toContain('/dashboard/ad-calendar'); expect(links()).not.toContain('/dashboard/ad-quality');expect(links()).not.toContain('/dashboard/insights');expect(links()).toContain('/dashboard/workspace?view=capacity');
     } finally { await act(async () => view.unmount()); }
 });
 

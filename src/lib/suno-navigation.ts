@@ -10,7 +10,6 @@ export function dashboardNavigation(role?:string){
  if(!reports){reports={name:'Reports',items:[]};groups.push(reports);}
  reports.items=reports.items.map(i=>i.href.endsWith('view=calendar')?{...i,label:'Sales & work calendar'}:i.href.endsWith('view=performance')?{...i,label:'Staff performance'}:i.href.endsWith('view=rankings')?{...i,label:'Staff rankings'}:i);
  if(!reports.items.some(i=>i.href.endsWith('view=calendar')))reports.items.unshift(area('calendar','Sales & work calendar'));
- if(['owner','team_leader'].includes(role||''))reports.items.unshift({href:'/dashboard/insights',label:'Business Insights',icon:'chart'});
  for(const group of groups)group.items=group.items.map(i=>i.href==='/dashboard/workspace'?{...i,label:'Suno dashboard'}:i.href.endsWith('view=new_clients')?{...i,label:'Song assignments'}:i);
  return groups.filter(g=>g.items.length);
 }

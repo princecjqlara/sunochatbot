@@ -13,5 +13,6 @@ it('rejects unmatched charges, unverified receipts and invalid money and dates',
 it.each(['owner','team_leader','manager','member'])('provides direct Suno Sales and operational capacity without Veo pay gates for %s',role=>{
  const items=dashboardNavigation(role).flatMap(g=>g.items);expect(items.some(i=>i.label==='Sales & payments')).toBe(true);expect(items.some(i=>i.label==='Earnings')).toBe(true);
  expect(items.some(i=>i.label==='Capacity & quotas')).toBe(true);
+ expect(items.filter(i=>i.href==='/dashboard/insights')).toHaveLength(['owner','team_leader'].includes(role)?1:0);
  expect(items.map(i=>i.label).join(' ')).not.toMatch(/Closed|Done|Deals|35%|40%/i);
 });
