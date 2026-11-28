@@ -16,7 +16,7 @@ beforeAll(async()=>{
  await db.exec(`CREATE ROLE anon;CREATE ROLE authenticated;CREATE ROLE service_role;CREATE SCHEMA extensions;CREATE SCHEMA cron;CREATE TABLE cron.job(jobid bigint GENERATED ALWAYS AS IDENTITY,jobname text,schedule text,command text);CREATE FUNCTION cron.schedule(text,text,text) RETURNS bigint LANGUAGE sql AS 'INSERT INTO cron.job(jobname,schedule,command) VALUES($1,$2,$3) RETURNING jobid';CREATE FUNCTION cron.unschedule(bigint) RETURNS boolean LANGUAGE sql AS 'DELETE FROM cron.job WHERE jobid=$1 RETURNING true';`);
  // Keep the inherited protocol reference independent of Suno's business policy.
  // A separate integration below applies the Suno adapter to this full schema.
- for(const m of schemaMigrationPlan().filter(m=>!['202611200101_suno_direct_sales.sql','202611200102_suno_sales_song_work.sql'].includes(m.name)))await db.exec(m.sql.replace(/CREATE EXTENSION IF NOT EXISTS pg_cron WITH SCHEMA pg_catalog;/g,'-- stub'));
+ for(const m of schemaMigrationPlan().filter(m=>!['202611200101_suno_direct_sales.sql','202611200102_suno_sales_song_work.sql','202611280101_suno_sales_extras.sql'].includes(m.name)))await db.exec(m.sql.replace(/CREATE EXTENSION IF NOT EXISTS pg_cron WITH SCHEMA pg_catalog;/g,'-- stub'));
  await db.query("INSERT INTO users(id,email,name,password_hash) VALUES($1,'owner@example.com','Owner','test')",[owner]);
  await db.query("INSERT INTO pages(id,fb_page_id,name,access_token) VALUES($1,'111','Test Page','test')",[page]);await db.query('INSERT INTO user_pages(user_id,page_id) VALUES($1,$2)',[owner,page]);
  await db.exec('BEGIN');tenant=await rpc('veo_launch',[owner,[page]]);

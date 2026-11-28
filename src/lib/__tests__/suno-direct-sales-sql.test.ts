@@ -28,6 +28,17 @@ beforeAll(async()=>{
  INSERT INTO user_pages VALUES('${owner}','${page}'),('${member}','${page}'),('${other}','${page}'),('${foreign}','${id(21)}');`);
  for(const [actor,t,p,role,workers]of [[owner,tenant,page,'owner',[owner,member]],[member,tenant,page,'member',[member]],[other,tenant,page,'member',[other]],[foreign,id(11),id(21),'owner',[foreign]]] as const)await db.query('INSERT INTO test_scopes VALUES($1,$2)',[actor,JSON.stringify({user_id:actor,tenant_id:t,page_ids:[p],role,worker_ids:workers,launch_at:new Date(Date.now()-86400000).toISOString()})]);
  await db.exec(readFileSync('supabase/migrations/202611200101_suno_direct_sales.sql','utf8'));
+ const extras=readFileSync('supabase/migrations/202611280101_suno_sales_extras.sql','utf8');
+ // Rehearse the additive migration and verify that transaction rollback restores the schema.
+ const definition=await query("SELECT pg_get_functiondef('suno_sale_action(uuid,text,jsonb)'::regprocedure) sql");
+ await db.exec('BEGIN');
+ await db.exec(extras.replace(/^BEGIN;\s*$/m,'').replace(/^COMMIT;\s*$/m,''));
+ expect((await query("SELECT is_nullable FROM information_schema.columns WHERE table_name='suno_sale_payments' AND column_name='reference'")).is_nullable).toBe('YES');
+ await db.exec('ROLLBACK');
+ expect(await query("SELECT pg_get_functiondef('suno_sale_action(uuid,text,jsonb)'::regprocedure) sql")).toEqual(definition);
+ expect((await query("SELECT is_nullable FROM information_schema.columns WHERE table_name='suno_sale_payments' AND column_name='reference'")).is_nullable).toBe('NO');
+ expect((await query("SELECT count(*)::int n FROM information_schema.columns WHERE table_name='suno_sale_payments' AND column_name='description'")).n).toBe(0);
+ await db.exec(extras);
 },60000);
 afterAll(async()=>{await db?.close();});
 it('requires Owner confirmation of the actual Suno policy and rejects Veo policy',async()=>{
@@ -104,4 +115,35 @@ it('reverses the 20% revision share and uses Suno rates through the compatibilit
 it('keeps table data and write/report RPCs private to the service role',async()=>{
  for(const role of ['anon','authenticated'])for(const table of ['suno_sales','suno_sale_charges','suno_sale_payments','suno_sale_requests'])expect((await query('SELECT has_table_privilege($1,$2,\'SELECT\') allowed',[role,table])).allowed).toBe(false);
  for(const role of ['anon','authenticated'])for(const fn of ['suno_sale_action(uuid,text,jsonb)','suno_sales_report(uuid,date,date,uuid,uuid,integer)','suno_confirm_earnings_policy(uuid,text)'])expect((await query('SELECT has_function_privilege($1,$2,\'EXECUTE\') allowed',[role,fn])).allowed).toBe(false);
+});
+it('records amounts without a reference and preserves request idempotency',async()=>{
+ const data={request_id:id(counter++),kind:'tip',charge_id:null,amount_minor:200,reference:null,occurred_at:at()};
+ const first=await pay(data);expect(first.commission_minor).toBe(100);
+ expect(await pay(data)).toEqual(first);
+ const second=await pay({...data,request_id:id(counter++)});expect(second.payment_id).not.toBe(first.payment_id);
+ const r=await query('SELECT reference,amount_minor FROM suno_sale_payments WHERE id=$1',[first.payment_id]);expect(r).toEqual({reference:null,amount_minor:200});
+});
+it('records 50% additional services without changing charge balances and reverses their earnings on refunds',async()=>{
+ const before=await report(),beforeSale=before.sales.find((s:any)=>s.id===sale.sale_id);
+ const data={request_id:id(counter++),kind:'extra',charge_id:null,amount_minor:25000,description:'Video edit',reference:null,occurred_at:at()};
+ const extra=await pay(data);expect(extra.commission_minor).toBe(12500);expect(await pay(data)).toEqual(extra);
+ let r=await report();let saved=r.sales.find((s:any)=>s.id===sale.sale_id);
+ expect(saved.charges).toEqual(beforeSale.charges);expect(saved.payments.find((p:any)=>p.id===extra.payment_id)).toMatchObject({kind:'extra',basis:'extra',description:'Video edit',rate_percent:50,amount_minor:25000,reference:null});
+ expect(r.totals.find((t:any)=>t.currency==='PHP').extra_minor).toBe(25000);
+ const refund={sale_id:sale.sale_id,payment_id:extra.payment_id,amount_minor:10000,confirmed:true,reference:null,occurred_at:new Date().toISOString()};
+ expect((await action(owner,'refund',refund)).commission_minor).toBe(-5000);
+ r=await report();saved=r.sales.find((s:any)=>s.id===sale.sale_id);
+ expect(saved.charges).toEqual(beforeSale.charges);expect(r.totals.find((t:any)=>t.currency==='PHP').extra_minor).toBe(15000);
+ expect(saved.payments.find((p:any)=>p.refund_of===extra.payment_id)).toMatchObject({basis:'extra',description:'Video edit',rate_percent:50});
+ await expect(action(owner,'refund',{...refund,amount_minor:15001})).rejects.toThrow(/exceeds/);
+ await expect(pay({...data,request_id:id(counter++),description:''})).rejects.toThrow(/Describe/);
+ await expect(pay({...data,request_id:id(counter++),charge_id:sale.charge_id})).rejects.toThrow(/cannot pay/);
+});
+it('rounds tips and additional services in separate streams',async()=>{
+ const tiny=await action(owner,'sale',{page_id:page,contact_id:contact,payee_id:member,description:'Separate streams',currency:'PHP',amount_minor:100});
+ const payment={sale_id:tiny.sale_id,charge_id:null,amount_minor:1,reference:null};
+ expect((await pay({...payment,kind:'tip'})).commission_minor).toBe(1);
+ const extra=await pay({...payment,kind:'extra',description:'Artwork'});expect(extra.commission_minor).toBe(1);
+ expect((await action(owner,'refund',{sale_id:tiny.sale_id,payment_id:extra.payment_id,amount_minor:1,confirmed:true,reference:null,occurred_at:new Date().toISOString()})).commission_minor).toBe(-1);
+ expect((await report()).sales.find((s:any)=>s.id===tiny.sale_id).charges[0].paid_minor).toBe(0);
 });

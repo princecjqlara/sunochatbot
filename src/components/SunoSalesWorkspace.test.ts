@@ -21,3 +21,20 @@ it('loads the complete authorized branch for the assigned Makata selector instea
  const selector=root!.root.findByProps({name:'payee_id'});expect(selector.findAllByType('option').some(o=>o.props.value==='worker')).toBe(true);
  expect(fetch.mock.calls.some(([url])=>url.includes('context?view=profile'))).toBe(false);act(()=>root!.unmount());
 });
+it('shows the amount first and submits a described extra with an optional reference',async()=>{
+ const report={policy:{confirmed:true},totals:[],daily:[],staff:[],sales:[{id:'sale',contact_name:'Client',description:'Song',currency:'PHP',page_id:'page',contact_id:'contact',charges:[],payments:[{id:'paid',kind:'extra',basis:'extra',description:'Video edit',reference:null,amount_minor:25000,commission_minor:12500,rate_percent:50,occurred_at:'2026-11-27T01:00:00Z'}]}],sale_count:1};
+ const fetch=vi.fn(async(url:string,init?:RequestInit)=>({ok:true,json:async()=>init?.method==='POST'?{}:url.startsWith('/api/pages')?{pages:[]}:url.includes('/context?')?{accounts:[]}:url.includes('/contacts?')?{items:[],total:0}:report}));vi.stubGlobal('fetch',fetch);
+ vi.stubGlobal('FormData',class { [Symbol.iterator](){return new Map([['amount','250.00'],['description','Video edit'],['reference',''],['time','2026-11-27T09:00'],['confirmed','on']]).entries();} });
+ let root:TestRenderer.ReactTestRenderer;await act(async()=>{root=TestRenderer.create(React.createElement(SunoSalesWorkspace));});
+ const saleSelector=root!.root.findAllByType('select').find(s=>s.findAllByType('option').some(o=>o.props.value==='sale'))!;
+ await act(async()=>saleSelector.props.onChange({target:{value:'sale'}}));
+ const target=root!.root.findAllByType('select').find(s=>s.findAllByType('option').some(o=>o.props.value==='extra'))!;
+ await act(async()=>target.props.onChange({target:{value:'extra'}}));
+ expect(root!.root.findByProps({name:'description',placeholder:'e.g. video edit, extra artwork or another service'}).props.required).toBe(true);
+ expect(root!.root.findByProps({name:'reference'}).props.required).toBeUndefined();
+ const text=JSON.stringify(root!.toJSON());expect(text).toContain('Additional service');expect(text).toContain('50%');expect(text).not.toContain('Ref: null');
+ const reset=vi.fn();await act(async()=>{root!.root.findAllByType('form')[1].props.onSubmit({preventDefault(){},currentTarget:{reset}});await new Promise(r=>setTimeout(r,0));});
+ const post=fetch.mock.calls.find(([,init])=>init?.method==='POST');expect(post).toBeDefined();
+ expect(JSON.parse(String(post![1]!.body))).toMatchObject({action:'payment',sale_id:'sale',kind:'extra',charge_id:null,amount:'250.00',description:'Video edit',reference:'',confirmed:true,occurred_at:'2026-11-27T01:00:00.000Z'});
+ expect(reset).toHaveBeenCalled();act(()=>root!.unmount());
+});

@@ -14,10 +14,19 @@ export function sunoSalesAction(body:any) {
         if(body.action==='revision_fee') {
             if(typeof body.description!=='string' || !body.description.trim() || body.description.trim().length>500) throw Error('Describe the revision fee');data.description=body.description.trim();
         } else {
-            if(body.confirmed!==true || typeof body.reference!=='string' || body.reference.trim().length<3 || body.reference.trim().length>160 || typeof body.occurred_at!=='string' || !Number.isFinite(Date.parse(body.occurred_at))) throw Error('Verify the payment and enter its receipt reference and actual time');
-            Object.assign(data,{confirmed:true,reference:body.reference.trim(),occurred_at:new Date(body.occurred_at).toISOString()});
+            if(body.confirmed!==true || typeof body.occurred_at!=='string' || !Number.isFinite(Date.parse(body.occurred_at))) throw Error('Verify the payment and enter its actual time');
+            if(body.reference!=null && (typeof body.reference!=='string' || body.reference.trim()!=='' && (body.reference.trim().length<3 || body.reference.trim().length>160))) throw Error('Enter a reference with 3 to 160 characters, or leave it blank');
+            Object.assign(data,{confirmed:true,reference:body.reference?.trim()||null,occurred_at:new Date(body.occurred_at).toISOString()});
             if(body.action==='refund') {if(!uuid(body.payment_id))throw Error('Choose the original payment');data.payment_id=body.payment_id;}
-            else {if(!['song','revision','tip'].includes(body.kind) || body.kind!=='tip' && !uuid(body.charge_id) || body.kind==='tip' && body.charge_id)throw Error('Choose a matching song, revision or tip payment');Object.assign(data,{kind:body.kind,charge_id:body.kind==='tip'?null:body.charge_id});}
+            else {
+                const extra=['tip','extra'].includes(body.kind);
+                if(!['song','revision','tip','extra'].includes(body.kind) || !extra && !uuid(body.charge_id) || extra && body.charge_id)throw Error('Choose a matching song, revision, tip or additional service payment');
+                Object.assign(data,{kind:body.kind,charge_id:extra?null:body.charge_id});
+                if(body.kind==='extra') {
+                    if(typeof body.description!=='string' || !body.description.trim() || body.description.trim().length>500)throw Error('Describe the additional service');
+                    data.description=body.description.trim();
+                }
+            }
         }
     }
     return {action:body.action,data};

@@ -46,6 +46,9 @@ beforeAll(async()=>{
  (3,'${sale}','{"status":"revision"}','{"status":"sent","assignee_id":"${worker}"}','2026-11-24T00:00:00Z');`);
  for(const [actor,role,workers]of [[owner,'owner',[owner,worker]],[worker,'member',[worker]],[outsider,'manager',[outsider]]] as const)await db.query('INSERT INTO test_scopes VALUES($1,$2)',[actor,JSON.stringify({user_id:actor,tenant_id:tenant,role,page_ids:[page,page2],worker_ids:workers,launch_at:'2026-11-01T00:00:00Z'})]);
  await db.exec(readFileSync('supabase/migrations/202611240101_suno_operations_reports.sql','utf8'));
+ const extras=readFileSync('supabase/migrations/202611280101_suno_sales_extras.sql','utf8');
+ const start=extras.indexOf('CREATE OR REPLACE FUNCTION public.suno_operations_report(');
+ await db.exec(extras.slice(start,extras.indexOf('END $$;',start)+7));
 },60000);
 afterAll(async()=>{await db?.close();});
 it('separates PHT inquiry, creation, payment, refund and first-sent dates without counting a revised song twice',async()=>{
@@ -76,4 +79,11 @@ it('saves explicit zero budgets without changing payments, work history or commi
  await expect(plan(outsider,{action:'budget',currency:'PHP',planned_minor:100})).rejects.toThrow(/Owner or Team Leader/);
  expect((await report()).money).toEqual(before.money);expect((await row('SELECT count(*)::int n FROM suno_sale_work_events')).n).toBe(3);
  for(const role of ['anon','authenticated'])for(const fn of ['suno_operations_plan(uuid,jsonb)','suno_operations_report(uuid,date,date,uuid,date)'])expect((await row('SELECT has_function_privilege($1,$2,\'EXECUTE\') allowed',[role,fn])).allowed).toBe(false);
+});
+it('reports additional services and their refunds separately while preserving unpaid charge balances',async()=>{
+ const before=await report(),prior=before.money.find((m:any)=>m.currency==='PHP');
+ await db.query("INSERT INTO suno_sale_payments(id,sale_id,kind,basis,amount_minor,commission_minor,occurred_at) VALUES($1,$2,'extra','extra',10000,5000,'2026-11-23T10:00:00Z'),($3,$2,'refund','extra',2000,-1000,'2026-11-23T11:00:00Z')",[id(200),sale,id(201)]);
+ const after=await report(),money=after.money.find((m:any)=>m.currency==='PHP');
+ expect(money).toMatchObject({extra_minor:8000,outstanding_minor:prior.outstanding_minor,net_received_minor:Number(prior.net_received_minor)+8000,commission_minor:Number(prior.commission_minor)+4000});
+ expect(after.period.paying_clients).toBe(before.period.paying_clients);expect(after.period.paid_sales).toBe(before.period.paid_sales);
 });

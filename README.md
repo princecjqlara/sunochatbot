@@ -1,4 +1,4 @@
-Current Suno financial workflow: **Sales & payments**, with staff earning **20% of song payments, 50% of tips and 20% of paid revision fees**. See [Suno direct sales](docs/suno-direct-sales.md). This supersedes older notes about choosing Veo commission or Closed/Done targets. The retained Suno chatbot is unchanged.
+Current Suno financial workflow: **Sales & payments**, with staff earning **20% of song payments, 50% of tips and additional service payments, and 20% of paid revision fees**. See [Suno direct sales](docs/suno-direct-sales.md). This supersedes older notes about choosing Veo commission or Closed/Done targets. The retained Suno chatbot is unchanged.
 
 # Sunochatbot
 
